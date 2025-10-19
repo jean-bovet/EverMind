@@ -8,12 +8,11 @@ const { createSpinner, success, colors } = require('./output-formatter');
  * @param {string} fileName - Name of the file
  * @param {string} fileType - Type of file
  * @param {string[]} existingTags - Existing tags from Evernote (optional)
- * @param {boolean} verbose - Enable verbose output
  * @param {boolean} debug - Enable debug output
  * @param {string} sourceFilePath - Path to source file (for debug output)
  * @returns {Promise<{description: string, tags: string[]}>}
  */
-async function analyzeContent(text, fileName, fileType, existingTags = [], verbose = false, debug = false, sourceFilePath = null) {
+async function analyzeContent(text, fileName, fileType, existingTags = [], debug = false, sourceFilePath = null) {
   const ollamaHost = process.env.OLLAMA_HOST || 'http://localhost:11434';
   const model = process.env.OLLAMA_MODEL || 'mistral';  // Default: mistral for French/English support
   const customInstructions = process.env.AI_CUSTOM_INSTRUCTIONS || '';
@@ -23,15 +22,12 @@ async function analyzeContent(text, fileName, fileType, existingTags = [], verbo
   const numCtx = parseInt(process.env.OLLAMA_NUM_CTX || '4096', 10);
 
   // Ensure Ollama is installed, running, and has the required model
-  await ensureOllamaReady(model, ollamaHost, verbose);
+  await ensureOllamaReady(model, ollamaHost);
 
   const ollama = new Ollama({ host: ollamaHost });
 
-  // Use spinner if verbose mode is enabled
-  let spinner;
-  if (verbose) {
-    spinner = createSpinner(`Analyzing content with Ollama (${colors.highlight(model)})`).start();
-  }
+  // Show analysis progress
+  const spinner = createSpinner(`Analyzing content with Ollama (${colors.highlight(model)})`).start();
 
   // Truncate text if too long to avoid token limits
   const maxLength = 4000;
@@ -75,10 +71,10 @@ Respond ONLY with the JSON object, no additional text.`;
 
   // Save prompt if debug mode is enabled
   if (debug && sourceFilePath) {
-    if (verbose && spinner) spinner.stop();
+    spinner.stop();
     const { saveDebugFile } = require('./debug-helper');
     await saveDebugFile(sourceFilePath, 'prompt', prompt);
-    if (verbose && spinner) spinner.start();
+    spinner.start();
   }
 
   try {
@@ -96,7 +92,7 @@ Respond ONLY with the JSON object, no additional text.`;
 
     // Save response if debug mode is enabled
     if (debug && sourceFilePath) {
-      if (verbose && spinner) spinner.stop();
+      spinner.stop();
       const { saveDebugFile } = require('./debug-helper');
       await saveDebugFile(sourceFilePath, 'response', response.response);
     }
@@ -104,15 +100,11 @@ Respond ONLY with the JSON object, no additional text.`;
     // Parse the AI response
     const result = parseAIResponse(response.response);
 
-    if (verbose && spinner) {
-      spinner.succeed('AI analysis completed successfully');
-    }
+    spinner.succeed('AI analysis completed successfully');
 
     return result;
   } catch (error) {
-    if (verbose && spinner) {
-      spinner.fail('AI analysis failed');
-    }
+    spinner.fail('AI analysis failed');
     throw new Error(`Failed to analyze content with Ollama: ${error.message}`);
   }
 }

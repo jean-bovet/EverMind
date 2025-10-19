@@ -78,16 +78,11 @@ function isOllamaRunning(host = 'http://localhost:11434') {
 /**
  * Start Ollama server in the background
  * @param {string} ollamaPath - Path to Ollama binary
- * @param {boolean} verbose - Enable verbose output with stepItem formatting
  * @returns {Promise<void>}
  */
-function startOllama(ollamaPath, verbose = false) {
+function startOllama(ollamaPath) {
   return new Promise((resolve, reject) => {
-    if (verbose) {
-      console.log('  ' + info('Starting Ollama server...'));
-    } else {
-      console.log(info('Starting Ollama server...'));
-    }
+    console.log('  ' + info('Starting Ollama server...'));
 
     ollamaProcess = spawn(ollamaPath, ['serve'], {
       detached: false,
@@ -102,11 +97,7 @@ function startOllama(ollamaPath, verbose = false) {
     setTimeout(async () => {
       if (await isOllamaRunning()) {
         wasStartedByUs = true;
-        if (verbose) {
-          console.log('  ' + success('Ollama server started successfully'));
-        } else {
-          console.log(success('Ollama server started successfully\n'));
-        }
+        console.log('  ' + success('Ollama server started successfully'));
         resolve();
       } else {
         reject(new Error('Ollama started but is not responding'));
@@ -134,16 +125,11 @@ function isModelAvailable(model, ollamaPath) {
  * Pull a model from Ollama registry
  * @param {string} model - Model name to pull
  * @param {string} ollamaPath - Path to Ollama binary
- * @param {boolean} verbose - Enable verbose output with stepItem formatting
  * @returns {Promise<void>}
  */
-function pullModel(model, ollamaPath, verbose = false) {
+function pullModel(model, ollamaPath) {
   return new Promise((resolve, reject) => {
-    if (verbose) {
-      console.log('  ' + info(`Downloading model "${colors.highlight(model)}"... This may take a few minutes.`));
-    } else {
-      console.log(info(`Downloading model "${colors.highlight(model)}"... This may take a few minutes.`));
-    }
+    console.log('  ' + info(`Downloading model "${colors.highlight(model)}"... This may take a few minutes.`));
 
     const pullProcess = spawn(ollamaPath, ['pull', model], {
       stdio: 'inherit'
@@ -151,11 +137,7 @@ function pullModel(model, ollamaPath, verbose = false) {
 
     pullProcess.on('close', (code) => {
       if (code === 0) {
-        if (verbose) {
-          console.log('  ' + success(`Model "${model}" downloaded successfully`));
-        } else {
-          console.log(success(`Model "${model}" downloaded successfully\n`));
-        }
+        console.log('  ' + success(`Model "${model}" downloaded successfully`));
         resolve();
       } else {
         reject(new Error(`Failed to download model "${model}"`));
@@ -172,10 +154,9 @@ function pullModel(model, ollamaPath, verbose = false) {
  * Ensure Ollama is ready (installed, running, and has the required model)
  * @param {string} model - Model name to check/download
  * @param {string} host - Ollama host URL
- * @param {boolean} verbose - Enable verbose output with stepItem formatting
  * @returns {Promise<void>}
  */
-async function ensureOllamaReady(model, host = 'http://localhost:11434', verbose = false) {
+async function ensureOllamaReady(model, host = 'http://localhost:11434') {
   // Step 1: Check if Ollama is installed
   const ollamaPath = findOllamaBinary();
   if (!ollamaPath) {
@@ -187,38 +168,22 @@ async function ensureOllamaReady(model, host = 'http://localhost:11434', verbose
     );
   }
 
-  if (verbose) {
-    console.log('  ' + success(`Ollama found at: ${colors.muted(ollamaPath)}`));
-  } else {
-    console.log(success(`Ollama found at: ${colors.muted(ollamaPath)}`));
-  }
+  console.log('  ' + success(`Ollama found at: ${colors.muted(ollamaPath)}`));
 
   // Step 2: Check if Ollama is running
   const running = await isOllamaRunning(host);
   if (!running) {
-    await startOllama(ollamaPath, verbose);
+    await startOllama(ollamaPath);
   } else {
-    if (verbose) {
-      console.log('  ' + success('Ollama is already running'));
-    } else {
-      console.log(success('Ollama is already running\n'));
-    }
+    console.log('  ' + success('Ollama is already running'));
   }
 
   // Step 3: Check if the required model is available
   if (!isModelAvailable(model, ollamaPath)) {
-    if (verbose) {
-      console.log('  ' + info(`Model "${colors.highlight(model)}" not found locally.`));
-    } else {
-      console.log(info(`Model "${colors.highlight(model)}" not found locally.`));
-    }
-    await pullModel(model, ollamaPath, verbose);
+    console.log('  ' + info(`Model "${colors.highlight(model)}" not found locally.`));
+    await pullModel(model, ollamaPath);
   } else {
-    if (verbose) {
-      console.log('  ' + success(`Model "${colors.highlight(model)}" is available`));
-    } else {
-      console.log(success(`Model "${colors.highlight(model)}" is available\n`));
-    }
+    console.log('  ' + success(`Model "${colors.highlight(model)}" is available`));
   }
 }
 

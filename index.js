@@ -28,7 +28,6 @@ program
   .description('Import files to Evernote with AI-generated descriptions and tags')
   .version('1.0.0')
   .argument('[file]', 'path to the file to import')
-  .option('-v, --verbose', 'enable verbose output')
   .option('--debug', 'save debug output (extracted text, prompt, response) next to source file')
   .option('--auth', 'authenticate with Evernote (first-time setup)')
   .option('--logout', 'remove stored authentication token')
@@ -86,7 +85,7 @@ program
       }
 
       // Import the file
-      await importFile(filePath, options.verbose, options.debug);
+      await importFile(filePath, options.debug);
 
       // Cleanup: Stop Ollama if we started it and --keep-ollama is not set
       if (!options.keepOllama && wasOllamaStartedByUs()) {
@@ -107,7 +106,7 @@ program
 /**
  * Main function to import a file to Evernote
  */
-async function importFile(filePath, verbose = false, debug = false) {
+async function importFile(filePath, debug = false) {
   const absolutePath = path.resolve(filePath);
   const startTime = Date.now();
 
@@ -120,38 +119,32 @@ async function importFile(filePath, verbose = false, debug = false) {
 
   console.log(`\n${colors.accent.bold('📄 Processing file:')} ${colors.highlight(path.basename(filePath))}\n`);
 
-  // Step 1: Fetch existing tags from Evernote
-  const step1Start = Date.now();
-  let spinner;
-  if (verbose) {
-    console.log(stepHeader(1, 'Fetching Tags'));
-    spinner = createSpinner('Fetching existing tags from Evernote').start();
+  // Show debug mode status if enabled
+  if (debug) {
+    console.log(`${colors.info('ℹ Debug mode enabled - saving intermediate files')}\n`);
   }
+
+  // Step 1: Fetch existing tags from Evernote
+  console.log(stepHeader(1, 'Fetching Tags'));
+  const spinner = createSpinner('Fetching existing tags from Evernote').start();
 
   let existingTags = [];
   try {
     existingTags = await listTags();
-    if (verbose) {
-      spinner.succeed(`Tags fetched successfully - Found ${colors.highlight(existingTags.length)} existing tags`);
-    }
+    spinner.succeed(`Tags fetched successfully - Found ${colors.highlight(existingTags.length)} existing tags`);
   } catch (error) {
-    if (verbose && spinner) spinner.fail('Could not fetch tags');
+    spinner.fail('Could not fetch tags');
     console.warn(warning(`Could not fetch existing tags: ${error.message}`));
     console.warn(warning('Will proceed without tag filtering.\n'));
   }
 
   // Step 2: Extract file content
-  const step2Start = Date.now();
-  if (verbose) {
-    console.log(stepHeader(2, 'Extracting Content'));
-    spinner = createSpinner('Extracting file content').start();
-  }
+  console.log(stepHeader(2, 'Extracting Content'));
+  spinner.start('Extracting file content');
 
   const { text, fileType, fileName } = await extractFileContent(absolutePath);
 
-  if (verbose) {
-    spinner.succeed('Content extracted successfully');
-  }
+  spinner.succeed('Content extracted successfully');
 
   // Save extracted text if debug mode is enabled
   if (debug) {
@@ -159,18 +152,15 @@ async function importFile(filePath, verbose = false, debug = false) {
     await saveDebugFile(absolutePath, 'extracted', text);
   }
 
-  if (verbose) {
-    console.log(`  Type: ${colors.highlight(fileType)}`);
-    console.log(`  Size: ${colors.highlight(text.length + ' characters')}`);
-    console.log('');
-    console.log(formatTextPreview(text, fileType, 500));
-  }
+  console.log(`  Type: ${colors.highlight(fileType)}`);
+  console.log(`  Size: ${colors.highlight(text.length + ' characters')}`);
+  console.log('');
+  console.log(formatTextPreview(text, fileType, 500));
 
   // Step 3: Analyze content with AI (using existing tags)
-  const step3Start = Date.now();
-  if (verbose) console.log(stepHeader(3, 'Analyzing with AI'));
+  console.log(stepHeader(3, 'Analyzing with AI'));
 
-  const { description, tags: aiTags } = await analyzeContent(text, fileName, fileType, existingTags, verbose, debug, absolutePath);
+  const { description, tags: aiTags } = await analyzeContent(text, fileName, fileType, existingTags, debug, absolutePath);
 
   // Filter to ensure only existing tags are used
   const validTags = existingTags.length > 0
@@ -180,21 +170,16 @@ async function importFile(filePath, verbose = false, debug = false) {
   // Warn if tags were filtered out
   if (existingTags.length > 0 && validTags.length < aiTags.length) {
     const filteredTags = aiTags.filter(tag => !existingTags.includes(tag));
-    if (verbose) {
-      console.log(`  Filtered out non-existing tags: ${filteredTags.join(', ')}`);
-    }
+    console.log(`  Filtered out non-existing tags: ${filteredTags.join(', ')}`);
   }
 
   // Display AI results
   console.log(formatAIResults(description, validTags));
 
   // Step 4: Create Evernote note
-  const step4Start = Date.now();
-  if (verbose) {
-    console.log(stepHeader(4, 'Creating Evernote Note'));
-  }
+  console.log(stepHeader(4, 'Creating Evernote Note'));
 
-  const noteUrl = await createNote(absolutePath, fileName, description, validTags, verbose);
+  const noteUrl = await createNote(absolutePath, fileName, description, validTags);
 
   // Final success message
   const totalTime = ((Date.now() - startTime) / 1000).toFixed(2);

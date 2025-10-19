@@ -15,7 +15,7 @@ async function saveDebugFile(sourceFilePath, suffix, content) {
     const debugFilePath = path.join(dir, `${basename}-${suffix}.txt`);
 
     await fs.writeFile(debugFilePath, content, 'utf8');
-    console.log(`Debug: Saved ${suffix} to ${debugFilePath}`);
+    // Silently save debug files - status shown at start of processing
   } catch (error) {
     console.warn(`Warning: Failed to save debug file (${suffix}): ${error.message}`);
   }

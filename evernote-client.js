@@ -10,10 +10,9 @@ const { createSpinner, success, colors } = require('./output-formatter');
  * @param {string} fileName - Name of the file
  * @param {string} description - AI-generated description
  * @param {string[]} tags - AI-generated tags
- * @param {boolean} verbose - Enable verbose output
  * @returns {Promise<string>} - URL to the created note
  */
-async function createNote(filePath, fileName, description, tags, verbose = false) {
+async function createNote(filePath, fileName, description, tags) {
   const token = await getToken();
   const endpoint = process.env.EVERNOTE_ENDPOINT || 'https://www.evernote.com';
 
@@ -32,10 +31,7 @@ async function createNote(filePath, fileName, description, tags, verbose = false
 
   const noteStore = client.getNoteStore();
 
-  let spinner;
-  if (verbose) {
-    spinner = createSpinner('Creating note in Evernote').start();
-  }
+  const spinner = createSpinner('Creating note in Evernote').start();
 
   try {
     // Read file data for attachment
@@ -62,17 +58,13 @@ async function createNote(filePath, fileName, description, tags, verbose = false
 
     const noteUrl = `${endpoint}/Home.action#n=${createdNote.guid}`;
 
-    if (verbose && spinner) {
-      spinner.succeed('Note created successfully');
-      console.log(`  Note GUID: ${colors.muted(createdNote.guid)}`);
-    }
+    spinner.succeed('Note created successfully');
+    console.log(`  Note GUID: ${colors.muted(createdNote.guid)}`);
 
     return noteUrl;
 
   } catch (error) {
-    if (verbose && spinner) {
-      spinner.fail('Failed to create note');
-    }
+    spinner.fail('Failed to create note');
 
     // Better error handling for Evernote API errors
     console.error('Evernote API Error:', error);
