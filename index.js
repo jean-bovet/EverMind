@@ -124,8 +124,10 @@ async function importFile(filePath, verbose = false) {
 
   if (verbose) {
     console.log(`  - File type: ${fileType}`);
-    console.log(`  - Content length: ${text.length} characters`);
-    console.log(`  - Preview: ${text.substring(0, 100)}...\n`);
+    console.log(`  - Content length: ${text.length} characters\n`);
+    console.log('--- EXTRACTED TEXT (before AI analysis) ---');
+    console.log(text);
+    console.log('--- END EXTRACTED TEXT ---\n');
   }
 
   // Step 3: Analyze content with AI (using existing tags)
