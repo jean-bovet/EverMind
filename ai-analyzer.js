@@ -9,11 +9,14 @@ const { createSpinner, success, stepItem, colors } = require('./output-formatter
  * @param {string} fileType - Type of file
  * @param {string[]} existingTags - Existing tags from Evernote (optional)
  * @param {boolean} verbose - Enable verbose output
+ * @param {boolean} debug - Enable debug output
+ * @param {string} sourceFilePath - Path to source file (for debug output)
  * @returns {Promise<{description: string, tags: string[]}>}
  */
-async function analyzeContent(text, fileName, fileType, existingTags = [], verbose = false) {
+async function analyzeContent(text, fileName, fileType, existingTags = [], verbose = false, debug = false, sourceFilePath = null) {
   const ollamaHost = process.env.OLLAMA_HOST || 'http://localhost:11434';
   const model = process.env.OLLAMA_MODEL || 'mistral';  // Default: mistral for French/English support
+  const customInstructions = process.env.AI_CUSTOM_INSTRUCTIONS || '';
 
   // Ensure Ollama is installed, running, and has the required model
   await ensureOllamaReady(model, ollamaHost);
@@ -42,13 +45,18 @@ ${existingTags.join(', ')}
 IMPORTANT: You MUST select tags ONLY from the existing tags list above. Do NOT create new tags.`
     : `2. 5-7 relevant tags/keywords that categorize this content`;
 
+  // Build custom instructions section
+  const customSection = customInstructions
+    ? `\n\nADDITIONAL INSTRUCTIONS:\n${customInstructions}\n`
+    : '';
+
   const prompt = `You are analyzing a file named "${fileName}" of type "${fileType}".
 
 CRITICAL INSTRUCTION: You MUST respond in the SAME LANGUAGE as the file content below. If the content is in French, write your entire response in French. If in English, write in English. Match the language exactly.
 
 File content:
 ${truncatedText}
-
+${customSection}
 Please analyze this content and provide:
 1. A description of what this file contains. Include important information such as: location, date, names, amounts, and other key details.
 ${tagInstructions}
@@ -61,12 +69,24 @@ Format your response as JSON:
 
 Respond ONLY with the JSON object, no additional text.`;
 
+  // Save prompt if debug mode is enabled
+  if (debug && sourceFilePath) {
+    const { saveDebugFile } = require('./debug-helper');
+    await saveDebugFile(sourceFilePath, 'prompt', prompt);
+  }
+
   try {
     const response = await ollama.generate({
       model: model,
       prompt: prompt,
       stream: false
     });
+
+    // Save response if debug mode is enabled
+    if (debug && sourceFilePath) {
+      const { saveDebugFile } = require('./debug-helper');
+      await saveDebugFile(sourceFilePath, 'response', response.response);
+    }
 
     // Parse the AI response
     const result = parseAIResponse(response.response);

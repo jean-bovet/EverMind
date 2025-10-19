@@ -31,6 +31,7 @@ program
   .version('1.0.0')
   .argument('[file]', 'path to the file to import')
   .option('-v, --verbose', 'enable verbose output')
+  .option('--debug', 'save debug output (extracted text, prompt, response) next to source file')
   .option('--auth', 'authenticate with Evernote (first-time setup)')
   .option('--logout', 'remove stored authentication token')
   .option('--list-tags', 'list all existing tags from Evernote')
@@ -87,7 +88,7 @@ program
       }
 
       // Import the file
-      await importFile(filePath, options.verbose);
+      await importFile(filePath, options.verbose, options.debug);
 
       // Cleanup: Stop Ollama if we started it and --keep-ollama is not set
       if (!options.keepOllama && wasOllamaStartedByUs()) {
@@ -108,7 +109,7 @@ program
 /**
  * Main function to import a file to Evernote
  */
-async function importFile(filePath, verbose = false) {
+async function importFile(filePath, verbose = false, debug = false) {
   const absolutePath = path.resolve(filePath);
   const startTime = Date.now();
 
@@ -152,6 +153,12 @@ async function importFile(filePath, verbose = false) {
 
   const { text, fileType, fileName } = await extractFileContent(absolutePath);
 
+  // Save extracted text if debug mode is enabled
+  if (debug) {
+    const { saveDebugFile } = require('./debug-helper');
+    await saveDebugFile(absolutePath, 'extracted', text);
+  }
+
   if (verbose) {
     spinner.succeed('Content extracted successfully');
     console.log(stepItem(`Type: ${colors.highlight(fileType)}`));
@@ -165,7 +172,7 @@ async function importFile(filePath, verbose = false) {
   const step3Start = Date.now();
   if (verbose) console.log(stepHeader(3, 'Analyzing with AI'));
 
-  const { description, tags: aiTags } = await analyzeContent(text, fileName, fileType, existingTags, verbose);
+  const { description, tags: aiTags } = await analyzeContent(text, fileName, fileType, existingTags, verbose, debug, absolutePath);
 
   // Filter to ensure only existing tags are used
   const validTags = existingTags.length > 0
