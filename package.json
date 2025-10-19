@@ -1,0 +1,33 @@
+{
+  "name": "evernote-ai-importer",
+  "version": "1.0.0",
+  "description": "Import files to Evernote with AI-generated descriptions and tags using local Ollama",
+  "main": "index.js",
+  "bin": {
+    "evernote-ai-importer": "./index.js"
+  },
+  "scripts": {
+    "start": "node index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "evernote",
+    "ai",
+    "ollama",
+    "import",
+    "automation",
+    "ocr"
+  ],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "commander": "^14.0.1",
+    "dotenv": "^17.2.3",
+    "evernote": "^2.0.5",
+    "mammoth": "^1.11.0",
+    "ollama": "^0.6.0",
+    "pdf-parse": "^2.4.3",
+    "tesseract.js": "^6.0.1"
+  }
+}
