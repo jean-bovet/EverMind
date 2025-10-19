@@ -11,7 +11,7 @@ const { ensureOllamaReady } = require('./ollama-manager');
  */
 async function analyzeContent(text, fileName, fileType, existingTags = []) {
   const ollamaHost = process.env.OLLAMA_HOST || 'http://localhost:11434';
-  const model = process.env.OLLAMA_MODEL || 'llama2';
+  const model = process.env.OLLAMA_MODEL || 'mistral';  // Default: mistral for French/English support
 
   // Ensure Ollama is installed, running, and has the required model
   await ensureOllamaReady(model, ollamaHost);

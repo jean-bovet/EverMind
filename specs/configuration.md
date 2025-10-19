@@ -106,39 +106,51 @@ EVERNOTE_ENDPOINT=https://sandbox.evernote.com
 
 **Type:** String
 
-**Required:** No (defaults to llama2)
+**Required:** No (defaults to mistral)
 
-**Default:** `llama2`
+**Default:** `mistral`
+
+**Recommended:** Use `mistral` for best multilingual support (French/English)
 
 **Valid Values:**
 ```bash
-llama2           # 7B parameter model, balanced performance
-llama2:13b       # 13B parameter model, more accurate, slower
-mistral          # Alternative model, faster
+mistral          # Best for French/English multilingual documents (recommended)
+llama2           # 7B parameter model, English-biased
+llama2:13b       # 13B parameter model, more accurate but slower, English-biased
 codellama        # Specialized for code analysis
 phi              # Smaller, faster model
 ```
 
 **Model Characteristics:**
 
-| Model | Size | Speed | Accuracy | Use Case |
-|-------|------|-------|----------|----------|
-| llama2 | ~4GB | Medium | Good | General purpose (default) |
-| llama2:13b | ~7GB | Slow | Excellent | Best quality |
-| mistral | ~4GB | Fast | Good | Quick processing |
-| codellama | ~4GB | Medium | Good | Code files |
-| phi | ~2GB | Very Fast | Fair | Resource-constrained |
+| Model | Size | Speed | Accuracy | Languages | Use Case |
+|-------|------|-------|----------|-----------|----------|
+| mistral | ~4GB | Fast | Excellent | French/English native | Multilingual documents (recommended) |
+| llama2 | ~4GB | Medium | Good | English-biased | English-only documents |
+| llama2:13b | ~7GB | Slow | Excellent | English-biased | High-quality English analysis |
+| codellama | ~4GB | Medium | Good | Code/English | Code files |
+| phi | ~2GB | Very Fast | Fair | English | Resource-constrained |
+
+**Why Mistral?**
+
+Mistral was chosen as the default model because:
+1. **Native French support**: Mistral is developed by Mistral AI (France) and has native French language capabilities
+2. **Strong multilingual performance**: Handles both French and English documents without language bias
+3. **Language preservation**: Generates descriptions in the same language as the source document
+4. **Tested and verified**: Successfully extracts French content while preserving language and details
+
+In testing, llama2 exhibited strong English bias, generating English descriptions even for French documents. Mistral correctly maintains the source document language.
 
 **Example:**
 ```bash
-# Default balanced option
+# Recommended default (multilingual French/English)
+OLLAMA_MODEL=mistral
+
+# English-only documents
 OLLAMA_MODEL=llama2
 
-# For best quality
+# Best quality (English-biased)
 OLLAMA_MODEL=llama2:13b
-
-# For speed
-OLLAMA_MODEL=mistral
 ```
 
 **Automatic Download:**
@@ -449,12 +461,17 @@ Found 103 tags:
 
 ### Performance Tuning
 
-**For Speed:**
+**For French/English Documents (Recommended):**
 ```bash
 OLLAMA_MODEL=mistral
 ```
 
-**For Quality:**
+**For English-Only Documents:**
+```bash
+OLLAMA_MODEL=llama2
+```
+
+**For Best Quality (English-biased):**
 ```bash
 OLLAMA_MODEL=llama2:13b
 ```
@@ -514,7 +531,7 @@ Configuration loaded in this order (later overrides earlier):
 
 1. **Hardcoded defaults** in code
    ```javascript
-   const model = process.env.OLLAMA_MODEL || 'llama2';
+   const model = process.env.OLLAMA_MODEL || 'mistral';
    ```
 
 2. **Environment variables** from `.env` file
@@ -529,13 +546,13 @@ Configuration loaded in this order (later overrides earlier):
 
 **Example:**
 ```javascript
-// Code default
-const model = process.env.OLLAMA_MODEL || 'llama2';
+// Code default (updated to mistral for multilingual support)
+const model = process.env.OLLAMA_MODEL || 'mistral';
 
-// .env file sets
-OLLAMA_MODEL=mistral
+// .env file can override
+OLLAMA_MODEL=llama2
 
-// System environment overrides
+// System environment overrides all
 $ export OLLAMA_MODEL=codellama
 $ node index.js file.pdf  # Uses codellama
 ```
@@ -586,7 +603,7 @@ Error: Ollama is not installed. Download from https://ollama.ai
 EVERNOTE_CONSUMER_KEY=notelytics-3327
 EVERNOTE_CONSUMER_SECRET=511c92235c7d8c25ae6ac7736337985947fe7302c5cf6423baad1034
 EVERNOTE_ENDPOINT=https://www.evernote.com
-OLLAMA_MODEL=llama2
+OLLAMA_MODEL=mistral
 OLLAMA_HOST=http://localhost:11434
 ```
 
@@ -597,7 +614,7 @@ OLLAMA_HOST=http://localhost:11434
 EVERNOTE_CONSUMER_KEY=sandbox-app-1234
 EVERNOTE_CONSUMER_SECRET=abcdef123456789...
 EVERNOTE_ENDPOINT=https://sandbox.evernote.com
-OLLAMA_MODEL=llama2
+OLLAMA_MODEL=mistral
 OLLAMA_HOST=http://localhost:11434
 ```
 

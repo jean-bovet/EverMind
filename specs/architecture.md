@@ -327,9 +327,14 @@ index.js
 EVERNOTE_CONSUMER_KEY      # OAuth consumer key
 EVERNOTE_CONSUMER_SECRET   # OAuth consumer secret
 EVERNOTE_ENDPOINT          # API endpoint (prod/sandbox)
-OLLAMA_MODEL              # AI model name
+OLLAMA_MODEL              # AI model name (default: mistral for French/English support)
 OLLAMA_HOST               # Ollama API URL
 ```
+
+**Model Selection:**
+- **Default: mistral** - Chosen for native French/English multilingual support
+- **Alternative: llama2** - English-biased, suitable for English-only documents
+- See configuration.md for detailed rationale and testing results
 
 ### Runtime State
 - `.evernote-token` - OAuth access token (persistent)

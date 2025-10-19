@@ -485,10 +485,29 @@ async function isOllamaRunning(host) {
 ### Model Management
 
 **Model Naming:**
-- `llama2` → Latest version (llama2:latest)
+- `mistral` → Recommended (multilingual French/English support)
+- `llama2` → Latest version (llama2:latest), English-biased
 - `llama2:7b` → Specific size variant
 - `llama2:13b` → Larger variant
-- `mistral` → Different model family
+- `codellama` → Specialized for code
+
+**Model Selection Rationale:**
+
+The application defaults to **Mistral** for the following reasons:
+
+1. **Multilingual Capability**: Mistral AI (France-based) provides native French language support
+2. **Language Preservation**: Maintains source document language in generated descriptions
+3. **No English Bias**: Unlike llama2, Mistral doesn't default to English for non-English content
+4. **Proven Performance**: Successfully tested with French documents, correctly extracting:
+   - Amounts (CHF 540,00)
+   - Dates (05.09.2024)
+   - Names (Audrey Bovet, Jean Bovet)
+   - Organizations (Académie MDC, Banque Cantonale Neuchâteloise)
+   - All in original French language
+
+**Testing Results:**
+- **llama2**: Generated English descriptions for French documents (language bias issue)
+- **mistral**: Generated French descriptions for French documents (correct behavior)
 
 **Model Storage:**
 - Location: `~/.ollama/models/`
@@ -497,7 +516,7 @@ async function isOllamaRunning(host) {
 
 **Application Configuration:**
 ```javascript
-const model = process.env.OLLAMA_MODEL || 'llama2';
+const model = process.env.OLLAMA_MODEL || 'mistral';  // Changed from llama2
 ```
 
 ### Performance Characteristics

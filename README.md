@@ -4,12 +4,13 @@ A Node.js CLI application that analyzes files using local AI (Ollama) and import
 
 ## Features
 
+- **Multilingual Support**: Native French and English support using Mistral AI - generates descriptions in the same language as your documents
 - **Fully Automated**: Auto-starts Ollama and downloads models as needed - no manual setup!
 - **Local AI Analysis**: Uses Ollama for completely private, local AI processing
 - **OAuth Authentication**: Secure OAuth 1.0a authentication with Evernote
 - **Multiple File Types**: Supports PDF, TXT, Markdown, DOCX, and images (PNG, JPG, etc.)
 - **OCR Support**: Extracts text from images using Tesseract.js
-- **Smart Tagging**: Automatically generates relevant tags for your content
+- **Smart Tagging**: Automatically selects from your existing Evernote tags to maintain consistency
 - **Privacy First**: All AI processing happens locally on your machine
 - **Easy Integration**: Direct integration with Evernote API
 
@@ -46,7 +47,7 @@ A Node.js CLI application that analyzes files using local AI (Ollama) and import
    EVERNOTE_CONSUMER_KEY=your_consumer_key_here
    EVERNOTE_CONSUMER_SECRET=your_consumer_secret_here
    EVERNOTE_ENDPOINT=https://www.evernote.com
-   OLLAMA_MODEL=llama2
+   OLLAMA_MODEL=mistral
    OLLAMA_HOST=http://localhost:11434
    ```
 

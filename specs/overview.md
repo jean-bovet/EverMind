@@ -24,33 +24,43 @@ The Evernote AI Importer automates this entire workflow by:
 
 ## Key Features
 
-### 1. Multi-Format Support
+### 1. Multilingual AI Analysis
+- **French and English native support** using Mistral AI model
+- Preserves source document language in generated descriptions
+- Tested and verified with French financial documents
+- Extracts important details: dates, amounts, names, locations
+- No language bias (unlike English-only models)
+
+### 2. Multi-Format Support
 - **PDF**: Text extraction using pdf-parse library
 - **Microsoft Word**: DOCX parsing with Mammoth.js
 - **Text Files**: Direct reading of TXT, MD, Markdown files
 - **Images**: OCR text extraction using Tesseract.js (PNG, JPG, JPEG, GIF, BMP, TIFF)
 
-### 2. Local AI Processing
+### 3. Local AI Processing
 - Uses Ollama for completely private, local AI analysis
+- **Mistral AI as default**: Native French/English multilingual support
+- Generates descriptions in the same language as source documents
 - Auto-starts Ollama service when needed
 - Auto-downloads required AI models on first use
 - No data sent to external AI services
-- Supports multiple models (llama2, mistral, codellama, etc.)
+- Supports multiple models (mistral, llama2, codellama, etc.)
+- Extracts key details: dates, amounts, names, locations
 
-### 3. Smart Tag Management
+### 4. Smart Tag Management
 - Fetches existing tags from Evernote before analysis
 - AI selects only from existing tags to maintain consistency
 - Prevents tag proliferation and duplication
 - Validates all selected tags against existing tags
 - Command to view all existing tags
 
-### 4. OAuth Authentication
+### 5. OAuth Authentication
 - Secure OAuth 1.0a authentication with Evernote
 - Token stored locally for persistent access
 - Support for both production and sandbox environments
 - Interactive authentication flow with browser-based authorization
 
-### 5. Automated Ollama Management
+### 6. Automated Ollama Management
 - Detects if Ollama is installed
 - Checks if Ollama is already running
 - Auto-starts Ollama if needed
