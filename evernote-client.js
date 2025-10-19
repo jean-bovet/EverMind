@@ -7,12 +7,12 @@ const { createSpinner, success, colors } = require('./output-formatter');
 /**
  * Create a note in Evernote with the file and AI-generated metadata
  * @param {string} filePath - Path to the original file
- * @param {string} fileName - Name of the file
+ * @param {string} title - AI-generated title for the note
  * @param {string} description - AI-generated description
  * @param {string[]} tags - AI-generated tags
  * @returns {Promise<string>} - URL to the created note
  */
-async function createNote(filePath, fileName, description, tags) {
+async function createNote(filePath, title, description, tags) {
   const token = await getToken();
   const endpoint = process.env.EVERNOTE_ENDPOINT || 'https://www.evernote.com';
 
@@ -38,13 +38,15 @@ async function createNote(filePath, fileName, description, tags) {
     const fileData = await fs.readFile(filePath);
     const fileHash = createMD5Hash(fileData);
 
+    // Extract filename from path for attachment display
+    const fileName = path.basename(filePath);
+
     // Create note with ENML content
-    const noteTitle = fileName;
     const noteBody = createNoteContent(description, fileName, fileData, fileHash);
 
     // Create the note object
     const note = new Evernote.Types.Note({
-      title: noteTitle,
+      title: title,
       content: noteBody,
       tagNames: tags
     });

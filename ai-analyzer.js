@@ -3,14 +3,14 @@ const { ensureOllamaReady } = require('./ollama-manager');
 const { createSpinner, success, colors } = require('./output-formatter');
 
 /**
- * Analyze file content using Ollama AI to generate description and tags
+ * Analyze file content using Ollama AI to generate title, description and tags
  * @param {string} text - Extracted text from file
  * @param {string} fileName - Name of the file
  * @param {string} fileType - Type of file
  * @param {string[]} existingTags - Existing tags from Evernote (optional)
  * @param {boolean} debug - Enable debug output
  * @param {string} sourceFilePath - Path to source file (for debug output)
- * @returns {Promise<{description: string, tags: string[]}>}
+ * @returns {Promise<{title: string, description: string, tags: string[]}>}
  */
 async function analyzeContent(text, fileName, fileType, existingTags = [], debug = false, sourceFilePath = null) {
   const ollamaHost = process.env.OLLAMA_HOST || 'http://localhost:11434';
@@ -58,11 +58,13 @@ File content:
 ${truncatedText}
 ${customSection}
 Please analyze this content and provide:
-1. A description of what this file contains. Include important information such as: location, date, names, amounts, and other key details.
+1. A single-sentence title that meaningfully describes this document (not the filename, but what it's about)
+2. A description of what this file contains. Include important information such as: location, date, names, amounts, and other key details.
 ${tagInstructions}
 
 Format your response as JSON:
 {
+  "title": "your meaningful title here",
   "description": "your description here",
   "tags": ["tag1", "tag2", "tag3"]
 }
@@ -110,9 +112,9 @@ Respond ONLY with the JSON object, no additional text.`;
 }
 
 /**
- * Parse AI response and extract description and tags
+ * Parse AI response and extract title, description and tags
  * @param {string} response - Raw response from Ollama
- * @returns {{description: string, tags: string[]}}
+ * @returns {{title: string, description: string, tags: string[]}}
  */
 function parseAIResponse(response) {
   try {
@@ -123,6 +125,7 @@ function parseAIResponse(response) {
       const parsed = JSON.parse(jsonMatch[0]);
 
       return {
+        title: parsed.title || 'Untitled Document',
         description: parsed.description || 'No description provided',
         tags: Array.isArray(parsed.tags) ? parsed.tags : []
       };
@@ -131,6 +134,7 @@ function parseAIResponse(response) {
     // Fallback: try to parse the entire response
     const parsed = JSON.parse(response);
     return {
+      title: parsed.title || 'Untitled Document',
       description: parsed.description || 'No description provided',
       tags: Array.isArray(parsed.tags) ? parsed.tags : []
     };
@@ -140,6 +144,7 @@ function parseAIResponse(response) {
     console.warn('Could not parse AI response as JSON, using fallback parsing.');
 
     return {
+      title: 'Imported Document',
       description: response.substring(0, 200) || 'File content analyzed',
       tags: ['document', 'imported']
     };

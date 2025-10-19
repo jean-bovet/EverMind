@@ -27,7 +27,7 @@ program
   .name('evernote-ai-importer')
   .description('Import files to Evernote with AI-generated descriptions and tags')
   .version('1.0.0')
-  .argument('[file]', 'path to the file to import')
+  .argument('[file]', 'path to a file or folder to import')
   .option('--debug', 'save debug output (extracted text, prompt, response) next to source file')
   .option('--auth', 'authenticate with Evernote (first-time setup)')
   .option('--logout', 'remove stored authentication token')
@@ -71,9 +71,9 @@ program
         return;
       }
 
-      // Check if file path is provided
+      // Check if file/folder path is provided
       if (!filePath) {
-        console.error('\n❌ Error: Please provide a file path or use --auth to authenticate\n');
+        console.error('\n❌ Error: Please provide a file or folder path, or use --auth to authenticate\n');
         program.help();
         process.exit(1);
       }
@@ -84,8 +84,19 @@ program
         process.exit(1);
       }
 
-      // Import the file
-      await importFile(filePath, options.debug);
+      // Check if path is a file or folder
+      const absolutePath = path.resolve(filePath);
+      const stats = await fs.stat(absolutePath);
+
+      if (stats.isDirectory()) {
+        // Process folder batch
+        await processFolderBatch(absolutePath, options.debug);
+      } else if (stats.isFile()) {
+        // Import single file
+        await importFile(absolutePath, options.debug);
+      } else {
+        throw new Error(`Path is neither a file nor a directory: ${filePath}`);
+      }
 
       // Cleanup: Stop Ollama if we started it and --keep-ollama is not set
       if (!options.keepOllama && wasOllamaStartedByUs()) {
@@ -102,6 +113,141 @@ program
       process.exit(1);
     }
   });
+
+/**
+ * Supported file extensions for processing
+ */
+const SUPPORTED_EXTENSIONS = ['.pdf', '.txt', '.md', '.markdown', '.docx', '.png', '.jpg', '.jpeg', '.gif', '.bmp', '.tiff'];
+
+/**
+ * Recursively scan folder for supported files
+ * @param {string} folderPath - Path to folder to scan
+ * @returns {Promise<string[]>} - Array of absolute file paths
+ */
+async function scanFolderForFiles(folderPath) {
+  const files = [];
+
+  async function scan(dir) {
+    const entries = await fs.readdir(dir, { withFileTypes: true });
+
+    for (const entry of entries) {
+      const fullPath = path.join(dir, entry.name);
+
+      if (entry.isDirectory()) {
+        await scan(fullPath); // Recursive
+      } else if (entry.isFile()) {
+        const ext = path.extname(entry.name).toLowerCase();
+        if (SUPPORTED_EXTENSIONS.includes(ext)) {
+          files.push(fullPath);
+        }
+      }
+    }
+  }
+
+  await scan(folderPath);
+  return files.sort(); // Sort for consistent ordering
+}
+
+/**
+ * Get user confirmation via command line
+ * @param {string} prompt - Prompt message
+ * @returns {Promise<boolean>} - True if user confirms
+ */
+async function getUserConfirmation(prompt) {
+  const readline = require('readline');
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout
+  });
+
+  return new Promise((resolve) => {
+    rl.question(prompt, (answer) => {
+      rl.close();
+      const response = answer.trim().toLowerCase();
+      resolve(response === 'y' || response === 'yes' || response === '');
+    });
+  });
+}
+
+/**
+ * Process all files in a folder
+ * @param {string} folderPath - Path to folder
+ * @param {boolean} debug - Enable debug mode
+ */
+async function processFolderBatch(folderPath, debug = false) {
+  const absolutePath = path.resolve(folderPath);
+  const startTime = Date.now();
+
+  console.log(`\n${colors.accent.bold('📁 Processing folder:')} ${colors.highlight(absolutePath)}\n`);
+
+  // Scan for files
+  const spinner = createSpinner('Scanning folder for supported files').start();
+  const files = await scanFolderForFiles(absolutePath);
+  spinner.succeed(`Found ${colors.highlight(files.length)} supported files`);
+
+  if (files.length === 0) {
+    console.log(`\n${warning('No supported files found in folder.')}\n`);
+    return;
+  }
+
+  // Display file list
+  console.log(`\n${colors.info('Files to process:')}`);
+  files.forEach((file, index) => {
+    const relativePath = path.relative(absolutePath, file);
+    console.log(`  ${colors.muted((index + 1).toString().padStart(3))}. ${relativePath}`);
+  });
+
+  // Get confirmation
+  const confirmed = await getUserConfirmation(`\n${colors.accent('Process ' + files.length + ' files? [Y/n]:')} `);
+
+  if (!confirmed) {
+    console.log(`\n${info('Batch processing cancelled.')}\n`);
+    return;
+  }
+
+  // Process files
+  console.log('');
+  const results = {
+    total: files.length,
+    successful: 0,
+    failed: [],
+  };
+
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i];
+    const relativePath = path.relative(absolutePath, file);
+
+    console.log(`\n${colors.accent.bold(`[${ i + 1}/${files.length}]`)} ${colors.highlight(relativePath)}`);
+
+    try {
+      await importFile(file, debug);
+      results.successful++;
+    } catch (error) {
+      results.failed.push({ file: relativePath, error: error.message });
+      console.error(`\n${colors.error('✗ Failed:')} ${error.message}\n`);
+    }
+  }
+
+  // Display summary
+  const totalTime = ((Date.now() - startTime) / 1000).toFixed(2);
+  console.log(`\n${'═'.repeat(80)}`);
+  console.log(colors.accent.bold('📊 Batch Processing Summary'));
+  console.log(`${'═'.repeat(80)}`);
+  console.log(`${colors.info('Total files:')}      ${colors.highlight(results.total)}`);
+  console.log(`${colors.success('✓ Successful:')}   ${colors.highlight(results.successful)}`);
+  console.log(`${colors.error('✗ Failed:')}        ${colors.highlight(results.failed.length)}`);
+  console.log(`${colors.muted('Total time:')}     ${colors.highlight(totalTime + 's')}`);
+
+  if (results.failed.length > 0) {
+    console.log(`\n${colors.error('Failed files:')}`);
+    results.failed.forEach(({ file, error }) => {
+      console.log(`  ${colors.muted('•')} ${file}`);
+      console.log(`    ${colors.error('Error:')} ${error}`);
+    });
+  }
+
+  console.log('');
+}
 
 /**
  * Main function to import a file to Evernote
@@ -160,7 +306,7 @@ async function importFile(filePath, debug = false) {
   // Step 3: Analyze content with AI (using existing tags)
   console.log(stepHeader(3, 'Analyzing with AI'));
 
-  const { description, tags: aiTags } = await analyzeContent(text, fileName, fileType, existingTags, debug, absolutePath);
+  const { title, description, tags: aiTags } = await analyzeContent(text, fileName, fileType, existingTags, debug, absolutePath);
 
   // Filter to ensure only existing tags are used
   const validTags = existingTags.length > 0
@@ -174,12 +320,12 @@ async function importFile(filePath, debug = false) {
   }
 
   // Display AI results
-  console.log(formatAIResults(description, validTags));
+  console.log(formatAIResults(title, description, validTags));
 
   // Step 4: Create Evernote note
   console.log(stepHeader(4, 'Creating Evernote Note'));
 
-  const noteUrl = await createNote(absolutePath, fileName, description, validTags);
+  const noteUrl = await createNote(absolutePath, title, description, validTags);
 
   // Final success message
   const totalTime = ((Date.now() - startTime) / 1000).toFixed(2);

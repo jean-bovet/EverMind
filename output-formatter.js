@@ -210,16 +210,44 @@ function formatTextPreview(text, fileType, maxChars = 500, width = null) {
 
 /**
  * Format AI analysis results in a box
+ * @param {string} title - AI-generated title
  * @param {string} description - AI-generated description
  * @param {string[]} tags - AI-generated tags
  * @param {number} width - Width of the box (auto-detects if not provided)
  * @returns {string}
  */
-function formatAIResults(description, tags, width = null) {
+function formatAIResults(title, description, tags, width = null) {
   const actualWidth = width !== null ? width : getTerminalWidth();
   let result = '\n' + box.topLeft + box.horizontal + ' ' +
          colors.accent.bold('AI Analysis Results') + ' ' +
          horizontalLine(actualWidth - 24, box.horizontal) + box.topRight + '\n';
+
+  // Title header
+  const titleLabel = 'Title:';
+  const titleColored = colors.info.bold(titleLabel);
+  const titlePadding = actualWidth - titleLabel.length - 2;
+  result += box.vertical + ' ' + titleColored + ' '.repeat(titlePadding) + box.vertical + '\n';
+
+  // Word wrap title
+  const titleWords = title.split(' ');
+  let titleLine = '';
+  const maxLineWidth = actualWidth - 6;
+
+  titleWords.forEach(word => {
+    if ((titleLine + word).length > maxLineWidth) {
+      result += box.vertical + '   ' + titleLine.trim().padEnd(actualWidth - 6) + ' ' + box.vertical + '\n';
+      titleLine = word + ' ';
+    } else {
+      titleLine += word + ' ';
+    }
+  });
+
+  if (titleLine.trim().length > 0) {
+    result += box.vertical + '   ' + titleLine.trim().padEnd(actualWidth - 6) + ' ' + box.vertical + '\n';
+  }
+
+  // Spacing
+  result += box.vertical + ' '.repeat(actualWidth - 2) + box.vertical + '\n';
 
   // Description header
   const descLabel = 'Description:';
@@ -230,7 +258,6 @@ function formatAIResults(description, tags, width = null) {
   // Word wrap description
   const words = description.split(' ');
   let currentLine = '';
-  const maxLineWidth = actualWidth - 6;
 
   words.forEach(word => {
     if ((currentLine + word).length > maxLineWidth) {
