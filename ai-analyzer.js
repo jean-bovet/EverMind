@@ -18,6 +18,10 @@ async function analyzeContent(text, fileName, fileType, existingTags = [], verbo
   const model = process.env.OLLAMA_MODEL || 'mistral';  // Default: mistral for French/English support
   const customInstructions = process.env.AI_CUSTOM_INSTRUCTIONS || '';
 
+  // AI Model configuration parameters
+  const temperature = parseFloat(process.env.OLLAMA_TEMPERATURE || '0');
+  const numCtx = parseInt(process.env.OLLAMA_NUM_CTX || '4096', 10);
+
   // Ensure Ollama is installed, running, and has the required model
   await ensureOllamaReady(model, ollamaHost, verbose);
 
@@ -81,7 +85,13 @@ Respond ONLY with the JSON object, no additional text.`;
     const response = await ollama.generate({
       model: model,
       prompt: prompt,
-      stream: false
+      stream: false,
+      options: {
+        temperature: temperature,      // Control randomness (0 = deterministic)
+        num_ctx: numCtx,               // Context window size
+        top_p: 0.9,                    // Nucleus sampling
+        repeat_penalty: 1.1            // Prevent repetition
+      }
     });
 
     // Save response if debug mode is enabled

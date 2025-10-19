@@ -201,6 +201,57 @@ EVERNOTE_ENDPOINT=https://sandbox.evernote.com
 
 You'll need to request separate sandbox API credentials from Evernote for testing.
 
+## Advanced Configuration
+
+### Temperature Control
+
+Control the consistency of AI responses by setting `OLLAMA_TEMPERATURE` in `.env`:
+
+- `0.0` (recommended): Completely deterministic - same file always produces same results
+- `0.3`: Slight variation while maintaining consistency
+- `0.7`: Balanced creativity and consistency
+- `1.0+`: High creativity, useful for diverse tag suggestions
+
+**For consistent detection (e.g., family members, specific keywords), use `OLLAMA_TEMPERATURE=0`**
+
+### Context Window Size
+
+Adjust how much text the AI can process at once with `OLLAMA_NUM_CTX`:
+
+- `2048`: Default, suitable for most documents
+- `4096`: Better for longer documents (recommended)
+- `8192`: Maximum context for very long files (slower, more memory)
+
+### Using Larger Models
+
+For better accuracy in detecting people, dates, and details:
+
+1. **Llama 3.1 8B** (easy upgrade, similar speed):
+   ```bash
+   ollama pull llama3.1:8b
+   ```
+   Then set in `.env`: `OLLAMA_MODEL=llama3.1:8b`
+
+2. **Mixtral 8x7B** (best balance):
+   ```bash
+   ollama pull mixtral:8x7b
+   ```
+   Then set in `.env`: `OLLAMA_MODEL=mixtral:8x7b`
+
+3. **Qwen 2.5 14B** (excellent multilingual):
+   ```bash
+   ollama pull qwen2.5:14b
+   ```
+   Then set in `.env`: `OLLAMA_MODEL=qwen2.5:14b`
+
+4. **Llama 3 70B** (maximum accuracy, requires more resources):
+   ```bash
+   ollama pull llama3:70b
+   ```
+   Then set in `.env`: `OLLAMA_MODEL=llama3:70b`
+
+**Note:** Larger models require more RAM and take longer to process, but provide significantly better accuracy.
+
 ## Troubleshooting
 
 ### "Not authenticated"
