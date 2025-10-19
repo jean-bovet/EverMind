@@ -9,6 +9,19 @@ const { analyzeContent } = require('./ai-analyzer');
 const { createNote, listTags } = require('./evernote-client');
 const { hasToken, authenticate, removeToken } = require('./oauth-helper');
 const { stopOllama, wasOllamaStartedByUs } = require('./ollama-manager');
+const {
+  colors,
+  stepHeader,
+  stepItem,
+  stepFooter,
+  formatTextPreview,
+  formatAIResults,
+  createSpinner,
+  success,
+  info,
+  warning,
+  error
+} = require('./output-formatter');
 
 const program = new Command();
 
@@ -97,6 +110,7 @@ program
  */
 async function importFile(filePath, verbose = false) {
   const absolutePath = path.resolve(filePath);
+  const startTime = Date.now();
 
   // Check if file exists
   try {
@@ -105,34 +119,53 @@ async function importFile(filePath, verbose = false) {
     throw new Error(`File not found: ${filePath}`);
   }
 
-  console.log(`\n📄 Processing file: ${path.basename(filePath)}\n`);
+  console.log(`\n${colors.accent.bold('📄 Processing file:')} ${colors.highlight(path.basename(filePath))}\n`);
 
   // Step 1: Fetch existing tags from Evernote
-  if (verbose) console.log('Step 1: Fetching existing tags from Evernote...');
+  const step1Start = Date.now();
+  let spinner;
+  if (verbose) {
+    console.log(stepHeader(1, 'Fetching Tags'));
+    spinner = createSpinner('Fetching existing tags from Evernote').start();
+  }
+
   let existingTags = [];
   try {
     existingTags = await listTags();
-    if (verbose) console.log(`  - Found ${existingTags.length} existing tags\n`);
+    if (verbose) {
+      spinner.succeed('Tags fetched successfully');
+      console.log(stepItem(`Found ${colors.highlight(existingTags.length)} existing tags`));
+      console.log(stepFooter(Date.now() - step1Start));
+    }
   } catch (error) {
-    console.warn(`Warning: Could not fetch existing tags: ${error.message}`);
-    console.warn('Will proceed without tag filtering.\n');
+    if (verbose && spinner) spinner.fail('Could not fetch tags');
+    console.warn(warning(`Could not fetch existing tags: ${error.message}`));
+    console.warn(warning('Will proceed without tag filtering.\n'));
   }
 
   // Step 2: Extract file content
-  if (verbose) console.log('Step 2: Extracting file content...');
+  const step2Start = Date.now();
+  if (verbose) {
+    console.log(stepHeader(2, 'Extracting Content'));
+    spinner = createSpinner('Extracting file content').start();
+  }
+
   const { text, fileType, fileName } = await extractFileContent(absolutePath);
 
   if (verbose) {
-    console.log(`  - File type: ${fileType}`);
-    console.log(`  - Content length: ${text.length} characters\n`);
-    console.log('--- EXTRACTED TEXT (before AI analysis) ---');
-    console.log(text);
-    console.log('--- END EXTRACTED TEXT ---\n');
+    spinner.succeed('Content extracted successfully');
+    console.log(stepItem(`Type: ${colors.highlight(fileType)}`));
+    console.log(stepItem(`Size: ${colors.highlight(text.length + ' characters')}`));
+    console.log(stepItem(''));
+    console.log(formatTextPreview(text, fileType, 500));
+    console.log(stepFooter(Date.now() - step2Start));
   }
 
   // Step 3: Analyze content with AI (using existing tags)
-  if (verbose) console.log('Step 3: Analyzing content with AI...');
-  const { description, tags: aiTags } = await analyzeContent(text, fileName, fileType, existingTags);
+  const step3Start = Date.now();
+  if (verbose) console.log(stepHeader(3, 'Analyzing with AI'));
+
+  const { description, tags: aiTags } = await analyzeContent(text, fileName, fileType, existingTags, verbose);
 
   // Filter to ensure only existing tags are used
   const validTags = existingTags.length > 0
@@ -143,20 +176,34 @@ async function importFile(filePath, verbose = false) {
   if (existingTags.length > 0 && validTags.length < aiTags.length) {
     const filteredTags = aiTags.filter(tag => !existingTags.includes(tag));
     if (verbose) {
-      console.log(`  - Filtered out non-existing tags: ${filteredTags.join(', ')}\n`);
+      console.log(stepItem(`Filtered out non-existing tags: ${filteredTags.join(', ')}`));
     }
   }
 
-  console.log(`\n📝 AI Analysis Results:`);
-  console.log(`   Description: ${description}`);
-  console.log(`   Tags: ${validTags.join(', ')}\n`);
+  if (verbose) {
+    console.log(stepFooter(Date.now() - step3Start));
+  }
+
+  // Display AI results
+  console.log(formatAIResults(description, validTags));
 
   // Step 4: Create Evernote note
-  if (verbose) console.log('Step 4: Creating Evernote note...');
-  const noteUrl = await createNote(absolutePath, fileName, description, validTags);
+  const step4Start = Date.now();
+  if (verbose) {
+    console.log(stepHeader(4, 'Creating Evernote Note'));
+  }
 
-  console.log(`\n✅ Successfully imported to Evernote!`);
-  console.log(`   Note URL: ${noteUrl}\n`);
+  const noteUrl = await createNote(absolutePath, fileName, description, validTags, verbose);
+
+  if (verbose) {
+    console.log(stepFooter(Date.now() - step4Start));
+  }
+
+  // Final success message
+  const totalTime = ((Date.now() - startTime) / 1000).toFixed(2);
+  console.log(`\n${success('Successfully imported to Evernote!')}`);
+  console.log(`   ${colors.info('Note URL:')} ${colors.highlight(noteUrl)}`);
+  console.log(`   ${colors.muted('Total time:')} ${colors.highlight(totalTime + 's')}\n`);
 }
 
 // Handle uncaught errors

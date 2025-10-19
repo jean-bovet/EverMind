@@ -1,6 +1,7 @@
 const { spawn, execSync } = require('child_process');
 const { existsSync } = require('fs');
 const http = require('http');
+const { success, info, warning, error, colors } = require('./output-formatter');
 
 let ollamaProcess = null;
 let wasStartedByUs = false;
@@ -81,7 +82,7 @@ function isOllamaRunning(host = 'http://localhost:11434') {
  */
 function startOllama(ollamaPath) {
   return new Promise((resolve, reject) => {
-    console.log('Starting Ollama server...');
+    console.log(info('Starting Ollama server...'));
 
     ollamaProcess = spawn(ollamaPath, ['serve'], {
       detached: false,
@@ -96,7 +97,7 @@ function startOllama(ollamaPath) {
     setTimeout(async () => {
       if (await isOllamaRunning()) {
         wasStartedByUs = true;
-        console.log('✓ Ollama server started successfully\n');
+        console.log(success('Ollama server started successfully\n'));
         resolve();
       } else {
         reject(new Error('Ollama started but is not responding'));
@@ -128,7 +129,7 @@ function isModelAvailable(model, ollamaPath) {
  */
 function pullModel(model, ollamaPath) {
   return new Promise((resolve, reject) => {
-    console.log(`Downloading model "${model}"... This may take a few minutes.`);
+    console.log(info(`Downloading model "${colors.highlight(model)}"... This may take a few minutes.`));
 
     const pullProcess = spawn(ollamaPath, ['pull', model], {
       stdio: 'inherit'
@@ -136,7 +137,7 @@ function pullModel(model, ollamaPath) {
 
     pullProcess.on('close', (code) => {
       if (code === 0) {
-        console.log(`✓ Model "${model}" downloaded successfully\n`);
+        console.log(success(`Model "${model}" downloaded successfully\n`));
         resolve();
       } else {
         reject(new Error(`Failed to download model "${model}"`));
@@ -167,22 +168,22 @@ async function ensureOllamaReady(model, host = 'http://localhost:11434') {
     );
   }
 
-  console.log(`✓ Ollama found at: ${ollamaPath}`);
+  console.log(success(`Ollama found at: ${colors.muted(ollamaPath)}`));
 
   // Step 2: Check if Ollama is running
   const running = await isOllamaRunning(host);
   if (!running) {
     await startOllama(ollamaPath);
   } else {
-    console.log('✓ Ollama is already running\n');
+    console.log(success('Ollama is already running\n'));
   }
 
   // Step 3: Check if the required model is available
   if (!isModelAvailable(model, ollamaPath)) {
-    console.log(`Model "${model}" not found locally.`);
+    console.log(info(`Model "${colors.highlight(model)}" not found locally.`));
     await pullModel(model, ollamaPath);
   } else {
-    console.log(`✓ Model "${model}" is available\n`);
+    console.log(success(`Model "${colors.highlight(model)}" is available\n`));
   }
 }
 
@@ -192,14 +193,14 @@ async function ensureOllamaReady(model, host = 'http://localhost:11434') {
  */
 function stopOllama(force = false) {
   if (ollamaProcess && (wasStartedByUs || force)) {
-    console.log('\nStopping Ollama server...');
+    console.log(info('\nStopping Ollama server...'));
     try {
       ollamaProcess.kill('SIGTERM');
       ollamaProcess = null;
       wasStartedByUs = false;
-      console.log('✓ Ollama server stopped');
+      console.log(success('Ollama server stopped'));
     } catch (error) {
-      console.warn(`Warning: Could not stop Ollama: ${error.message}`);
+      console.warn(warning(`Could not stop Ollama: ${error.message}`));
     }
   }
 }

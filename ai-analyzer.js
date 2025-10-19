@@ -1,5 +1,6 @@
 const { Ollama } = require('ollama');
 const { ensureOllamaReady } = require('./ollama-manager');
+const { createSpinner, success, stepItem, colors } = require('./output-formatter');
 
 /**
  * Analyze file content using Ollama AI to generate description and tags
@@ -7,9 +8,10 @@ const { ensureOllamaReady } = require('./ollama-manager');
  * @param {string} fileName - Name of the file
  * @param {string} fileType - Type of file
  * @param {string[]} existingTags - Existing tags from Evernote (optional)
+ * @param {boolean} verbose - Enable verbose output
  * @returns {Promise<{description: string, tags: string[]}>}
  */
-async function analyzeContent(text, fileName, fileType, existingTags = []) {
+async function analyzeContent(text, fileName, fileType, existingTags = [], verbose = false) {
   const ollamaHost = process.env.OLLAMA_HOST || 'http://localhost:11434';
   const model = process.env.OLLAMA_MODEL || 'mistral';  // Default: mistral for French/English support
 
@@ -18,7 +20,11 @@ async function analyzeContent(text, fileName, fileType, existingTags = []) {
 
   const ollama = new Ollama({ host: ollamaHost });
 
-  console.log(`Analyzing content with Ollama (${model})...`);
+  // Use spinner if verbose mode is enabled
+  let spinner;
+  if (verbose) {
+    spinner = createSpinner(`Analyzing content with Ollama (${colors.highlight(model)})`).start();
+  }
 
   // Truncate text if too long to avoid token limits
   const maxLength = 4000;
@@ -65,10 +71,15 @@ Respond ONLY with the JSON object, no additional text.`;
     // Parse the AI response
     const result = parseAIResponse(response.response);
 
-    console.log('AI analysis completed successfully.');
+    if (verbose && spinner) {
+      spinner.succeed('AI analysis completed successfully');
+    }
 
     return result;
   } catch (error) {
+    if (verbose && spinner) {
+      spinner.fail('AI analysis failed');
+    }
     throw new Error(`Failed to analyze content with Ollama: ${error.message}`);
   }
 }
