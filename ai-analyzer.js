@@ -26,49 +26,34 @@ async function analyzeContent(text, fileName, fileType, existingTags = []) {
     ? text.substring(0, maxLength) + '...[truncated]'
     : text;
 
-  // Build prompt based on whether we have existing tags
-  let prompt;
-
-  if (existingTags.length > 0) {
-    prompt = `You are analyzing a file named "${fileName}" of type "${fileType}".
-
-File content:
-${truncatedText}
-
-Please analyze this content and provide:
-1. A concise description (2-3 sentences) of what this file contains
-2. Select 3-7 relevant tags from the EXISTING TAGS list below
+  // Build prompt with conditional tag instructions
+  const tagInstructions = existingTags.length > 0
+    ? `2. Select 3-7 relevant tags from the EXISTING TAGS list below
 
 EXISTING TAGS (you MUST choose ONLY from this list):
 ${existingTags.join(', ')}
 
-IMPORTANT: You MUST select tags ONLY from the existing tags list above. Do NOT create new tags.
+IMPORTANT: You MUST select tags ONLY from the existing tags list above. Do NOT create new tags.`
+    : `2. 5-7 relevant tags/keywords that categorize this content`;
 
-Format your response as JSON:
-{
-  "description": "your description here",
-  "tags": ["existing-tag1", "existing-tag2", "existing-tag3"]
-}
+  const prompt = `You are analyzing a file named "${fileName}" of type "${fileType}".
 
-Respond ONLY with the JSON object, no additional text.`;
-  } else {
-    prompt = `You are analyzing a file named "${fileName}" of type "${fileType}".
+CRITICAL INSTRUCTION: You MUST respond in the SAME LANGUAGE as the file content below. If the content is in French, write your entire response in French. If in English, write in English. Match the language exactly.
 
 File content:
 ${truncatedText}
 
 Please analyze this content and provide:
-1. A concise description (2-3 sentences) of what this file contains
-2. 5-7 relevant tags/keywords that categorize this content
+1. A description of what this file contains. Include important information such as: location, date, names, amounts, and other key details.
+${tagInstructions}
 
 Format your response as JSON:
 {
   "description": "your description here",
-  "tags": ["tag1", "tag2", "tag3", "tag4", "tag5"]
+  "tags": ["tag1", "tag2", "tag3"]
 }
 
 Respond ONLY with the JSON object, no additional text.`;
-  }
 
   try {
     const response = await ollama.generate({
