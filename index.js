@@ -213,40 +213,53 @@ async function processFolderBatch(folderPath, debug = false) {
     failed: [],
   };
 
-  for (let i = 0; i < files.length; i++) {
-    const file = files[i];
-    const relativePath = path.relative(absolutePath, file);
+  try {
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      const relativePath = path.relative(absolutePath, file);
 
-    console.log(`\n${colors.accent.bold(`[${ i + 1}/${files.length}]`)} ${colors.highlight(relativePath)}`);
+      console.log(`\n${colors.accent.bold(`[${ i + 1}/${files.length}]`)} ${colors.highlight(relativePath)}`);
 
-    try {
-      await importFile(file, debug);
-      results.successful++;
-    } catch (error) {
-      results.failed.push({ file: relativePath, error: error.message });
-      console.error(`\n${colors.error('✗ Failed:')} ${error.message}\n`);
+      try {
+        await importFile(file, debug);
+        results.successful++;
+      } catch (error) {
+        results.failed.push({ file: relativePath, error: error.message });
+        console.error(`\n${colors.error('✗ Failed:')} ${error.message}\n`);
+
+        // Check if it's a rate limit error
+        if (error.message.includes('rateLimitDuration') || error.message.includes('errorCode":19')) {
+          const match = error.message.match(/rateLimitDuration[":]+(\d+)/);
+          const duration = match ? Math.ceil(parseInt(match[1]) / 1000) : 'unknown';
+          console.error(`${colors.error('⚠ Evernote API rate limit reached!')}`);
+          console.error(`${warning(`Please wait ${duration} seconds before trying again.`)}\n`);
+        }
+
+        // Stop processing on error
+        throw error;
+      }
     }
+  } finally {
+    // Display summary (always shown, even if stopped early)
+    const totalTime = ((Date.now() - startTime) / 1000).toFixed(2);
+    console.log(`\n${'═'.repeat(80)}`);
+    console.log(colors.accent.bold('📊 Batch Processing Summary'));
+    console.log(`${'═'.repeat(80)}`);
+    console.log(`${colors.info('Total files:')}      ${colors.highlight(results.total)}`);
+    console.log(`${colors.success('✓ Successful:')}   ${colors.highlight(results.successful)}`);
+    console.log(`${colors.error('✗ Failed:')}        ${colors.highlight(results.failed.length)}`);
+    console.log(`${colors.muted('Total time:')}     ${colors.highlight(totalTime + 's')}`);
+
+    if (results.failed.length > 0) {
+      console.log(`\n${colors.error('Failed files:')}`);
+      results.failed.forEach(({ file, error }) => {
+        console.log(`  ${colors.muted('•')} ${file}`);
+        console.log(`    ${colors.error('Error:')} ${error}`);
+      });
+    }
+
+    console.log('');
   }
-
-  // Display summary
-  const totalTime = ((Date.now() - startTime) / 1000).toFixed(2);
-  console.log(`\n${'═'.repeat(80)}`);
-  console.log(colors.accent.bold('📊 Batch Processing Summary'));
-  console.log(`${'═'.repeat(80)}`);
-  console.log(`${colors.info('Total files:')}      ${colors.highlight(results.total)}`);
-  console.log(`${colors.success('✓ Successful:')}   ${colors.highlight(results.successful)}`);
-  console.log(`${colors.error('✗ Failed:')}        ${colors.highlight(results.failed.length)}`);
-  console.log(`${colors.muted('Total time:')}     ${colors.highlight(totalTime + 's')}`);
-
-  if (results.failed.length > 0) {
-    console.log(`\n${colors.error('Failed files:')}`);
-    results.failed.forEach(({ file, error }) => {
-      console.log(`  ${colors.muted('•')} ${file}`);
-      console.log(`    ${colors.error('Error:')} ${error}`);
-    });
-  }
-
-  console.log('');
 }
 
 /**
