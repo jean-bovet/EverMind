@@ -158,9 +158,8 @@ function formatTextPreview(text, fileType, maxChars = 500, width = null) {
   const remaining = totalChars - maxChars;
 
   const actualWidth = width !== null ? width : getTerminalWidth();
-  const innerWidth = actualWidth - 4;
 
-  // Split preview into lines that fit the box
+  // Split preview into lines
   const previewLines = [];
   const lines = preview.split('\n');
 
@@ -170,9 +169,10 @@ function formatTextPreview(text, fileType, maxChars = 500, width = null) {
       continue;
     }
 
-    // Break long lines
-    for (let i = 0; i < line.length; i += innerWidth) {
-      previewLines.push(line.substring(i, i + innerWidth));
+    // Break long lines to fit width (with 2-space indent)
+    const maxLineWidth = actualWidth - 2;
+    for (let i = 0; i < line.length; i += maxLineWidth) {
+      previewLines.push(line.substring(i, i + maxLineWidth));
     }
 
     // Limit to first 10 lines
@@ -184,30 +184,26 @@ function formatTextPreview(text, fileType, maxChars = 500, width = null) {
   // Take only first 10 lines
   const limitedLines = previewLines.slice(0, 10);
 
-  // Create inner box for preview
-  let result = '│ ' + box.topLeft + box.horizontal + ' ';
+  // Create header
   const previewTitle = truncated
     ? `Preview (${maxChars}/${totalChars} chars)`
     : `Preview (${totalChars} chars)`;
-  result += previewTitle + ' ';
-  result += horizontalLine(innerWidth - previewTitle.length - 5, box.horizontal);
-  result += box.topRight + ' │\n';
 
-  // Add preview lines
+  let result = '  ' + box.horizontal.repeat(3) + ' ' + previewTitle + ' ' + box.horizontal.repeat(actualWidth - previewTitle.length - 8) + '\n';
+
+  // Add preview lines with indentation
   limitedLines.forEach(line => {
-    const paddedLine = line.padEnd(innerWidth - 4);
-    result += '│ ' + box.vertical + ' ' + paddedLine + ' ' + box.vertical + ' │\n';
+    result += '  ' + line + '\n';
   });
 
   // Add truncation notice if needed
   if (truncated) {
     const notice = `... [${remaining} more characters]`;
-    const coloredNotice = colors.muted(notice);
-    const paddingNeeded = innerWidth - notice.length - 4;
-    result += '│ ' + box.vertical + ' ' + coloredNotice + ' '.repeat(Math.max(0, paddingNeeded)) + ' ' + box.vertical + ' │\n';
+    result += '  ' + colors.muted(notice) + '\n';
   }
 
-  result += '│ ' + box.bottomLeft + horizontalLine(innerWidth - 2, box.horizontal) + box.bottomRight + ' │';
+  // Add footer
+  result += '  ' + box.horizontal.repeat(actualWidth - 2);
 
   return result;
 }

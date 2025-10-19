@@ -12,8 +12,6 @@ const { stopOllama, wasOllamaStartedByUs } = require('./ollama-manager');
 const {
   colors,
   stepHeader,
-  stepItem,
-  stepFooter,
   formatTextPreview,
   formatAIResults,
   createSpinner,
@@ -134,9 +132,7 @@ async function importFile(filePath, verbose = false, debug = false) {
   try {
     existingTags = await listTags();
     if (verbose) {
-      spinner.succeed('Tags fetched successfully');
-      console.log(stepItem(`Found ${colors.highlight(existingTags.length)} existing tags`));
-      console.log(stepFooter(Date.now() - step1Start));
+      spinner.succeed(`Tags fetched successfully - Found ${colors.highlight(existingTags.length)} existing tags`);
     }
   } catch (error) {
     if (verbose && spinner) spinner.fail('Could not fetch tags');
@@ -153,6 +149,10 @@ async function importFile(filePath, verbose = false, debug = false) {
 
   const { text, fileType, fileName } = await extractFileContent(absolutePath);
 
+  if (verbose) {
+    spinner.succeed('Content extracted successfully');
+  }
+
   // Save extracted text if debug mode is enabled
   if (debug) {
     const { saveDebugFile } = require('./debug-helper');
@@ -160,12 +160,10 @@ async function importFile(filePath, verbose = false, debug = false) {
   }
 
   if (verbose) {
-    spinner.succeed('Content extracted successfully');
-    console.log(stepItem(`Type: ${colors.highlight(fileType)}`));
-    console.log(stepItem(`Size: ${colors.highlight(text.length + ' characters')}`));
-    console.log(stepItem(''));
+    console.log(`  Type: ${colors.highlight(fileType)}`);
+    console.log(`  Size: ${colors.highlight(text.length + ' characters')}`);
+    console.log('');
     console.log(formatTextPreview(text, fileType, 500));
-    console.log(stepFooter(Date.now() - step2Start));
   }
 
   // Step 3: Analyze content with AI (using existing tags)
@@ -183,12 +181,8 @@ async function importFile(filePath, verbose = false, debug = false) {
   if (existingTags.length > 0 && validTags.length < aiTags.length) {
     const filteredTags = aiTags.filter(tag => !existingTags.includes(tag));
     if (verbose) {
-      console.log(stepItem(`Filtered out non-existing tags: ${filteredTags.join(', ')}`));
+      console.log(`  Filtered out non-existing tags: ${filteredTags.join(', ')}`);
     }
-  }
-
-  if (verbose) {
-    console.log(stepFooter(Date.now() - step3Start));
   }
 
   // Display AI results
@@ -201,10 +195,6 @@ async function importFile(filePath, verbose = false, debug = false) {
   }
 
   const noteUrl = await createNote(absolutePath, fileName, description, validTags, verbose);
-
-  if (verbose) {
-    console.log(stepFooter(Date.now() - step4Start));
-  }
 
   // Final success message
   const totalTime = ((Date.now() - startTime) / 1000).toFixed(2);

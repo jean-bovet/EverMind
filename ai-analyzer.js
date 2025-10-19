@@ -1,6 +1,6 @@
 const { Ollama } = require('ollama');
 const { ensureOllamaReady } = require('./ollama-manager');
-const { createSpinner, success, stepItem, colors } = require('./output-formatter');
+const { createSpinner, success, colors } = require('./output-formatter');
 
 /**
  * Analyze file content using Ollama AI to generate description and tags
@@ -19,7 +19,7 @@ async function analyzeContent(text, fileName, fileType, existingTags = [], verbo
   const customInstructions = process.env.AI_CUSTOM_INSTRUCTIONS || '';
 
   // Ensure Ollama is installed, running, and has the required model
-  await ensureOllamaReady(model, ollamaHost);
+  await ensureOllamaReady(model, ollamaHost, verbose);
 
   const ollama = new Ollama({ host: ollamaHost });
 
@@ -71,8 +71,10 @@ Respond ONLY with the JSON object, no additional text.`;
 
   // Save prompt if debug mode is enabled
   if (debug && sourceFilePath) {
+    if (verbose && spinner) spinner.stop();
     const { saveDebugFile } = require('./debug-helper');
     await saveDebugFile(sourceFilePath, 'prompt', prompt);
+    if (verbose && spinner) spinner.start();
   }
 
   try {
@@ -84,6 +86,7 @@ Respond ONLY with the JSON object, no additional text.`;
 
     // Save response if debug mode is enabled
     if (debug && sourceFilePath) {
+      if (verbose && spinner) spinner.stop();
       const { saveDebugFile } = require('./debug-helper');
       await saveDebugFile(sourceFilePath, 'response', response.response);
     }

@@ -2,7 +2,7 @@ const Evernote = require('evernote');
 const fs = require('fs').promises;
 const path = require('path');
 const { getToken } = require('./oauth-helper');
-const { createSpinner, success, stepItem, colors } = require('./output-formatter');
+const { createSpinner, success, colors } = require('./output-formatter');
 
 /**
  * Create a note in Evernote with the file and AI-generated metadata
@@ -64,7 +64,7 @@ async function createNote(filePath, fileName, description, tags, verbose = false
 
     if (verbose && spinner) {
       spinner.succeed('Note created successfully');
-      console.log(stepItem(`Note GUID: ${colors.muted(createdNote.guid)}`));
+      console.log(`  Note GUID: ${colors.muted(createdNote.guid)}`);
     }
 
     return noteUrl;
