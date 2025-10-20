@@ -30,6 +30,7 @@ import {
   error,
 } from './output-formatter.js';
 import { saveDebugFile } from './debug-helper.js';
+import { filterExistingTags } from './tag-validator.js';
 
 interface ProgramOptions {
   debug?: boolean;
@@ -276,6 +277,23 @@ async function processFolderBatch(folderPath: string, debug: boolean = false): P
   };
 
   try {
+    // Fetch tags once for the entire batch (if we have files to process)
+    let batchTags: string[] = [];
+    if (filesToProcess.length > 0) {
+      console.log(`\n${colors.accent.bold('🏷️  Fetching Tags')}\n`);
+      const tagSpinner = createSpinner('Fetching existing tags from Evernote').start();
+
+      try {
+        batchTags = await listTags();
+        tagSpinner.succeed(`Tags fetched successfully - Found ${colors.highlight(batchTags.length)} existing tags`);
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+        tagSpinner.fail('Could not fetch tags');
+        console.warn(warning(`Could not fetch existing tags: ${errorMessage}`));
+        console.warn(warning('Will proceed without tag filtering.'));
+      }
+    }
+
     // Step 1: Retry pending uploads before processing new files
     if (pendingCount > 0) {
       console.log(`\n${colors.accent.bold('📤 Retrying Pending Uploads')}\n`);
@@ -298,7 +316,7 @@ async function processFolderBatch(folderPath: string, debug: boolean = false): P
         console.log(`${colors.accent.bold(`[${i + 1}/${filesToProcess.length}]`)} ${colors.highlight(relativePath)}`);
 
         try {
-          await importFile(file, debug);
+          await importFile(file, debug, batchTags);
           results.processed++;
         } catch (err) {
           const errorMessage = err instanceof Error ? err.message : 'Unknown error';
@@ -363,8 +381,11 @@ async function processFolderBatch(folderPath: string, debug: boolean = false): P
 
 /**
  * Main function to import a file to Evernote
+ * @param filePath - Path to the file to import
+ * @param debug - Enable debug mode
+ * @param existingTags - Optional pre-fetched tags from Evernote (for batch processing)
  */
-async function importFile(filePath: string, debug: boolean = false): Promise<void> {
+async function importFile(filePath: string, debug: boolean = false, existingTags?: string[]): Promise<void> {
   const absolutePath = path.resolve(filePath);
   const startTime = Date.now();
 
@@ -389,28 +410,34 @@ async function importFile(filePath: string, debug: boolean = false): Promise<voi
     console.log(`${colors.info('ℹ Debug mode enabled - saving intermediate files')}\n`);
   }
 
-  // Step 1: Fetch existing tags from Evernote
-  console.log(stepHeader(1, 'Fetching Tags'));
-  const spinner = createSpinner('Fetching existing tags from Evernote').start();
+  // Step 1: Fetch existing tags from Evernote (if not already provided)
+  let tags: string[] = existingTags || [];
 
-  let existingTags: string[] = [];
-  try {
-    existingTags = await listTags();
-    spinner.succeed(`Tags fetched successfully - Found ${colors.highlight(existingTags.length)} existing tags`);
-  } catch (err) {
-    const errorMessage = err instanceof Error ? err.message : 'Unknown error';
-    spinner.fail('Could not fetch tags');
-    console.warn(warning(`Could not fetch existing tags: ${errorMessage}`));
-    console.warn(warning('Will proceed without tag filtering.\n'));
+  if (!existingTags) {
+    console.log(stepHeader(1, 'Fetching Tags'));
+    const spinner = createSpinner('Fetching existing tags from Evernote').start();
+
+    try {
+      tags = await listTags();
+      spinner.succeed(`Tags fetched successfully - Found ${colors.highlight(tags.length)} existing tags`);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+      spinner.fail('Could not fetch tags');
+      console.warn(warning(`Could not fetch existing tags: ${errorMessage}`));
+      console.warn(warning('Will proceed without tag filtering.\n'));
+    }
+  } else {
+    console.log(stepHeader(1, 'Using Tags'));
+    console.log(`  ${colors.info('ℹ')} Using pre-fetched tags (${colors.highlight(tags.length)} available)\n`);
   }
 
   // Step 2: Extract file content
   console.log(stepHeader(2, 'Extracting Content'));
-  spinner.start('Extracting file content');
+  const extractSpinner = createSpinner('Extracting file content').start();
 
   const { text, fileType, fileName } = await extractFileContent(absolutePath);
 
-  spinner.succeed('Content extracted successfully');
+  extractSpinner.succeed('Content extracted successfully');
 
   // Save extracted text if debug mode is enabled
   if (debug) {
@@ -429,20 +456,20 @@ async function importFile(filePath: string, debug: boolean = false): Promise<voi
     text,
     fileName,
     fileType,
-    existingTags,
+    tags,
     debug,
     debug ? absolutePath : null
   );
 
-  // Filter to ensure only existing tags are used
-  const validTags = existingTags.length > 0
-    ? aiTags.filter(tag => existingTags.includes(tag))
-    : aiTags;
+  // Filter and validate tags against existing Evernote tags
+  const { valid: validTags, rejected: rejectedTags } = filterExistingTags(aiTags, tags);
 
   // Warn if tags were filtered out
-  if (existingTags.length > 0 && validTags.length < aiTags.length) {
-    const filteredTags = aiTags.filter(tag => !existingTags.includes(tag));
-    console.log(`  Filtered out non-existing tags: ${filteredTags.join(', ')}`);
+  if (rejectedTags.length > 0) {
+    console.log(`\n  ${colors.warning('⚠ Rejected tags:')}`);
+    rejectedTags.forEach(({ tag, reason }) => {
+      console.log(`    ${colors.muted('•')} ${colors.highlight(tag)} - ${colors.muted(reason)}`);
+    });
   }
 
   // Display AI results

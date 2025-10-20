@@ -3,7 +3,8 @@ import { promises as fs } from 'fs';
 import path from 'path';
 import crypto from 'crypto';
 import { getToken } from './oauth-helper.js';
-import { createSpinner, colors } from './output-formatter.js';
+import { createSpinner, colors, warning } from './output-formatter.js';
+import { sanitizeTags, validateTagsForAPI } from './tag-validator.js';
 
 /**
  * Create a note in Evernote with the file and AI-generated metadata
@@ -47,6 +48,17 @@ export async function createNote(
     // Extract filename from path for attachment display
     const fileName = path.basename(filePath);
 
+    // Validate and sanitize tags before sending to API
+    const validTags = validateTagsForAPI(tags);
+
+    // Warn if any tags were filtered out
+    if (validTags.length < tags.length) {
+      const invalidTags = tags.filter(tag => !validTags.includes(tag));
+      spinner.stop();
+      console.warn(warning(`Filtered out ${invalidTags.length} invalid tag(s): ${invalidTags.join(', ')}`));
+      spinner.start();
+    }
+
     // Create note with ENML content
     const noteBody = createNoteContent(description, fileName, fileData, fileHash);
 
@@ -54,7 +66,7 @@ export async function createNote(
     const note = new Evernote.Types.Note({
       title: title,
       content: noteBody,
-      tagNames: tags,
+      tagNames: validTags,
     });
 
     // Create resource (attachment)
@@ -218,7 +230,10 @@ export async function listTags(): Promise<string[]> {
     // Extract tag names
     const tagNames = tags.map((tag: Evernote.Types.Tag) => tag.name);
 
-    return tagNames;
+    // Sanitize tags to ensure they meet Evernote requirements
+    const sanitized = sanitizeTags(tagNames);
+
+    return sanitized;
 
   } catch (error: unknown) {
     // Better error handling for Evernote API errors
