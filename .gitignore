@@ -28,3 +28,11 @@ Thumbs.db
 # Test files
 test-files/
 *.traineddata
+
+# TypeScript build artifacts
+dist/
+*.js
+*.d.ts
+*.js.map
+# But keep JavaScript files in root during migration
+!node_modules/**/*.js
