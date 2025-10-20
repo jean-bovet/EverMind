@@ -7,6 +7,14 @@ const fs = require('fs').promises;
 const { extractFileContent } = require('./file-extractor');
 const { analyzeContent } = require('./ai-analyzer');
 const { createNote, listTags } = require('./evernote-client');
+const {
+  hasExistingJSON,
+  saveNoteToJSON,
+  uploadNoteFromJSON,
+  retryPendingUploads,
+  waitForPendingUploads,
+  getPendingCount
+} = require('./upload-queue');
 const { hasToken, authenticate, removeToken } = require('./oauth-helper');
 const { stopOllama, wasOllamaStartedByUs } = require('./ollama-manager');
 const {
@@ -182,23 +190,55 @@ async function processFolderBatch(folderPath, debug = false) {
 
   // Scan for files
   const spinner = createSpinner('Scanning folder for supported files').start();
-  const files = await scanFolderForFiles(absolutePath);
-  spinner.succeed(`Found ${colors.highlight(files.length)} supported files`);
+  const allFiles = await scanFolderForFiles(absolutePath);
+  spinner.stop();
 
-  if (files.length === 0) {
-    console.log(`\n${warning('No supported files found in folder.')}\n`);
+  // Filter out files that already have JSON (already processed)
+  const filterSpinner = createSpinner('Filtering already processed files').start();
+  const filesToProcess = [];
+  const skippedFiles = [];
+
+  for (const file of allFiles) {
+    if (await hasExistingJSON(file)) {
+      skippedFiles.push(file);
+    } else {
+      filesToProcess.push(file);
+    }
+  }
+  filterSpinner.succeed(`Found ${colors.highlight(allFiles.length)} supported files (${colors.highlight(skippedFiles.length)} already processed)`);
+
+  // Check for pending uploads
+  const pendingCount = await getPendingCount(absolutePath);
+
+  if (filesToProcess.length === 0 && pendingCount === 0) {
+    console.log(`\n${info('No files to process and no pending uploads.')}\n`);
     return;
   }
 
   // Display file list
-  console.log(`\n${colors.info('Files to process:')}`);
-  files.forEach((file, index) => {
-    const relativePath = path.relative(absolutePath, file);
-    console.log(`  ${colors.muted((index + 1).toString().padStart(3))}. ${relativePath}`);
-  });
+  if (filesToProcess.length > 0) {
+    console.log(`\n${colors.info('Files to process:')}`);
+    filesToProcess.forEach((file, index) => {
+      const relativePath = path.relative(absolutePath, file);
+      console.log(`  ${colors.muted((index + 1).toString().padStart(3))}. ${relativePath}`);
+    });
+  }
+
+  if (pendingCount > 0) {
+    console.log(`\n${colors.info(`📤 Pending uploads: ${colors.highlight(pendingCount)} files waiting to be uploaded`)}`);
+  }
 
   // Get confirmation
-  const confirmed = await getUserConfirmation(`\n${colors.accent('Process ' + files.length + ' files? [Y/n]:')} `);
+  let confirmMessage = '';
+  if (filesToProcess.length > 0 && pendingCount > 0) {
+    confirmMessage = `\n${colors.accent(`Process ${filesToProcess.length} files and retry ${pendingCount} pending uploads? [Y/n]:`)} `;
+  } else if (filesToProcess.length > 0) {
+    confirmMessage = `\n${colors.accent(`Process ${filesToProcess.length} files? [Y/n]:`)} `;
+  } else {
+    confirmMessage = `\n${colors.accent(`Retry ${pendingCount} pending uploads? [Y/n]:`)} `;
+  }
+
+  const confirmed = await getUserConfirmation(confirmMessage);
 
   if (!confirmed) {
     console.log(`\n${info('Batch processing cancelled.')}\n`);
@@ -208,47 +248,86 @@ async function processFolderBatch(folderPath, debug = false) {
   // Process files
   console.log('');
   const results = {
-    total: files.length,
-    successful: 0,
+    totalFiles: allFiles.length,
+    processed: 0,
+    skipped: skippedFiles.length,
     failed: [],
+    uploadsPending: 0,
+    uploadsSuccessful: 0,
+    uploadsFailed: 0
   };
 
   try {
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i];
-      const relativePath = path.relative(absolutePath, file);
+    // Step 1: Retry pending uploads before processing new files
+    if (pendingCount > 0) {
+      console.log(`\n${colors.accent.bold('📤 Retrying Pending Uploads')}\n`);
+      const retryStats = await retryPendingUploads(absolutePath);
 
-      console.log(`\n${colors.accent.bold(`[${ i + 1}/${files.length}]`)} ${colors.highlight(relativePath)}`);
-
-      try {
-        await importFile(file, debug);
-        results.successful++;
-      } catch (error) {
-        results.failed.push({ file: relativePath, error: error.message });
-        console.error(`\n${colors.error('✗ Failed:')} ${error.message}\n`);
-
-        // Check if it's a rate limit error
-        if (error.message.includes('rateLimitDuration') || error.message.includes('errorCode":19')) {
-          const match = error.message.match(/rateLimitDuration[":]+(\d+)/);
-          const duration = match ? Math.ceil(parseInt(match[1]) / 1000) : 'unknown';
-          console.error(`${colors.error('⚠ Evernote API rate limit reached!')}`);
-          console.error(`${warning(`Please wait ${duration} seconds before trying again.`)}\n`);
-        }
-
-        // Stop processing on error
-        throw error;
+      if (retryStats.attempted > 0) {
+        console.log(`\n${colors.info(`Retry summary: ${retryStats.successful} successful, ${retryStats.rateLimited} rate-limited, ${retryStats.failed} failed`)}\n`);
       }
     }
+
+    // Step 2: Process new files
+    if (filesToProcess.length > 0) {
+      console.log(`\n${colors.accent.bold('📝 Processing New Files')}\n`);
+
+      for (let i = 0; i < filesToProcess.length; i++) {
+        const file = filesToProcess[i];
+        const relativePath = path.relative(absolutePath, file);
+
+        console.log(`${colors.accent.bold(`[${i + 1}/${filesToProcess.length}]`)} ${colors.highlight(relativePath)}`);
+
+        try {
+          await importFile(file, debug);
+          results.processed++;
+        } catch (error) {
+          results.failed.push({ file: relativePath, error: error.message });
+          console.error(`\n${colors.error('✗ Failed:')} ${error.message}\n`);
+          // Don't stop processing on error - continue with next file
+        }
+      }
+    }
+
+    // Step 3: Wait for remaining pending uploads
+    const remainingPending = await getPendingCount(absolutePath);
+    if (remainingPending > 0) {
+      console.log(`\n${colors.accent.bold('📤 Waiting for Pending Uploads')}\n`);
+      console.log(`${colors.info(`${remainingPending} files queued for upload`)}\n`);
+
+      const uploadResults = await waitForPendingUploads(absolutePath, 600000); // 10 min max
+      results.uploadsSuccessful = uploadResults.successful;
+      results.uploadsFailed = uploadResults.failed;
+    }
+
   } finally {
     // Display summary (always shown, even if stopped early)
     const totalTime = ((Date.now() - startTime) / 1000).toFixed(2);
+    const finalPending = await getPendingCount(absolutePath);
+
     console.log(`\n${'═'.repeat(80)}`);
     console.log(colors.accent.bold('📊 Batch Processing Summary'));
     console.log(`${'═'.repeat(80)}`);
-    console.log(`${colors.info('Total files:')}      ${colors.highlight(results.total)}`);
-    console.log(`${colors.success('✓ Successful:')}   ${colors.highlight(results.successful)}`);
-    console.log(`${colors.error('✗ Failed:')}        ${colors.highlight(results.failed.length)}`);
-    console.log(`${colors.muted('Total time:')}     ${colors.highlight(totalTime + 's')}`);
+    console.log(`${colors.info('Total files found:')}      ${colors.highlight(results.totalFiles)}`);
+    console.log(`${colors.info('Files processed:')}        ${colors.highlight(results.processed)}`);
+    console.log(`${colors.info('Files skipped:')}          ${colors.highlight(results.skipped)} ${colors.muted('(already processed)')}`);
+
+    if (results.uploadsSuccessful > 0 || results.uploadsFailed > 0) {
+      console.log(`${colors.success('✓ Uploads successful:')}   ${colors.highlight(results.uploadsSuccessful)}`);
+      if (results.uploadsFailed > 0) {
+        console.log(`${colors.error('✗ Uploads failed:')}       ${colors.highlight(results.uploadsFailed)}`);
+      }
+    }
+
+    if (finalPending > 0) {
+      console.log(`${colors.warning('⏳ Still pending:')}       ${colors.highlight(finalPending)} ${colors.muted('(will retry on next run)')}`);
+    }
+
+    if (results.failed.length > 0) {
+      console.log(`${colors.error('✗ Processing failed:')}    ${colors.highlight(results.failed.length)}`);
+    }
+
+    console.log(`${colors.muted('Total time:')}            ${colors.highlight(totalTime + 's')}`);
 
     if (results.failed.length > 0) {
       console.log(`\n${colors.error('Failed files:')}`);
@@ -274,6 +353,13 @@ async function importFile(filePath, debug = false) {
     await fs.access(absolutePath);
   } catch (error) {
     throw new Error(`File not found: ${filePath}`);
+  }
+
+  // Check if file has already been processed (has JSON)
+  if (await hasExistingJSON(absolutePath)) {
+    console.log(`\n${info('⏭  Skipping already processed file:')} ${colors.highlight(path.basename(filePath))}`);
+    console.log(`   ${colors.muted('JSON file exists - file is queued for upload')}\n`);
+    return;
   }
 
   console.log(`\n${colors.accent.bold('📄 Processing file:')} ${colors.highlight(path.basename(filePath))}\n`);
@@ -335,16 +421,49 @@ async function importFile(filePath, debug = false) {
   // Display AI results
   console.log(formatAIResults(title, description, validTags));
 
-  // Step 4: Create Evernote note
-  console.log(stepHeader(4, 'Creating Evernote Note'));
+  // Step 4: Save to JSON and upload
+  console.log(stepHeader(4, 'Saving & Uploading to Evernote'));
 
-  const noteUrl = await createNote(absolutePath, title, description, validTags);
+  // Step 4a: Save note data to JSON
+  const spinner2 = createSpinner('Saving note data to queue').start();
+  const jsonPath = await saveNoteToJSON(absolutePath, {
+    title: title,
+    description: description,
+    tags: validTags
+  });
+  spinner2.succeed('Note data saved to queue');
 
-  // Final success message
-  const totalTime = ((Date.now() - startTime) / 1000).toFixed(2);
-  console.log(`\n${success('Successfully imported to Evernote!')}`);
-  console.log(`   ${colors.info('Note URL:')} ${colors.highlight(noteUrl)}`);
-  console.log(`   ${colors.muted('Total time:')} ${colors.highlight(totalTime + 's')}\n`);
+  // Step 4b: Attempt upload
+  const uploadSpinner = createSpinner('Uploading to Evernote').start();
+  const uploadResult = await uploadNoteFromJSON(jsonPath);
+
+  if (uploadResult.success) {
+    uploadSpinner.succeed('Uploaded to Evernote successfully');
+
+    // Final success message
+    const totalTime = ((Date.now() - startTime) / 1000).toFixed(2);
+    console.log(`\n${success('Successfully imported to Evernote!')}`);
+    console.log(`   ${colors.info('Note URL:')} ${colors.highlight(uploadResult.noteUrl)}`);
+    console.log(`   ${colors.muted('Total time:')} ${colors.highlight(totalTime + 's')}\n`);
+
+  } else if (uploadResult.rateLimitDuration) {
+    uploadSpinner.warn('Rate limit reached - queued for retry');
+
+    const totalTime = ((Date.now() - startTime) / 1000).toFixed(2);
+    console.log(`\n${warning('File processed but upload rate-limited')}`);
+    console.log(`   ${colors.info('Status:')} ${colors.highlight('Queued for upload')}`);
+    console.log(`   ${colors.info('Retry in:')} ${colors.highlight(uploadResult.rateLimitDuration + 's')}`);
+    console.log(`   ${colors.muted('Total time:')} ${colors.highlight(totalTime + 's')}\n`);
+
+  } else {
+    uploadSpinner.fail('Upload failed');
+
+    const totalTime = ((Date.now() - startTime) / 1000).toFixed(2);
+    console.log(`\n${error('File processed but upload failed')}`);
+    console.log(`   ${colors.error('Error:')} ${uploadResult.error.message}`);
+    console.log(`   ${colors.info('Status:')} ${colors.highlight('Queued for retry')}`);
+    console.log(`   ${colors.muted('Total time:')} ${colors.highlight(totalTime + 's')}\n`);
+  }
 }
 
 // Handle uncaught errors

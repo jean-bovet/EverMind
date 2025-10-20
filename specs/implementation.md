@@ -674,6 +674,285 @@ process.on('unhandledRejection', (error) => {
 
 ---
 
+## Upload Queue System Implementation
+
+### Queue File Management
+
+**JSON Storage Location:**
+```javascript
+function getJSONPath(filePath) {
+  return `${filePath}.evernote.json`;
+}
+// Example: document.pdf → document.pdf.evernote.json
+```
+
+**Strategy:** Store JSON alongside source file for easy association and cleanup
+
+### JSON File Lifecycle
+
+**1. File Processing (JSON Creation):**
+```javascript
+async function saveNoteToJSON(filePath, noteData) {
+  const jsonPath = getJSONPath(filePath);
+
+  const queueData = {
+    filePath: filePath,
+    title: noteData.title,
+    description: noteData.description,
+    tags: noteData.tags,
+    createdAt: new Date().toISOString(),
+    lastAttempt: null,
+    retryAfter: null
+  };
+
+  await fs.writeFile(jsonPath, JSON.stringify(queueData, null, 2), 'utf-8');
+  return jsonPath;
+}
+```
+
+**2. Upload Attempt:**
+```javascript
+async function uploadNoteFromJSON(jsonPath) {
+  const noteData = await loadNoteFromJSON(jsonPath);
+
+  // Skip if already uploaded
+  if (noteData.uploadedAt) {
+    return { success: true, noteUrl: noteData.noteUrl, alreadyUploaded: true };
+  }
+
+  try {
+    const noteUrl = await createNote(filePath, title, description, tags);
+
+    // Update JSON with success info (DON'T delete)
+    noteData.uploadedAt = new Date().toISOString();
+    noteData.noteUrl = noteUrl;
+    noteData.lastAttempt = new Date().toISOString();
+    noteData.retryAfter = null;
+    await fs.writeFile(jsonPath, JSON.stringify(noteData, null, 2), 'utf-8');
+
+    return { success: true, noteUrl: noteUrl };
+
+  } catch (error) {
+    // Handle rate limit vs other errors
+  }
+}
+```
+
+**3. On Upload Success:**
+- JSON file is **kept** (not deleted)
+- `uploadedAt` field added with timestamp
+- `noteUrl` field added with Evernote note URL
+- `retryAfter` cleared (no longer needed)
+- File serves as audit trail and resume marker
+
+**4. On Rate Limit Error:**
+```javascript
+if (error.errorCode === 19) {
+  const retryAfterMs = Date.now() + (rateLimitDuration * 1000);
+
+  noteData.lastAttempt = new Date().toISOString();
+  noteData.retryAfter = retryAfterMs;
+  await fs.writeFile(jsonPath, JSON.stringify(noteData, null, 2), 'utf-8');
+
+  return { success: false, rateLimitDuration };
+}
+```
+
+### Rate Limit Detection
+
+**Evernote API Error Structure:**
+```javascript
+{
+  errorCode: 19,                  // Rate limit error code
+  rateLimitDuration: 60,          // Seconds to wait
+  parameter: "Note.create",       // Which operation was limited
+  identifier: "EDAMUserException" // Exception type
+}
+```
+
+**Detection in evernote-client.js:**
+```javascript
+catch (error) {
+  if (error.errorCode === 19 || error.identifier === 'EDAMUserException') {
+    const rateLimitDuration = error.rateLimitDuration || 60;
+
+    const errorDetails = {
+      errorCode: error.errorCode,
+      rateLimitDuration: rateLimitDuration,
+      parameter: error.parameter,
+      message: `Rate limit exceeded. Retry after ${rateLimitDuration} seconds.`
+    };
+
+    throw new Error(`Failed to create Evernote note: ${JSON.stringify(errorDetails)}`);
+  }
+}
+```
+
+### Retry Logic
+
+**Check if Ready to Retry:**
+```javascript
+async function shouldRetry(jsonPath) {
+  const noteData = await loadNoteFromJSON(jsonPath);
+
+  // No retry time set - can retry
+  if (!noteData.retryAfter) return true;
+
+  // Check if enough time has passed
+  return Date.now() >= noteData.retryAfter;
+}
+```
+
+**Retry Pending Uploads:**
+```javascript
+async function retryPendingUploads(directory) {
+  const pendingFiles = await findPendingUploads(directory);
+
+  for (const jsonPath of pendingFiles) {
+    if (await shouldRetry(jsonPath)) {
+      const result = await uploadNoteFromJSON(jsonPath);
+      // Track statistics
+    }
+  }
+}
+```
+
+### Finding Pending Uploads
+
+**Strategy:** Only return uploads that haven't completed
+```javascript
+async function findPendingUploads(directory) {
+  const jsonFiles = [];
+
+  async function scan(dir) {
+    const entries = await fs.readdir(dir, { withFileTypes: true });
+
+    for (const entry of entries) {
+      if (entry.isDirectory()) {
+        await scan(fullPath); // Recursive
+      } else if (entry.name.endsWith('.evernote.json')) {
+        // Only include if not yet uploaded
+        if (!(await isUploaded(fullPath))) {
+          jsonFiles.push(fullPath);
+        }
+      }
+    }
+  }
+
+  await scan(directory);
+  return jsonFiles.sort();
+}
+```
+
+**Upload Check:**
+```javascript
+async function isUploaded(jsonPath) {
+  const noteData = await loadNoteFromJSON(jsonPath);
+  return !!noteData.uploadedAt;
+}
+```
+
+### Resume Capability
+
+**Skip Already-Processed Files:**
+```javascript
+async function importFile(filePath, debug) {
+  // Check if file has already been processed
+  if (await hasExistingJSON(filePath)) {
+    console.log('Skipping already processed file');
+    return;
+  }
+
+  // Continue with processing...
+}
+```
+
+**Filter in Batch Processing:**
+```javascript
+async function processFolderBatch(folderPath) {
+  const allFiles = await scanFolderForFiles(folderPath);
+
+  // Filter out already-processed files
+  const filesToProcess = [];
+  for (const file of allFiles) {
+    if (!(await hasExistingJSON(file))) {
+      filesToProcess.push(file);
+    }
+  }
+
+  // Process only new files
+  for (const file of filesToProcess) {
+    await importFile(file, debug);
+  }
+}
+```
+
+### Wait Loop for Pending Uploads
+
+**Strategy:** Keep retrying until all uploaded or timeout
+```javascript
+async function waitForPendingUploads(directory, maxWaitTime = 600000) {
+  const startTime = Date.now();
+
+  while (true) {
+    const pendingFiles = await findPendingUploads(directory);
+
+    if (pendingFiles.length === 0) break; // All done
+
+    if (Date.now() - startTime > maxWaitTime) {
+      console.log(`Timeout. ${pendingFiles.length} still pending.`);
+      break;
+    }
+
+    // Find earliest retry time
+    let earliestRetry = null;
+    for (const jsonPath of pendingFiles) {
+      const noteData = await loadNoteFromJSON(jsonPath);
+      if (noteData.retryAfter && (!earliestRetry || noteData.retryAfter < earliestRetry)) {
+        earliestRetry = noteData.retryAfter;
+      }
+    }
+
+    // Try uploads that are ready
+    await retryPendingUploads(directory);
+
+    // Wait if needed
+    if (earliestRetry) {
+      const waitTime = Math.max(0, earliestRetry - Date.now());
+      if (waitTime > 0) {
+        await new Promise(resolve => setTimeout(resolve, Math.min(waitTime, 5000)));
+      }
+    }
+  }
+}
+```
+
+### Benefits of Queue System
+
+**1. Non-Blocking Processing:**
+- File extraction and AI analysis continue even during rate limits
+- Only upload step is delayed, not entire workflow
+- Maximum throughput for batch operations
+
+**2. Resume Support:**
+- Script can be interrupted and restarted safely
+- Already-processed files are skipped automatically
+- No duplicate AI analysis or Evernote notes
+
+**3. Audit Trail:**
+- Complete record of all processed files
+- Timestamps for creation, attempts, and success
+- Direct links to Evernote notes
+- Facilitates troubleshooting and verification
+
+**4. Reliability:**
+- Rate limit errors don't stop processing
+- Automatic retry with proper timing
+- No manual intervention needed
+- Graceful degradation on errors
+
+---
+
 ## Performance Optimizations
 
 ### Single Tag Fetch

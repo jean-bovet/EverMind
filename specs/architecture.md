@@ -22,18 +22,18 @@
 └──┬────────┬────────────┬──────────────┬──────────────┬─────────┘
    │        │            │              │              │
    │        │            │              │              │
-┌──▼──┐ ┌──▼──┐  ┌──────▼───────┐ ┌────▼─────┐ ┌────▼─────────┐
-│Auth │ │File │  │AI Analyzer   │ │Evernote  │ │Ollama        │
-│Mgmt │ │Extr │  │              │ │Client    │ │Manager       │
-└──┬──┘ └──┬──┘  └──────┬───────┘ └────┬─────┘ └────┬─────────┘
-   │        │            │              │              │
-   │        │            │              │              │
-   ▼        ▼            ▼              ▼              ▼
-┌─────┐ ┌──────┐  ┌──────────┐   ┌──────────┐  ┌──────────┐
-│.env │ │Files │  │ Ollama   │   │Evernote  │  │ Ollama   │
-│Token│ │(.pdf │  │ Service  │   │   API    │  │ Process  │
-│     │ │.docx)│  │(Local AI)│   │(Cloud)   │  │          │
-└─────┘ └──────┘  └──────────┘   └──────────┘  └──────────┘
+┌──▼──┐ ┌──▼──┐  ┌──────▼───────┐ ┌────▼─────┐ ┌────▼─────────┐ ┌────▼─────────┐
+│Auth │ │File │  │AI Analyzer   │ │Upload    │ │Evernote  │ │Ollama        │
+│Mgmt │ │Extr │  │              │ │Queue     │ │Client    │ │Manager       │
+└──┬──┘ └──┬──┘  └──────┬───────┘ └────┬─────┘ └────┬─────┘ └────┬─────────┘
+   │        │            │              │              │              │
+   │        │            │              │              │              │
+   ▼        ▼            ▼              ▼              ▼              ▼
+┌─────┐ ┌──────┐  ┌──────────┐   ┌──────────┐  ┌──────────┐  ┌──────────┐
+│.env │ │Files │  │ Ollama   │   │.evernote │  │Evernote  │  │ Ollama   │
+│Token│ │(.pdf │  │ Service  │   │.json     │  │   API    │  │ Process  │
+│     │ │.docx)│  │(Local AI)│   │(Queue)   │  │(Cloud)   │  │          │
+└─────┘ └──────┘  └──────────┘   └──────────┘  └──────────┘  └──────────┘
 ```
 
 ## Component Breakdown
@@ -174,13 +174,62 @@
 - Only stops Ollama if we started it
 - Respects user's running instances
 
-### 6. evernote-client.js - Evernote API Integration
+### 6. upload-queue.js - Upload Queue Manager
+
+**Responsibilities:**
+- Manage upload queue through JSON files stored alongside source files
+- Decouple file processing from Evernote upload
+- Handle Evernote API rate limiting gracefully
+- Track upload status and retry failed uploads
+- Enable resume capability after interruption
+
+**Key Functions:**
+- `saveNoteToJSON(filePath, noteData)` - Save note metadata to JSON
+- `loadNoteFromJSON(jsonPath)` - Load note data from JSON
+- `uploadNoteFromJSON(jsonPath)` - Upload to Evernote and update JSON
+- `hasExistingJSON(filePath)` - Check if file has been processed
+- `isUploaded(jsonPath)` - Check if upload completed successfully
+- `findPendingUploads(directory)` - Find all pending JSON files
+- `retryPendingUploads(directory)` - Retry uploads that are ready
+- `waitForPendingUploads(directory, maxWaitTime)` - Wait for all uploads to complete
+
+**JSON File Format** (saved as `filename.ext.evernote.json`):
+```json
+{
+  "filePath": "/absolute/path/to/file.pdf",
+  "title": "AI-generated title",
+  "description": "AI-generated description",
+  "tags": ["tag1", "tag2", "tag3"],
+  "createdAt": "2025-10-20T10:00:00Z",
+  "lastAttempt": "2025-10-20T10:05:00Z",
+  "retryAfter": 1729450000000,
+  "uploadedAt": "2025-10-20T10:05:00Z",
+  "noteUrl": "https://www.evernote.com/Home.action#n=..."
+}
+```
+
+**Rate Limit Handling:**
+- Parses Evernote rate limit errors (error code 19)
+- Extracts `rateLimitDuration` from error response
+- Updates JSON with `retryAfter` timestamp
+- Continues processing other files without blocking
+- Automatically retries after rate limit expires
+
+**Resume Capability:**
+- JSON files persist after successful upload
+- Restarting script skips files with existing JSON
+- `uploadedAt` field marks completed uploads
+- Only pending uploads (no `uploadedAt`) are retried
+- Complete audit trail of all processed files
+
+### 7. evernote-client.js - Evernote API Integration
 
 **Responsibilities:**
 - Create notes with attachments in Evernote
 - List existing tags from Evernote
 - Generate ENML (Evernote Markup Language) content
 - Handle file attachments and resources
+- Parse and return rate limit errors with retry information
 
 **Key Functions:**
 - `createNote(filePath, fileName, description, tags)` - Create note
@@ -211,6 +260,12 @@
 - MIME type determined from file extension
 - Resource linked in note via `<en-media>` tag
 
+**Error Handling:**
+- Detects rate limit errors (errorCode 19)
+- Extracts `rateLimitDuration` from error
+- Returns structured error with retry information
+- Preserves other error details for debugging
+
 ## Data Flow
 
 ### Authentication Flow
@@ -235,7 +290,7 @@ User runs: node index.js --auth
     └─> Authentication complete
 ```
 
-### File Import Flow
+### File Import Flow (Single File)
 
 ```
 User runs: node index.js /path/to/file.pdf
@@ -244,6 +299,9 @@ User runs: node index.js /path/to/file.pdf
     │
     ├─> index.js: Check authentication
     │   └─> oauth-helper.hasToken()
+    │
+    ├─> upload-queue.hasExistingJSON()
+    │   └─> If JSON exists: Skip (already processed)
     │
     ├─> ollama-manager.ensureOllamaReady()
     │   ├─> Check installation
@@ -261,25 +319,73 @@ User runs: node index.js /path/to/file.pdf
     │
     ├─> ai-analyzer.analyzeContent()
     │   ├─> Send content + existing tags to Ollama
-    │   ├─> AI generates description and selects tags
+    │   ├─> AI generates title, description and selects tags
     │   ├─> Parse JSON response
-    │   └─> Return {description, tags}
+    │   └─> Return {title, description, tags}
     │
     ├─> index.js: Filter tags
     │   └─> Keep only tags that exist in Evernote
     │
-    ├─> evernote-client.createNote()
-    │   ├─> Read file data
-    │   ├─> Create MD5 hash
-    │   ├─> Generate ENML content
-    │   ├─> Create Resource object
-    │   ├─> Create Note object
-    │   ├─> Call Evernote API
-    │   └─> Return note URL
+    ├─> upload-queue.saveNoteToJSON()
+    │   └─> Save {title, description, tags} to .evernote.json
     │
-    ├─> Display success message with URL
+    ├─> upload-queue.uploadNoteFromJSON()
+    │   ├─> evernote-client.createNote()
+    │   │   ├─> Read file data
+    │   │   ├─> Create MD5 hash
+    │   │   ├─> Generate ENML content
+    │   │   ├─> Create Resource object
+    │   │   ├─> Create Note object
+    │   │   └─> Call Evernote API
+    │   │
+    │   ├─> On Success:
+    │   │   ├─> Update JSON with uploadedAt & noteUrl
+    │   │   └─> Keep JSON file (audit trail)
+    │   │
+    │   └─> On Rate Limit:
+    │       ├─> Update JSON with retryAfter timestamp
+    │       └─> Continue (don't block)
+    │
+    ├─> Display result message
     │
     └─> ollama-manager.stopOllama() [if we started it]
+```
+
+### Batch Processing Flow
+
+```
+User runs: node index.js /path/to/folder
+    │
+    ├─> Scan folder for supported files
+    │
+    ├─> Filter out files with existing .evernote.json
+    │   └─> Only process new/unprocessed files
+    │
+    ├─> upload-queue.retryPendingUploads()
+    │   └─> Retry any uploads that are ready (before processing new files)
+    │
+    ├─> FOR EACH new file:
+    │   ├─> Extract content
+    │   ├─> Analyze with AI
+    │   ├─> Save to JSON
+    │   ├─> Try upload
+    │   │   ├─> Success: Mark as uploaded in JSON
+    │   │   └─> Rate limit: Save retry time, continue
+    │   └─> Continue to next file (never block)
+    │
+    ├─> upload-queue.waitForPendingUploads()
+    │   ├─> Find all pending uploads
+    │   ├─> Wait for retry times
+    │   ├─> Retry uploads when ready
+    │   └─> Repeat until all uploaded or timeout
+    │
+    ├─> Display summary statistics
+    │   ├─> Files processed
+    │   ├─> Uploads successful
+    │   ├─> Still pending
+    │   └─> Failed
+    │
+    └─> Exit (pending uploads will retry on next run)
 ```
 
 ## Module Dependencies
@@ -297,6 +403,8 @@ index.js
 │   └── ollama-manager.js
 ├── ollama-manager.js
 │   └── ollama (npm)
+├── upload-queue.js
+│   └── evernote-client.js
 └── evernote-client.js
     ├── evernote (npm)
     └── oauth-helper.js

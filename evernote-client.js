@@ -71,6 +71,18 @@ async function createNote(filePath, title, description, tags) {
     // Better error handling for Evernote API errors
     console.error('Evernote API Error:', error);
 
+    // Check if it's a rate limit error (errorCode 19)
+    if (error.errorCode === 19 || error.identifier === 'EDAMUserException') {
+      const rateLimitDuration = error.rateLimitDuration || 60;
+      const errorDetails = {
+        errorCode: error.errorCode,
+        rateLimitDuration: rateLimitDuration,
+        parameter: error.parameter,
+        message: `Rate limit exceeded. Retry after ${rateLimitDuration} seconds.`
+      };
+      throw new Error(`Failed to create Evernote note: ${JSON.stringify(errorDetails)}`);
+    }
+
     const errorMessage = error.message ||
                          error.errorMessage ||
                          JSON.stringify(error) ||

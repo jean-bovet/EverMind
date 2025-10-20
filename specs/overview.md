@@ -138,9 +138,17 @@ Users retain full control through command-line options, environment variables, a
 - **Privacy**: 100% local processing of sensitive content
 - **Reliability**: Successfully process common file formats with minimal errors
 
+### 7. Batch Processing & Rate Limit Handling
+- **Folder processing**: Process entire folders recursively
+- **Smart rate limiting**: Respects Evernote API rate limits without blocking
+- **Upload queue system**: Decouples file processing from upload
+- **Resume capability**: Restarting skips already-processed files
+- **Automatic retries**: Failed uploads automatically retry when ready
+- **JSON audit trail**: Complete record of all processed files
+- **Non-blocking workflow**: Rate limits don't prevent processing other files
+
 ## Future Enhancements (Potential)
 
-- Batch processing of multiple files
 - Watch folder for automatic import
 - Integration with additional note-taking platforms
 - Custom AI prompts for specialized use cases
