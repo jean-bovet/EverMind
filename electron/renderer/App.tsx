@@ -1,15 +1,31 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import DropZone from './components/DropZone';
 import FileQueue from './components/FileQueue';
 import Settings from './components/Settings';
 import WelcomeWizard from './components/WelcomeWizard';
 import StatusBar from './components/StatusBar';
 
+// Configuration for concurrent processing
+const CONCURRENT_STAGE1 = 3; // Max concurrent analyses
+
+type FileStatus =
+  | 'pending'           // Waiting to start Stage 1
+  | 'extracting'        // Stage 1: Extracting text from file
+  | 'analyzing'         // Stage 1: AI analysis in progress
+  | 'ready-to-upload'   // Stage 1 complete, waiting for upload slot
+  | 'uploading'         // Stage 2: Currently uploading to Evernote
+  | 'rate-limited'      // Stage 2: Waiting for rate limit to clear
+  | 'retrying'          // Stage 2: Retrying after failure
+  | 'complete'          // Successfully uploaded
+  | 'error';            // Failed at any stage
+
 interface FileItem {
   path: string;
   name: string;
-  status: 'pending' | 'processing' | 'complete' | 'error';
+  status: FileStatus;
   progress: number;
+  message?: string;
+  jsonPath?: string;    // Path to the .evernote.json file (for Stage 2)
   result?: {
     title: string;
     description: string;
@@ -32,7 +48,7 @@ function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [showWelcome, setShowWelcome] = useState(false);
   const [ollamaStatus, setOllamaStatus] = useState<OllamaStatus | null>(null);
-  const [isProcessing, setIsProcessing] = useState(false);
+  const processingRef = useRef(false);
 
   // Check Ollama status on mount
   useEffect(() => {
@@ -49,6 +65,51 @@ function App() {
     }
   };
 
+  // Subscribe to file progress events
+  useEffect(() => {
+    const unsubscribe = window.electronAPI.onFileProgress((data) => {
+      setFiles(prev => prev.map(file => {
+        if (file.path === data.filePath) {
+          // Update file with new status and data
+          const updated: FileItem = {
+            ...file,
+            status: data.status,
+            progress: data.progress,
+            message: data.message
+          };
+
+          // Merge result data (keep existing data if not provided)
+          if (data.result) {
+            updated.result = {
+              ...file.result,
+              ...data.result
+            } as typeof file.result;
+          }
+
+          if (data.error) {
+            updated.error = data.error;
+          }
+
+          if (data.jsonPath) {
+            updated.jsonPath = data.jsonPath;
+          }
+
+          return updated;
+        }
+        return file;
+      }));
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, []);
+
+  // Auto-process pending files
+  useEffect(() => {
+    processNextPendingFiles();
+  }, [files]);
+
   const handleFilesAdded = (filePaths: string[]) => {
     const newFiles: FileItem[] = filePaths.map(path => ({
       path,
@@ -60,38 +121,58 @@ function App() {
     setFiles(prev => [...prev, ...newFiles]);
   };
 
-  const handleProcessFiles = async () => {
-    setIsProcessing(true);
+  // Process next pending files (up to CONCURRENT_STAGE1 at once)
+  const processNextPendingFiles = async () => {
+    // Prevent multiple simultaneous calls
+    if (processingRef.current) return;
+    processingRef.current = true;
 
-    // Subscribe to progress events
-    const unsubscribe = window.electronAPI.onFileProgress((data) => {
-      setFiles(prev => prev.map(file =>
-        file.path === data.filePath
-          ? {
-              ...file,
-              status: data.status === 'complete' ? 'complete' :
-                      data.status === 'error' ? 'error' : 'processing',
-              progress: data.progress,
-              result: data.result,
-              error: data.error
-            }
-          : file
-      ));
-    });
+    try {
+      const pending = files.filter(f => f.status === 'pending');
+      const processing = files.filter(f =>
+        f.status === 'extracting' || f.status === 'analyzing'
+      );
 
-    // Process each file
-    for (const file of files) {
-      if (file.status === 'pending') {
-        try {
-          await window.electronAPI.processFile(file.path, {});
-        } catch (error) {
-          console.error('Error processing file:', error);
-        }
+      // Start new files if we have capacity
+      const available = CONCURRENT_STAGE1 - processing.length;
+      const toProcess = pending.slice(0, available);
+
+      for (const file of toProcess) {
+        processFileStage1(file.path);
       }
+    } finally {
+      processingRef.current = false;
     }
+  };
 
-    unsubscribe();
-    setIsProcessing(false);
+  // Stage 1: Analyze file (don't await - runs concurrently)
+  const processFileStage1 = async (filePath: string) => {
+    try {
+      // Mark as extracting
+      setFiles(prev => prev.map(f =>
+        f.path === filePath ? { ...f, status: 'extracting' as FileStatus } : f
+      ));
+
+      // Call Stage 1: Extract + Analyze
+      const result = await window.electronAPI.analyzeFile(filePath, {});
+
+      if (result.success && result.jsonPath) {
+        // Queue for upload (Stage 2)
+        await window.electronAPI.queueUpload(result.jsonPath, filePath);
+      }
+
+    } catch (error) {
+      console.error('Error in Stage 1:', error);
+      setFiles(prev => prev.map(f =>
+        f.path === filePath
+          ? {
+              ...f,
+              status: 'error' as FileStatus,
+              error: error instanceof Error ? error.message : 'Unknown error'
+            }
+          : f
+      ));
+    }
   };
 
   const handleClearCompleted = () => {
@@ -134,17 +215,15 @@ function App() {
             {/* Drop zone */}
             <DropZone
               onFilesAdded={handleFilesAdded}
-              disabled={isProcessing}
+              disabled={false}
             />
 
             {/* File queue */}
             {files.length > 0 && (
               <FileQueue
                 files={files}
-                onProcess={handleProcessFiles}
                 onClearCompleted={handleClearCompleted}
                 onClearAll={handleClearAll}
-                isProcessing={isProcessing}
               />
             )}
 

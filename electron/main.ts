@@ -3,9 +3,10 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import Store from 'electron-store';
 import { getOllamaDetector } from './ollama-detector.js';
-import { processFile, processBatch } from './file-processor.js';
+import { processFile, processBatch, analyzeFile } from './file-processor.js';
 import { hasToken, authenticate, removeToken } from '../src/oauth-helper.js';
 import { listTags } from '../src/evernote-client.js';
+import { UploadWorker } from './upload-worker.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -20,6 +21,9 @@ const store = new Store({
 });
 
 let mainWindow: BrowserWindow | null = null;
+
+// Initialize upload worker
+const uploadWorker = new UploadWorker(null);
 
 // Determine if we're in development mode
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
@@ -58,6 +62,9 @@ function createWindow() {
     mainWindow?.show();
   });
 
+  // Update upload worker with new window reference
+  uploadWorker.setMainWindow(mainWindow);
+
   // Save window bounds on resize/move
   mainWindow.on('resize', () => {
     if (mainWindow) {
@@ -74,6 +81,9 @@ function createWindow() {
 // App lifecycle
 app.whenReady().then(() => {
   createWindow();
+
+  // Start upload worker
+  uploadWorker.start();
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
@@ -186,8 +196,25 @@ ipcMain.handle('process-batch', async (_event, folderPath: string, options: any)
   return await processBatch(folderPath, options, mainWindow);
 });
 
+// Stage 1: Analyze file (extract + AI)
+ipcMain.handle('analyze-file', async (_event, filePath: string, options: any) => {
+  return await analyzeFile(filePath, options, mainWindow);
+});
+
+// Add file to upload queue
+ipcMain.handle('queue-upload', async (_event, jsonPath: string, originalFilePath: string) => {
+  uploadWorker.addToQueue(jsonPath, originalFilePath);
+  return { success: true };
+});
+
+// Get upload queue status
+ipcMain.handle('get-upload-queue', async () => {
+  return uploadWorker.getQueueStatus();
+});
+
 // Cleanup on app quit
 app.on('before-quit', () => {
+  uploadWorker.stop();
   ollamaDetector.cleanup();
 });
 

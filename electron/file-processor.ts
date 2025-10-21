@@ -26,8 +26,239 @@ export interface ProcessResult {
   error?: string;
 }
 
+export interface AnalysisResult {
+  success: boolean;
+  title?: string;
+  description?: string;
+  tags?: string[];
+  jsonPath?: string;
+  error?: string;
+}
+
+export interface UploadResult {
+  success: boolean;
+  noteUrl?: string;
+  rateLimitDuration?: number;
+  error?: Error;
+}
+
+/**
+ * Stage 1: Analyze file (extract text and analyze with AI)
+ * This function extracts content, fetches tags, analyzes with AI,
+ * and saves the result to a JSON file for later upload.
+ */
+export async function analyzeFile(
+  filePath: string,
+  options: ProcessFileOptions,
+  mainWindow: BrowserWindow | null
+): Promise<AnalysisResult> {
+  const absolutePath = path.resolve(filePath);
+
+  try {
+    // Check if file exists
+    await fs.access(absolutePath);
+
+    // Check if already processed
+    if (await hasExistingJSON(absolutePath)) {
+      return {
+        success: false,
+        error: 'File already processed'
+      };
+    }
+
+    // Send progress update: Fetching tags
+    mainWindow?.webContents.send('file-progress', {
+      filePath: absolutePath,
+      status: 'extracting',
+      progress: 10,
+      message: 'Fetching Evernote tags...'
+    });
+
+    // Fetch existing tags
+    let tags: string[] = [];
+    try {
+      tags = await listTags();
+    } catch (error) {
+      console.warn('Could not fetch tags:', error);
+    }
+
+    // Send progress update: Extracting content
+    mainWindow?.webContents.send('file-progress', {
+      filePath: absolutePath,
+      status: 'extracting',
+      progress: 25,
+      message: 'Extracting file content...'
+    });
+
+    // Extract file content
+    const { text, fileType, fileName } = await extractFileContent(absolutePath);
+
+    // Send progress update: Analyzing with AI
+    mainWindow?.webContents.send('file-progress', {
+      filePath: absolutePath,
+      status: 'analyzing',
+      progress: 50,
+      message: 'Analyzing with AI...'
+    });
+
+    // Analyze with AI
+    const analysis = await analyzeContent(
+      text,
+      fileName,
+      fileType,
+      tags,
+      options.debug || false,
+      options.debug ? absolutePath : null
+    );
+
+    // Filter tags
+    const { valid: validTags } = filterExistingTags(analysis.tags, tags);
+
+    // Send progress update: Saving to JSON
+    mainWindow?.webContents.send('file-progress', {
+      filePath: absolutePath,
+      status: 'analyzing',
+      progress: 90,
+      message: 'Saving analysis...'
+    });
+
+    // Save to JSON queue
+    const jsonPath = await saveNoteToJSON(absolutePath, {
+      title: analysis.title,
+      description: analysis.description,
+      tags: validTags
+    });
+
+    // Send progress: Ready for upload
+    mainWindow?.webContents.send('file-progress', {
+      filePath: absolutePath,
+      status: 'ready-to-upload',
+      progress: 100,
+      message: 'Analysis complete, ready to upload',
+      result: {
+        title: analysis.title,
+        description: analysis.description,
+        tags: validTags
+      }
+    });
+
+    return {
+      success: true,
+      title: analysis.title,
+      description: analysis.description,
+      tags: validTags,
+      jsonPath
+    };
+
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+
+    mainWindow?.webContents.send('file-progress', {
+      filePath: absolutePath,
+      status: 'error',
+      progress: 0,
+      error: errorMsg
+    });
+
+    return {
+      success: false,
+      error: errorMsg
+    };
+  }
+}
+
+/**
+ * Stage 2: Upload file from JSON to Evernote
+ * This function loads a previously analyzed file from its JSON
+ * and uploads it to Evernote, handling rate limits and retries.
+ */
+export async function uploadFile(
+  jsonPath: string,
+  originalFilePath: string,
+  mainWindow: BrowserWindow | null
+): Promise<UploadResult> {
+  try {
+    // Send progress update: Uploading
+    mainWindow?.webContents.send('file-progress', {
+      filePath: originalFilePath,
+      status: 'uploading',
+      progress: 10,
+      message: 'Uploading to Evernote...'
+    });
+
+    // Attempt upload
+    const uploadResult = await uploadNoteFromJSON(jsonPath);
+
+    if (uploadResult.success) {
+      // Success
+      mainWindow?.webContents.send('file-progress', {
+        filePath: originalFilePath,
+        status: 'complete',
+        progress: 100,
+        message: 'Uploaded successfully',
+        result: {
+          noteUrl: uploadResult.noteUrl
+        }
+      });
+
+      return {
+        success: true,
+        noteUrl: uploadResult.noteUrl
+      };
+
+    } else if (uploadResult.rateLimitDuration) {
+      // Rate limited
+      mainWindow?.webContents.send('file-progress', {
+        filePath: originalFilePath,
+        status: 'rate-limited',
+        progress: 10,
+        message: `Rate limited - retry in ${uploadResult.rateLimitDuration}s`
+      });
+
+      return {
+        success: false,
+        rateLimitDuration: uploadResult.rateLimitDuration
+      };
+
+    } else {
+      // Other error
+      const errorMsg = uploadResult.error?.message || 'Upload failed';
+
+      mainWindow?.webContents.send('file-progress', {
+        filePath: originalFilePath,
+        status: 'retrying',
+        progress: 10,
+        message: errorMsg,
+        error: errorMsg
+      });
+
+      return {
+        success: false,
+        error: uploadResult.error
+      };
+    }
+
+  } catch (error) {
+    const err = error instanceof Error ? error : new Error('Unknown error');
+    const errorMsg = err.message;
+
+    mainWindow?.webContents.send('file-progress', {
+      filePath: originalFilePath,
+      status: 'error',
+      progress: 0,
+      error: errorMsg
+    });
+
+    return {
+      success: false,
+      error: err
+    };
+  }
+}
+
 /**
  * Process a single file and upload to Evernote
+ * (Legacy function - kept for backward compatibility)
  */
 export async function processFile(
   filePath: string,

@@ -20,6 +20,18 @@ const electronAPI = {
   processBatch: (folderPath: string, options: ProcessFileOptions) =>
     ipcRenderer.invoke('process-batch', folderPath, options),
 
+  // Stage 1: Analyze file
+  analyzeFile: (filePath: string, options: ProcessFileOptions) =>
+    ipcRenderer.invoke('analyze-file', filePath, options),
+
+  // Queue file for upload
+  queueUpload: (jsonPath: string, originalFilePath: string) =>
+    ipcRenderer.invoke('queue-upload', jsonPath, originalFilePath),
+
+  // Get upload queue status
+  getUploadQueue: () =>
+    ipcRenderer.invoke('get-upload-queue'),
+
   // Ollama management
   checkOllamaInstallation: () => ipcRenderer.invoke('check-ollama'),
   installOllama: () => ipcRenderer.invoke('install-ollama'),
@@ -65,14 +77,15 @@ export interface ProcessFileOptions {
 
 export interface FileProgressData {
   filePath: string;
-  status: 'extracting' | 'analyzing' | 'uploading' | 'complete' | 'error';
+  status: 'pending' | 'extracting' | 'analyzing' | 'ready-to-upload' | 'uploading' | 'rate-limited' | 'retrying' | 'complete' | 'error';
   progress: number;
   message?: string;
   error?: string;
+  jsonPath?: string;
   result?: {
-    title: string;
-    description: string;
-    tags: string[];
+    title?: string;
+    description?: string;
+    tags?: string[];
     noteUrl?: string;
   };
 }

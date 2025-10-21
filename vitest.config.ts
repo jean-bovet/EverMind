@@ -9,10 +9,14 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],
-      include: ['src/**/*.ts'],
+      include: ['src/**/*.ts', 'electron/**/*.ts'],
       exclude: [
         'src/**/*.d.ts',
         'src/index.ts', // CLI entry point, hard to test
+        'electron/main.ts', // Electron entry point, tested via E2E
+        'electron/preload.ts', // Preload script, tested via E2E
+        'electron/ollama-detector.ts', // External dependency, tested separately
+        'electron/renderer/**/*', // React components, tested via E2E
         'tests/**',
       ],
       thresholds: {

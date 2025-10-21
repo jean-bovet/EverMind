@@ -1,10 +1,23 @@
 import React from 'react';
 
+type FileStatus =
+  | 'pending'           // Waiting to start Stage 1
+  | 'extracting'        // Stage 1: Extracting text from file
+  | 'analyzing'         // Stage 1: AI analysis in progress
+  | 'ready-to-upload'   // Stage 1 complete, waiting for upload slot
+  | 'uploading'         // Stage 2: Currently uploading to Evernote
+  | 'rate-limited'      // Stage 2: Waiting for rate limit to clear
+  | 'retrying'          // Stage 2: Retrying after failure
+  | 'complete'          // Successfully uploaded
+  | 'error';            // Failed at any stage
+
 interface FileItem {
   path: string;
   name: string;
-  status: 'pending' | 'processing' | 'complete' | 'error';
+  status: FileStatus;
   progress: number;
+  message?: string;
+  jsonPath?: string;    // Path to the .evernote.json file (for Stage 2)
   result?: {
     title: string;
     description: string;
@@ -16,20 +29,15 @@ interface FileItem {
 
 interface FileQueueProps {
   files: FileItem[];
-  onProcess: () => void;
   onClearCompleted: () => void;
   onClearAll: () => void;
-  isProcessing: boolean;
 }
 
 export default function FileQueue({
   files,
-  onProcess,
   onClearCompleted,
-  onClearAll,
-  isProcessing
+  onClearAll
 }: FileQueueProps) {
-  const pendingCount = files.filter(f => f.status === 'pending').length;
   const completedCount = files.filter(f => f.status === 'complete').length;
 
   return (
@@ -37,14 +45,8 @@ export default function FileQueue({
       <div className="file-queue-header">
         <div className="file-queue-title">
           {files.length} file{files.length !== 1 ? 's' : ''} in queue
-          {pendingCount > 0 && ` (${pendingCount} pending)`}
         </div>
         <div className="file-queue-actions">
-          {pendingCount > 0 && !isProcessing && (
-            <button className="button button-primary" onClick={onProcess}>
-              Process {pendingCount} file{pendingCount !== 1 ? 's' : ''}
-            </button>
-          )}
           {completedCount > 0 && (
             <button className="button button-secondary" onClick={onClearCompleted}>
               Clear Completed
@@ -63,18 +65,31 @@ export default function FileQueue({
               <div className="file-item-name">{file.name}</div>
               <div className="file-item-status">
                 {file.status === 'pending' && '⏳ Pending'}
-                {file.status === 'processing' && '⚙️ Processing'}
+                {file.status === 'extracting' && '📄 Extracting...'}
+                {file.status === 'analyzing' && '🤖 Analyzing...'}
+                {file.status === 'ready-to-upload' && '⏸️ Ready to upload'}
+                {file.status === 'uploading' && '⬆️ Uploading...'}
+                {file.status === 'rate-limited' && '⏱️ Rate limited'}
+                {file.status === 'retrying' && '🔄 Retrying'}
                 {file.status === 'complete' && '✅ Complete'}
                 {file.status === 'error' && '❌ Error'}
               </div>
             </div>
 
-            {file.status === 'processing' && (
+            {/* Progress bar for active operations */}
+            {['extracting', 'analyzing', 'uploading'].includes(file.status) && (
               <div className="progress-bar">
                 <div
                   className="progress-bar-fill"
                   style={{ width: `${file.progress}%` }}
                 />
+              </div>
+            )}
+
+            {/* Status message */}
+            {file.message && (
+              <div style={{ marginTop: 8, fontSize: 12, color: '#888' }}>
+                {file.message}
               </div>
             )}
 
