@@ -289,7 +289,7 @@ Required for XML compliance:
 
 **Common Errors:**
 
-**EDAMUserException:**
+**EDAMUserException (Authentication):**
 ```javascript
 {
   errorCode: 2,  // BAD_DATA_FORMAT
@@ -298,6 +298,16 @@ Required for XML compliance:
 ```
 **Cause:** Invalid or expired access token
 **Resolution:** Re-authenticate using `--auth`
+
+**EDAMUserException (Invalid Tag):**
+```javascript
+{
+  errorCode: 2,  // BAD_DATA_FORMAT
+  parameter: 'Tag.name'
+}
+```
+**Cause:** Tag name violates Evernote's tag naming requirements
+**Resolution:** Validate tags before sending to API (see Tag Requirements below)
 
 **EDAMSystemException:**
 ```javascript
@@ -333,6 +343,92 @@ try {
   throw new Error(`Failed to create Evernote note: ${errorMessage}`);
 }
 ```
+
+### Tag Requirements and Validation
+
+**Evernote Tag Naming Rules:**
+
+Tags must comply with strict naming requirements to be accepted by the API:
+
+**Length Requirements:**
+- Minimum: 1 character
+- Maximum: 100 characters
+- Constant: `EDAM_TAG_NAME_LEN_MIN = 1`, `EDAM_TAG_NAME_LEN_MAX = 100`
+
+**Character Restrictions:**
+- **Cannot** contain commas (`,`)
+- **Cannot** contain control characters (`\p{Cc}`)
+- **Cannot** contain line separators (`\p{Zl}`)
+- **Cannot** contain paragraph separators (`\p{Zp}`)
+- **Cannot** begin with whitespace
+- **Cannot** end with whitespace
+
+**Pattern Requirements:**
+```regex
+^[^,\p{Cc}\p{Z}]([^,\p{Cc}\p{Zl}\p{Zp}]{0,98}[^,\p{Cc}\p{Z}])?$
+```
+
+**Case Sensitivity:**
+- Tags are case-preserving but case-insensitive for comparisons
+- Account can only have one tag with a given name via case-insensitive comparison
+- Example: Cannot have both "Finance" and "finance" tags
+
+**Application Validation Strategy:**
+
+1. **Sanitization** - Remove invalid characters:
+   ```javascript
+   function sanitizeTag(tag) {
+     let sanitized = tag.replace(/[\p{Cc}\p{Zl}\p{Zp}]/gu, ''); // Remove control chars
+     sanitized = sanitized.replace(/,/g, '');  // Remove commas
+     sanitized = sanitized.trim();             // Remove leading/trailing whitespace
+     return sanitized;
+   }
+   ```
+
+2. **Validation** - Check against requirements:
+   ```javascript
+   function isValidTagName(tag) {
+     if (!tag || tag.length < 1 || tag.length > 100) return false;
+     if (tag !== tag.trim()) return false;
+     if (tag.includes(',')) return false;
+     if (/[\p{Cc}\p{Zl}\p{Zp}]/u.test(tag)) return false;
+     return true;
+   }
+   ```
+
+3. **Filtering** - Match against existing tags only:
+   ```javascript
+   function filterExistingTags(aiTags, existingTags) {
+     // Case-insensitive lookup
+     const lookup = new Map(
+       existingTags.map(t => [t.toLowerCase(), t])
+     );
+
+     return aiTags
+       .map(tag => sanitizeTag(tag))
+       .filter(tag => tag && lookup.has(tag.toLowerCase()))
+       .map(tag => lookup.get(tag.toLowerCase()));  // Return exact case
+   }
+   ```
+
+**Error Prevention:**
+- Tags fetched from Evernote are sanitized before use
+- AI-generated tags are validated and filtered before upload
+- Final validation performed immediately before API call
+- Only existing tags are used (no new tag creation)
+
+**Example Valid Tags:**
+- `Finance`
+- `Work Project 2024`
+- `tax-documents`
+- `🏠 Home` (Unicode characters allowed)
+
+**Example Invalid Tags:**
+- ` Finance ` (leading/trailing whitespace)
+- `Work, Personal` (contains comma)
+- `Tag\nWith\nNewlines` (contains control characters)
+- `` (empty string)
+- `a`.repeat(101) (too long)
 
 ---
 

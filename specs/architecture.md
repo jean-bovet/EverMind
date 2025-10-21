@@ -22,10 +22,10 @@
 └──┬────────┬────────────┬──────────────┬──────────────┬─────────┘
    │        │            │              │              │
    │        │            │              │              │
-┌──▼──┐ ┌──▼──┐  ┌──────▼───────┐ ┌────▼─────┐ ┌────▼─────────┐ ┌────▼─────────┐
-│Auth │ │File │  │AI Analyzer   │ │Upload    │ │Evernote  │ │Ollama        │
-│Mgmt │ │Extr │  │              │ │Queue     │ │Client    │ │Manager       │
-└──┬──┘ └──┬──┘  └──────┬───────┘ └────┬─────┘ └────┬─────┘ └────┬─────────┘
+┌──▼──┐ ┌──▼──┐  ┌──────▼───────┐ ┌────▼─────┐ ┌────▼─────────┐ ┌────▼─────────┐ ┌────▼────────┐
+│Auth │ │File │  │AI Analyzer   │ │Upload    │ │Evernote  │ │Ollama        │ │Tag          │
+│Mgmt │ │Extr │  │              │ │Queue     │ │Client    │ │Manager       │ │Validator    │
+└──┬──┘ └──┬──┘  └──────┬───────┘ └────┬─────┘ └────┬─────┘ └────┬─────────┘ └────┬────────┘
    │        │            │              │              │              │
    │        │            │              │              │              │
    ▼        ▼            ▼              ▼              ▼              ▼
@@ -226,19 +226,49 @@
 
 **Responsibilities:**
 - Create notes with attachments in Evernote
-- List existing tags from Evernote
+- List existing tags from Evernote (with sanitization)
 - Generate ENML (Evernote Markup Language) content
 - Handle file attachments and resources
 - Parse and return rate limit errors with retry information
+- Validate tags before API calls
 
 **Key Functions:**
-- `createNote(filePath, fileName, description, tags)` - Create note
-- `listTags()` - Fetch all user tags
+- `createNote(filePath, fileName, description, tags)` - Create note with tag validation
+- `listTags()` - Fetch and sanitize user tags
 - `createNoteContent(description, fileName, fileData, fileHash)` - Generate ENML
 - `createResource(fileData, fileName, fileHash)` - Prepare attachment
 - `createMD5Hash(data)` - Hash for resource identification
 - `getMimeType(fileName)` - Determine file MIME type
 - `escapeXml(text)` - Sanitize text for ENML
+
+### 8. tag-validator.ts - Tag Validation Utility
+
+**Responsibilities:**
+- Validate tag names against Evernote API requirements
+- Sanitize tags by removing invalid characters
+- Filter AI-generated tags against existing Evernote tags
+- Prevent creation of new tags (strict existing-only policy)
+- Case-insensitive tag matching
+
+**Key Functions:**
+- `isValidTagName(tag)` - Check if tag meets Evernote requirements
+- `sanitizeTag(tag)` - Clean tag by removing invalid characters
+- `filterExistingTags(tags, existingTags)` - Filter and match against existing tags
+- `sanitizeTags(tags)` - Clean array of tags
+- `validateTagsForAPI(tags)` - Final validation before API call
+
+**Evernote Tag Requirements:**
+- Length: 1-100 characters
+- No commas (`,`)
+- No leading or trailing whitespace
+- No control characters or line/paragraph separators
+- Case-insensitive uniqueness
+
+**Filtering Strategy:**
+- Case-insensitive matching against existing tags
+- Returns exact case from Evernote
+- Rejects tags that don't exist in Evernote
+- Provides detailed rejection reasons
 
 **ENML Structure:**
 ```xml
@@ -310,7 +340,8 @@ User runs: node index.js /path/to/file.pdf
     │   └─> Download model if needed
     │
     ├─> evernote-client.listTags()
-    │   └─> Fetch existing tags from Evernote API
+    │   ├─> Fetch existing tags from Evernote API
+    │   └─> Sanitize tags using tag-validator
     │
     ├─> file-extractor.extractFileContent()
     │   ├─> Detect file type
@@ -323,7 +354,10 @@ User runs: node index.js /path/to/file.pdf
     │   ├─> Parse JSON response
     │   └─> Return {title, description, tags}
     │
-    ├─> index.js: Filter tags
+    ├─> tag-validator.filterExistingTags()
+    │   ├─> Sanitize AI-generated tags
+    │   ├─> Match against existing tags (case-insensitive)
+    │   ├─> Return {valid, rejected} with reasons
     │   └─> Keep only tags that exist in Evernote
     │
     ├─> upload-queue.saveNoteToJSON()
@@ -361,12 +395,17 @@ User runs: node index.js /path/to/folder
     ├─> Filter out files with existing .evernote.json
     │   └─> Only process new/unprocessed files
     │
+    ├─> evernote-client.listTags() [ONCE for entire batch]
+    │   ├─> Fetch existing tags from Evernote API
+    │   └─> Sanitize tags using tag-validator
+    │
     ├─> upload-queue.retryPendingUploads()
     │   └─> Retry any uploads that are ready (before processing new files)
     │
     ├─> FOR EACH new file:
     │   ├─> Extract content
-    │   ├─> Analyze with AI
+    │   ├─> Analyze with AI (using pre-fetched tags)
+    │   ├─> Validate and filter tags (tag-validator)
     │   ├─> Save to JSON
     │   ├─> Try upload
     │   │   ├─> Success: Mark as uploaded in JSON
@@ -405,9 +444,12 @@ index.js
 │   └── ollama (npm)
 ├── upload-queue.js
 │   └── evernote-client.js
-└── evernote-client.js
-    ├── evernote (npm)
-    └── oauth-helper.js
+├── evernote-client.js
+│   ├── evernote (npm)
+│   ├── oauth-helper.js
+│   └── tag-validator.js
+└── tag-validator.js
+    └── (no external dependencies)
 ```
 
 ## Error Handling Strategy
@@ -463,7 +505,11 @@ OLLAMA_HOST               # Ollama API URL
 ### Input Validation
 - File path validation (exists, readable)
 - File type validation (supported extensions)
-- Tag validation (only existing tags used)
+- Tag validation (strict format and existence requirements)
+  - Length: 1-100 characters
+  - No commas, control characters, or invalid whitespace
+  - Must exist in Evernote (no new tag creation)
+  - Case-insensitive matching
 
 ## Performance Considerations
 
@@ -475,7 +521,10 @@ OLLAMA_HOST               # Ollama API URL
 ### Optimizations
 - Text truncation for AI (4000 chars max)
 - Single Ollama instance reuse
-- Tag list cached during single run
+- **Tag batch fetching**: Tags fetched once per batch (1 API call vs N calls)
+  - Single file: 1 tag fetch per file
+  - Batch of N files: 1 tag fetch total (N× improvement)
+- Tag validation performed locally (no API calls)
 
 ### Resource Usage
 - Memory: Moderate (file buffers, AI model)

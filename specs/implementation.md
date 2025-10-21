@@ -555,15 +555,30 @@ const mimeTypes = {
 ### Note Object Creation
 
 ```javascript
+// Final validation before API call
+const validTags = validateTagsForAPI(tags);
+
+// Warn if any tags were filtered
+if (validTags.length < tags.length) {
+  const invalidTags = tags.filter(tag => !validTags.includes(tag));
+  console.warn(`Filtered out ${invalidTags.length} invalid tag(s): ${invalidTags.join(', ')}`);
+}
+
 const note = new Evernote.Types.Note({
   title: fileName,
   content: enmlContent,
-  tagNames: tags,
+  tagNames: validTags,  // Use validated tags
   resources: [resource]
 });
 
 const createdNote = await noteStore.createNote(note);
 ```
+
+**Tag Validation Before API:**
+- Final safety check before sending to Evernote
+- Filters out any invalid tags that slipped through
+- Prevents `Tag.name` API errors
+- Logs warnings for filtered tags
 
 **Note URL Generation:**
 ```javascript
@@ -585,30 +600,153 @@ async function listTags() {
   const tags = await noteStore.listTags();
   const tagNames = tags.map(tag => tag.name);
 
-  return tagNames;
+  // Sanitize tags to ensure they meet Evernote requirements
+  const sanitized = sanitizeTags(tagNames);
+
+  return sanitized;
 }
 ```
 
-**Returns:** Array of strings (tag names only, metadata discarded)
+**Returns:** Array of sanitized tag names (metadata discarded)
 
-### Tag Validation
+**Sanitization:** Removes invalid characters, trims whitespace, filters invalid tags
 
-```javascript
-const validTags = existingTags.length > 0
-  ? aiTags.filter(tag => existingTags.includes(tag))
-  : aiTags;
+### Tag Validation Implementation
 
-// Track filtered tags
-const filteredTags = aiTags.filter(tag => !existingTags.includes(tag));
-if (verbose && filteredTags.length > 0) {
-  console.log(`Filtered out non-existing tags: ${filteredTags.join(', ')}`);
+**Tag Validator Module** (`tag-validator.ts`):
+
+```typescript
+// Validate single tag name
+function isValidTagName(tag: string): boolean {
+  if (!tag || typeof tag !== 'string') return false;
+  if (tag.length < 1 || tag.length > 100) return false;
+  if (tag !== tag.trim()) return false;
+  if (tag.includes(',')) return false;
+
+  // Check for control characters, line/paragraph separators
+  const invalidCharsRegex = /[\p{Cc}\p{Zl}\p{Zp}]/u;
+  if (invalidCharsRegex.test(tag)) return false;
+
+  return true;
+}
+
+// Sanitize tag by removing invalid characters
+function sanitizeTag(tag: string): string | null {
+  if (!tag || typeof tag !== 'string') return null;
+
+  // Remove control characters, line separators, commas
+  let sanitized = tag.replace(/[\p{Cc}\p{Zl}\p{Zp}]/gu, '');
+  sanitized = sanitized.replace(/,/g, '');
+  sanitized = sanitized.trim();
+
+  if (!sanitized || sanitized.length < 1 || sanitized.length > 100) {
+    return null;
+  }
+
+  return sanitized;
+}
+
+// Filter AI tags against existing Evernote tags
+function filterExistingTags(
+  tags: string[],
+  existingTags: string[]
+): {
+  valid: string[];
+  rejected: Array<{ tag: string; reason: string }>;
+} {
+  const valid: string[] = [];
+  const rejected: Array<{ tag: string; reason: string }> = [];
+
+  // Create case-insensitive lookup map
+  const existingTagsLower = new Map<string, string>();
+  for (const existingTag of existingTags) {
+    existingTagsLower.set(existingTag.toLowerCase(), existingTag);
+  }
+
+  for (const tag of tags) {
+    const sanitized = sanitizeTag(tag);
+
+    if (!sanitized) {
+      rejected.push({
+        tag: tag,
+        reason: 'Invalid format (empty, too long, or contains invalid characters)',
+      });
+      continue;
+    }
+
+    // Check if tag exists (case-insensitive)
+    const matchedTag = existingTagsLower.get(sanitized.toLowerCase());
+
+    if (matchedTag) {
+      valid.push(matchedTag); // Use exact case from Evernote
+    } else {
+      rejected.push({
+        tag: sanitized,
+        reason: 'Tag does not exist in Evernote',
+      });
+    }
+  }
+
+  return { valid, rejected };
 }
 ```
 
 **Strategy:**
-- If existing tags available: filter to only include existing
-- If no existing tags: allow all AI-generated tags
-- Report filtered tags in verbose mode
+- Sanitize AI-generated tags before filtering
+- Case-insensitive matching against existing tags
+- Return exact case from Evernote
+- Only existing tags are used (no new tag creation)
+- Provide detailed rejection reasons for better user feedback
+
+**Usage in Application:**
+
+```typescript
+// Fetch and filter tags
+const existingTags = await listTags(); // Sanitized by listTags()
+const { valid: validTags, rejected: rejectedTags } = filterExistingTags(aiTags, existingTags);
+
+// Display warnings for rejected tags
+if (rejectedTags.length > 0) {
+  console.log('⚠ Rejected tags:');
+  rejectedTags.forEach(({ tag, reason }) => {
+    console.log(`  • ${tag} - ${reason}`);
+  });
+}
+```
+
+**Batch Optimization:**
+
+For batch processing, tags are fetched once for all files:
+
+```typescript
+async function processFolderBatch(folderPath: string) {
+  // Fetch tags ONCE for entire batch
+  const batchTags = await listTags();
+
+  // Process each file with pre-fetched tags
+  for (const file of filesToProcess) {
+    await importFile(file, debug, batchTags); // Pass tags
+  }
+}
+
+async function importFile(
+  filePath: string,
+  debug: boolean,
+  existingTags?: string[] // Optional pre-fetched tags
+) {
+  // Use pre-fetched tags or fetch if not provided
+  const tags = existingTags || await listTags();
+
+  // Use tags for AI analysis and validation
+  const { title, description, tags: aiTags } = await analyzeContent(..., tags);
+  const { valid } = filterExistingTags(aiTags, tags);
+}
+```
+
+**Performance Impact:**
+- Single file: 1 API call (no change)
+- Batch of N files: 1 API call (previously N calls)
+- N× reduction in API calls for batches
 
 ---
 
@@ -955,13 +1093,32 @@ async function waitForPendingUploads(directory, maxWaitTime = 600000) {
 
 ## Performance Optimizations
 
-### Single Tag Fetch
+### Batch Tag Fetching
 
-**Strategy:** Fetch tags once at start of workflow, reuse for analysis
+**Strategy:** Fetch tags once per batch, reuse for all files
+
+**Single File Processing:**
 ```javascript
-const existingTags = await listTags();  // Once per run
-const { description, tags } = await analyzeContent(text, fileName, fileType, existingTags);
+// Tags fetched once per file
+const existingTags = await listTags();
+const { title, description, tags } = await analyzeContent(text, fileName, fileType, existingTags);
 ```
+
+**Batch Processing:**
+```javascript
+// Tags fetched ONCE for entire batch
+const batchTags = await listTags();  // 1 API call
+
+for (const file of files) {
+  // Reuse pre-fetched tags for each file
+  await importFile(file, debug, batchTags);  // No API call
+}
+```
+
+**Performance Improvement:**
+- Single file: 1 API call (no change)
+- Batch of 50 files: 1 API call (previously 50 calls) → **50× reduction**
+- Batch of 100 files: 1 API call (previously 100 calls) → **100× reduction**
 
 ### Text Truncation
 
