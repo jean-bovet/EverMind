@@ -30,28 +30,24 @@ export default function DropZone({ onFilesAdded, disabled }: DropZoneProps) {
     if (disabled) return;
 
     const files = Array.from(e.dataTransfer.files);
-    const filePaths = files.map(file => (file as any).path).filter(Boolean);
+    // Use Electron's webUtils API to get the file path
+    const filePaths = files
+      .map(file => {
+        try {
+          return window.electronAPI.getPathForFile(file);
+        } catch (error) {
+          console.error('Error getting file path:', error);
+          return '';
+        }
+      })
+      .filter(path => path !== '');
+
+    console.log('Dropped files:', filePaths);
 
     if (filePaths.length > 0) {
       onFilesAdded(filePaths);
-    }
-  };
-
-  const handleSelectFiles = async () => {
-    if (disabled) return;
-
-    const filePaths = await window.electronAPI.selectFiles();
-    if (filePaths && filePaths.length > 0) {
-      onFilesAdded(filePaths);
-    }
-  };
-
-  const handleSelectFolder = async () => {
-    if (disabled) return;
-
-    const folderPath = await window.electronAPI.selectFolder();
-    if (folderPath) {
-      onFilesAdded([folderPath]);
+    } else {
+      console.warn('No file paths extracted from dropped files');
     }
   };
 
@@ -64,23 +60,7 @@ export default function DropZone({ onFilesAdded, disabled }: DropZoneProps) {
     >
       <div className="drop-zone-icon">📁</div>
       <h2>Drop files or folders here</h2>
-      <p>Or click below to select</p>
-      <div className="drop-zone-buttons">
-        <button
-          className="button button-primary"
-          onClick={handleSelectFiles}
-          disabled={disabled}
-        >
-          Select Files
-        </button>
-        <button
-          className="button button-secondary"
-          onClick={handleSelectFolder}
-          disabled={disabled}
-        >
-          Select Folder
-        </button>
-      </div>
+      <p>Drag and drop your files to get started</p>
     </div>
   );
 }

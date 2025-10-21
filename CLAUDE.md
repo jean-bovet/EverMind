@@ -1,0 +1,1 @@
+- Never run the Electron app yourself automatically, always ask me before doing so.

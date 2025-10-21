@@ -1,7 +1,11 @@
-import { contextBridge, ipcRenderer } from 'electron';
+import { contextBridge, ipcRenderer, webUtils } from 'electron';
 
 // Define the API that will be exposed to the renderer process
 const electronAPI = {
+  // File utilities
+  getPathForFile: (file: File) => webUtils.getPathForFile(file),
+
+
   // Settings
   getSettings: () => ipcRenderer.invoke('get-settings'),
   setSetting: (key: string, value: unknown) => ipcRenderer.invoke('set-setting', key, value),

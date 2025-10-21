@@ -106,6 +106,7 @@ ipcMain.handle('select-files', async () => {
   const result = await dialog.showOpenDialog(mainWindow!, {
     properties: ['openFile', 'multiSelections'],
     filters: [
+      { name: 'All Supported Files', extensions: ['pdf', 'txt', 'md', 'markdown', 'docx', 'png', 'jpg', 'jpeg', 'gif', 'bmp', 'tiff'] },
       { name: 'Documents', extensions: ['pdf', 'txt', 'md', 'markdown', 'docx'] },
       { name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'tiff'] },
       { name: 'All Files', extensions: ['*'] }
