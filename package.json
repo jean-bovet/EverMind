@@ -2,7 +2,7 @@
   "name": "evernote-ai-importer",
   "version": "1.0.0",
   "description": "Import files to Evernote with AI-generated descriptions and tags using local Ollama",
-  "main": "dist/index.js",
+  "main": "dist-electron/main.js",
   "bin": {
     "evernote-ai-importer": "./dist/index.js"
   },
@@ -14,7 +14,10 @@
     "test": "vitest --run",
     "test:ui": "vitest --ui",
     "test:coverage": "vitest --coverage",
-    "test:watch": "vitest --watch"
+    "test:watch": "vitest --watch",
+    "electron:dev": "vite",
+    "electron:build": "tsc && vite build && electron-builder",
+    "electron:preview": "vite build && electron ."
   },
   "keywords": [
     "evernote",
@@ -33,20 +36,34 @@
     "cli-boxes": "^3.0.0",
     "commander": "^14.0.1",
     "dotenv": "^17.2.3",
+    "electron-store": "^11.0.2",
     "evernote": "^2.0.5",
     "mammoth": "^1.11.0",
     "ollama": "^0.6.0",
     "ora": "^5.4.1",
     "pdf-parse": "^2.4.3",
     "pdfjs-dist": "^5.4.296",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
     "tesseract.js": "^6.0.1"
   },
   "devDependencies": {
     "@types/node": "^24.8.1",
     "@types/pdf-parse": "^1.1.5",
+    "@types/react": "^19.2.2",
+    "@types/react-dom": "^19.2.2",
+    "@vitejs/plugin-react": "^5.0.4",
     "@vitest/coverage-v8": "^3.2.4",
     "@vitest/ui": "^3.2.4",
+    "concurrently": "^9.2.1",
+    "cross-env": "^10.1.0",
+    "electron": "^38.3.0",
+    "electron-builder": "^26.0.12",
     "typescript": "^5.9.3",
-    "vitest": "^3.2.4"
+    "vite": "^7.1.11",
+    "vite-plugin-electron": "^0.29.0",
+    "vite-plugin-electron-renderer": "^0.14.6",
+    "vitest": "^3.2.4",
+    "wait-on": "^9.0.1"
   }
 }

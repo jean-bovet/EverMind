@@ -1,0 +1,98 @@
+import { contextBridge, ipcRenderer } from 'electron';
+
+// Define the API that will be exposed to the renderer process
+const electronAPI = {
+  // Settings
+  getSettings: () => ipcRenderer.invoke('get-settings'),
+  setSetting: (key: string, value: unknown) => ipcRenderer.invoke('set-setting', key, value),
+
+  // File selection
+  selectFiles: () => ipcRenderer.invoke('select-files'),
+  selectFolder: () => ipcRenderer.invoke('select-folder'),
+
+  // File processing
+  processFile: (filePath: string, options: ProcessFileOptions) =>
+    ipcRenderer.invoke('process-file', filePath, options),
+  processBatch: (folderPath: string, options: ProcessFileOptions) =>
+    ipcRenderer.invoke('process-batch', folderPath, options),
+
+  // Ollama management
+  checkOllamaInstallation: () => ipcRenderer.invoke('check-ollama'),
+  installOllama: () => ipcRenderer.invoke('install-ollama'),
+  checkOllamaModel: (modelName: string) => ipcRenderer.invoke('check-ollama-model', modelName),
+  downloadModel: (modelName: string) => ipcRenderer.invoke('download-model', modelName),
+
+  // Evernote authentication
+  authenticateEvernote: () => ipcRenderer.invoke('authenticate-evernote'),
+  checkEvernoteAuth: () => ipcRenderer.invoke('check-evernote-auth'),
+  logoutEvernote: () => ipcRenderer.invoke('logout-evernote'),
+  listEvernoteTags: () => ipcRenderer.invoke('list-evernote-tags'),
+
+  // Event listeners
+  onFileProgress: (callback: (data: FileProgressData) => void) => {
+    const subscription = (_event: unknown, data: FileProgressData) => callback(data);
+    ipcRenderer.on('file-progress', subscription);
+    return () => ipcRenderer.removeListener('file-progress', subscription);
+  },
+
+  onBatchProgress: (callback: (data: BatchProgressData) => void) => {
+    const subscription = (_event: unknown, data: BatchProgressData) => callback(data);
+    ipcRenderer.on('batch-progress', subscription);
+    return () => ipcRenderer.removeListener('batch-progress', subscription);
+  },
+
+  onOllamaDownloadProgress: (callback: (data: DownloadProgressData) => void) => {
+    const subscription = (_event: unknown, data: DownloadProgressData) => callback(data);
+    ipcRenderer.on('ollama-download-progress', subscription);
+    return () => ipcRenderer.removeListener('ollama-download-progress', subscription);
+  },
+
+  onModelDownloadProgress: (callback: (data: DownloadProgressData) => void) => {
+    const subscription = (_event: unknown, data: DownloadProgressData) => callback(data);
+    ipcRenderer.on('model-download-progress', subscription);
+    return () => ipcRenderer.removeListener('model-download-progress', subscription);
+  }
+};
+
+// Type definitions for the API
+export interface ProcessFileOptions {
+  debug?: boolean;
+}
+
+export interface FileProgressData {
+  filePath: string;
+  status: 'extracting' | 'analyzing' | 'uploading' | 'complete' | 'error';
+  progress: number;
+  message?: string;
+  error?: string;
+  result?: {
+    title: string;
+    description: string;
+    tags: string[];
+    noteUrl?: string;
+  };
+}
+
+export interface BatchProgressData {
+  totalFiles: number;
+  processed: number;
+  currentFile?: string;
+  status: 'scanning' | 'processing' | 'uploading' | 'complete';
+}
+
+export interface DownloadProgressData {
+  status: 'downloading' | 'installing' | 'complete' | 'error';
+  progress: number;
+  message?: string;
+  error?: string;
+}
+
+// Expose the API to the renderer process
+contextBridge.exposeInMainWorld('electronAPI', electronAPI);
+
+// TypeScript type augmentation for window object
+declare global {
+  interface Window {
+    electronAPI: typeof electronAPI;
+  }
+}
