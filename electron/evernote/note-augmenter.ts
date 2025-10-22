@@ -1,8 +1,8 @@
 import { BrowserWindow } from 'electron';
-import { getNoteWithContent, updateNote } from './evernote-client.js';
+import { getNoteWithContent, updateNote } from './client.js';
 import { enmlToPlainText, appendToEnml, createAIAnalysisEnml } from './enml-parser.js';
-import { analyzeContent } from './ai-analyzer.js';
-import { extractFileContent } from './file-extractor.js';
+import { analyzeContent } from '../ai/ai-analyzer.js';
+import { extractFileContent } from '../processing/file-extractor.js';
 import { promises as fs } from 'fs';
 import path from 'path';
 import os from 'os';

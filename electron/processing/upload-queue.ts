@@ -4,8 +4,8 @@
  */
 
 import { promises as fs } from 'fs';
-import { createNote } from './evernote-client.js';
-import { colors, warning, info } from './output-formatter.js';
+import { createNote } from '../evernote/client.js';
+import { colors, warning, info } from '../cli/output-formatter.js';
 import {
   addFile,
   getFile,
@@ -15,7 +15,7 @@ import {
   getReadyToUploadFiles,
   shouldRetry,
   parseTags
-} from './database/queue-db.js';
+} from '../database/queue-db.js';
 
 export interface NoteData {
   filePath: string;

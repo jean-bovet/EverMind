@@ -1,8 +1,8 @@
 import { Ollama } from 'ollama';
 import { ensureOllamaReady } from './ollama-manager.js';
-import { createSpinner, colors } from './output-formatter.js';
-import { saveDebugFile } from './debug-helper.js';
-import { parseAIResponse, type AIAnalysisResult } from './utils/ai-response-parser.js';
+import { createSpinner, colors } from '../cli/output-formatter.js';
+import { saveDebugFile } from '../cli/debug-helper.js';
+import { parseAIResponse, type AIAnalysisResult } from '../utils/ai-response-parser.js';
 
 export type { AIAnalysisResult };
 

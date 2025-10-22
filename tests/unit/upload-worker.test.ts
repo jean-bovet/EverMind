@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { UploadWorker } from '../../electron/upload-worker.js';
-import type { UploadResult } from '../../electron/file-processor.js';
+import { UploadWorker } from '../../electron/processing/upload-worker.js';
+import type { UploadResult } from '../../electron/processing/file-processor.js';
 import {
   createMockWindow,
   createMockUploadResult,

@@ -11,7 +11,7 @@ import {
   uploadNoteFromJSON,
   findPendingUploads,
   getPendingCount,
-} from '../../electron/upload-queue.js';
+} from '../../electron/processing/upload-queue.js';
 import { resetEvernoteMocks, mockCreateNote, mockRateLimitError } from '../mocks/evernote.mock.js';
 import { initDatabase, closeDatabase, updateFileStatus, updateFileUpload } from '../../electron/database/queue-db.js';
 
@@ -22,7 +22,7 @@ vi.mock('evernote', async () => {
 });
 
 // Mock oauth-helper
-vi.mock('../../src/oauth-helper.js', () => ({
+vi.mock('../../electron/evernote/oauth-helper.js', () => ({
   getToken: vi.fn().mockResolvedValue('mock-token'),
 }));
 

@@ -12,7 +12,7 @@ import {
   warning,
   error,
   createSpinner,
-} from '../../electron/output-formatter.js';
+} from '../../electron/cli/output-formatter.js';
 
 describe('output-formatter', () => {
   describe('colors', () => {

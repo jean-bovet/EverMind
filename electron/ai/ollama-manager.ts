@@ -1,7 +1,7 @@
 import { spawn, execSync, ChildProcess } from 'child_process';
 import { existsSync } from 'fs';
 import http from 'http';
-import { success, info, warning, colors } from './output-formatter.js';
+import { success, info, warning, colors } from '../cli/output-formatter.js';
 
 let ollamaProcess: ChildProcess | null = null;
 let wasStartedByUs = false;

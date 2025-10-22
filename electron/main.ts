@@ -2,17 +2,17 @@ import { app, BrowserWindow, ipcMain, dialog } from 'electron';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import Store from 'electron-store';
-import { getOllamaDetector } from './ollama-detector.js';
-import { processFile, processBatch, analyzeFile } from './file-processor.js';
-import { hasToken, authenticate, removeToken } from './oauth-helper.js';
+import { getOllamaDetector } from './ai/ollama-detector.js';
+import { processFile, processBatch, analyzeFile } from './processing/file-processor.js';
+import { hasToken, authenticate, removeToken } from './evernote/oauth-helper.js';
 import {
   listTags,
   listNotebooks,
   listNotesInNotebook,
   getNoteWithContent
-} from './evernote-client.js';
-import { augmentNote } from './note-augmenter.js';
-import { UploadWorker } from './upload-worker.js';
+} from './evernote/client.js';
+import { augmentNote } from './evernote/note-augmenter.js';
+import { UploadWorker } from './processing/upload-worker.js';
 import { initDatabase, closeDatabase, deleteAllFiles, getAllFiles } from './database/queue-db.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));

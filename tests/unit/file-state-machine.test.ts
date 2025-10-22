@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { FileStateMachine, type FileStatus } from '../../electron/file-state-machine.js';
+import { FileStateMachine, type FileStatus } from '../../electron/processing/file-state-machine.js';
 
 describe('FileStateMachine', () => {
   let fsm: FileStateMachine;

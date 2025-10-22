@@ -4,7 +4,7 @@ import {
   enmlToHtml,
   appendToEnml,
   createAIAnalysisEnml
-} from '../../electron/enml-parser.js';
+} from '../../electron/evernote/enml-parser.js';
 
 describe('enml-parser', () => {
 

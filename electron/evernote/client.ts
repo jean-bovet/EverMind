@@ -3,9 +3,9 @@ import { promises as fs } from 'fs';
 import path from 'path';
 import crypto from 'crypto';
 import { getToken } from './oauth-helper.js';
-import { createSpinner, colors, warning } from './output-formatter.js';
+import { createSpinner, colors, warning } from '../cli/output-formatter.js';
 import { sanitizeTags, validateTagsForAPI } from './tag-validator.js';
-import { mergeNoteAttributes } from './utils/note-helpers.js';
+import { mergeNoteAttributes } from '../utils/note-helpers.js';
 
 /**
  * Create a note in Evernote with the file and AI-generated metadata

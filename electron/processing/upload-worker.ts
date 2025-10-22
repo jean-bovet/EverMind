@@ -1,6 +1,6 @@
 import { BrowserWindow } from 'electron';
 import { uploadFile as defaultUploadFile, UploadResult } from './file-processor.js';
-import { getReadyToUploadFiles } from './database/queue-db.js';
+import { getReadyToUploadFiles } from '../database/queue-db.js';
 
 // Configuration
 const UPLOAD_RETRY_DELAY = 5000;        // 5s between retries

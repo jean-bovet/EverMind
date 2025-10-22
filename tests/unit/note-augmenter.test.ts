@@ -3,19 +3,19 @@ import {
   buildAugmentedContent,
   extractAugmentationStatus,
   augmentNote
-} from '../../electron/note-augmenter.js';
+} from '../../electron/evernote/note-augmenter.js';
 
 // Mock dependencies
-vi.mock('../../electron/evernote-client.js', () => ({
+vi.mock('../../electron/evernote/client.js', () => ({
   getNoteWithContent: vi.fn(),
   updateNote: vi.fn()
 }));
 
-vi.mock('../../electron/file-extractor.js', () => ({
+vi.mock('../../electron/processing/file-extractor.js', () => ({
   extractFileContent: vi.fn()
 }));
 
-vi.mock('../../electron/ai-analyzer.js', () => ({
+vi.mock('../../electron/ai/ai-analyzer.js', () => ({
   analyzeContent: vi.fn()
 }));
 
@@ -159,9 +159,9 @@ describe('note-augmenter', () => {
 
     beforeEach(async () => {
       // Get mocked functions
-      const evernoteClient = await import('../../electron/evernote-client.js');
-      const aiAnalyzer = await import('../../electron/ai-analyzer.js');
-      const fileExtractor = await import('../../electron/file-extractor.js');
+      const evernoteClient = await import('../../electron/evernote/client.js');
+      const aiAnalyzer = await import('../../electron/ai/ai-analyzer.js');
+      const fileExtractor = await import('../../electron/processing/file-extractor.js');
 
       mockGetNoteWithContent = vi.mocked(evernoteClient.getNoteWithContent);
       mockUpdateNote = vi.mocked(evernoteClient.updateNote);

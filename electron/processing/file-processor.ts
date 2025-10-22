@@ -4,15 +4,15 @@ import { promises as fs } from 'fs';
 
 // Import existing CLI modules
 import { extractFileContent } from './file-extractor.js';
-import { analyzeContent } from './ai-analyzer.js';
-import { listTags } from './evernote-client.js';
+import { analyzeContent } from '../ai/ai-analyzer.js';
+import { listTags } from '../evernote/client.js';
 import {
   hasExistingJSON,
   saveNoteToJSON,
   uploadNoteFromJSON,
 } from './upload-queue.js';
-import { filterExistingTags } from './tag-validator.js';
-import { addFile } from './database/queue-db.js';
+import { filterExistingTags } from '../evernote/tag-validator.js';
+import { addFile } from '../database/queue-db.js';
 
 export interface ProcessFileOptions {
   debug?: boolean;

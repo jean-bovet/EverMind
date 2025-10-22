@@ -10,7 +10,7 @@ import {
   getNoteWithContent,
   updateNote,
   getNoteApplicationData
-} from '../../electron/evernote-client.js';
+} from '../../electron/evernote/client.js';
 import {
   resetEvernoteMocks,
   mockCreateNote,
@@ -30,7 +30,7 @@ vi.mock('evernote', async () => {
 });
 
 // Mock oauth-helper to return a fake token
-vi.mock('../../electron/oauth-helper.js', () => ({
+vi.mock('../../electron/evernote/oauth-helper.js', () => ({
   getToken: vi.fn().mockResolvedValue('mock-token-123'),
 }));
 
@@ -101,7 +101,7 @@ describe('evernote-client', () => {
     });
 
     it('should handle authentication error', async () => {
-      const { getToken } = await import('../../electron/oauth-helper.js');
+      const { getToken } = await import('../../electron/evernote/oauth-helper.js');
       vi.mocked(getToken).mockResolvedValueOnce(null);
 
       await expect(
@@ -217,7 +217,7 @@ describe('evernote-client', () => {
     });
 
     it('should handle authentication error', async () => {
-      const { getToken } = await import('../../electron/oauth-helper.js');
+      const { getToken } = await import('../../electron/evernote/oauth-helper.js');
       vi.mocked(getToken).mockResolvedValueOnce(null);
 
       await expect(listTags()).rejects.toThrow(/Not authenticated/);
@@ -251,7 +251,7 @@ describe('evernote-client', () => {
       });
 
       it('should handle authentication error', async () => {
-        const { getToken } = await import('../../electron/oauth-helper.js');
+        const { getToken } = await import('../../electron/evernote/oauth-helper.js');
         vi.mocked(getToken).mockResolvedValueOnce(null);
 
         await expect(listNotebooks()).rejects.toThrow(/Not authenticated/);
@@ -376,7 +376,7 @@ describe('evernote-client', () => {
       });
 
       it('should handle authentication error', async () => {
-        const { getToken } = await import('../../electron/oauth-helper.js');
+        const { getToken } = await import('../../electron/evernote/oauth-helper.js');
         vi.mocked(getToken).mockResolvedValueOnce(null);
 
         await expect(getNoteWithContent('n1')).rejects.toThrow(/Not authenticated/);
@@ -498,7 +498,7 @@ describe('evernote-client', () => {
       });
 
       it('should handle authentication error', async () => {
-        const { getToken } = await import('../../electron/oauth-helper.js');
+        const { getToken } = await import('../../electron/evernote/oauth-helper.js');
         vi.mocked(getToken).mockResolvedValueOnce(null);
 
         await expect(getNoteApplicationData('n1')).rejects.toThrow(/Not authenticated/);
