@@ -62,11 +62,13 @@ export function getJSONPath(filePath: string): string {
 }
 
 /**
- * Check if a file has already been processed (exists in DB)
+ * Check if a file has already been processed (has analysis data)
  * @param filePath - Path to the source file
  */
 export async function hasExistingJSON(filePath: string): Promise<boolean> {
-  return isAlreadyProcessed(filePath);
+  const file = getFile(filePath);
+  // Only consider "already processed" if it has analysis results
+  return file != null && file.title != null;
 }
 
 /**

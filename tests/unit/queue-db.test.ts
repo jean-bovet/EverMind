@@ -163,8 +163,9 @@ describe('QueueDB', () => {
   });
 
   describe('isAlreadyProcessed', () => {
-    it('should return true for existing file', () => {
+    it('should return true for analyzed file', () => {
       addFile('/test/file.pdf');
+      updateFileAnalysis('/test/file.pdf', 'Title', 'Description', ['tag']);
       expect(isAlreadyProcessed('/test/file.pdf')).toBe(true);
     });
 
@@ -174,6 +175,12 @@ describe('QueueDB', () => {
       expect(files.length).toBe(0);
 
       expect(isAlreadyProcessed('/test/nonexistent.pdf')).toBe(false);
+    });
+
+    it('should return false for file without analysis', () => {
+      // File exists in DB but has not been analyzed yet
+      addFile('/test/pending-file.pdf');
+      expect(isAlreadyProcessed('/test/pending-file.pdf')).toBe(false);
     });
   });
 
@@ -400,9 +407,9 @@ describe('QueueDB', () => {
       addFile(file1);
       addFile(file2);
 
-      // Both should be in database
-      expect(isAlreadyProcessed(file1)).toBe(true);
-      expect(isAlreadyProcessed(file2)).toBe(true);
+      // Both should exist in database (but not yet "processed" without analysis)
+      expect(getFile(file1)).not.toBeNull();
+      expect(getFile(file2)).not.toBeNull();
 
       // They should be separate records
       const files = getAllFiles();
@@ -417,6 +424,67 @@ describe('QueueDB', () => {
 
       expect(f1?.status).toBe('complete');
       expect(f2?.status).toBe('error');
+
+      // After marking complete, file1 should be considered "processed"
+      expect(isAlreadyProcessed(file1)).toBe(true);
+      // file2 with error status is not considered "processed" (no analysis data)
+      expect(isAlreadyProcessed(file2)).toBe(false);
+    });
+  });
+
+  describe('Bug Fix: isAlreadyProcessed behavior for pending files', () => {
+    it('should return false for newly added files without analysis', () => {
+      // BUG: When a file is added to DB with status='pending',
+      // isAlreadyProcessed() returns true, causing analyzeFile() to exit early
+      const filePath = '/test/new-file.pdf';
+
+      // Add file to database (creates with status='pending', no analysis data)
+      addFile(filePath);
+
+      // Verify file exists in DB but has no analysis
+      const file = getFile(filePath);
+      expect(file).not.toBeNull();
+      expect(file?.status).toBe('pending');
+      expect(file?.title).toBeNull();
+      expect(file?.description).toBeNull();
+
+      // BUG: isAlreadyProcessed should return FALSE because file has no analysis yet
+      // Currently returns TRUE, causing file to be skipped
+      const result = isAlreadyProcessed(filePath);
+      expect(result).toBe(false);
+    });
+
+    it('should return true for files with analysis data', () => {
+      const filePath = '/test/analyzed-file.pdf';
+
+      // Add file and set analysis data
+      addFile(filePath);
+      updateFileAnalysis(filePath, 'Test Title', 'Test Description', ['tag1']);
+
+      // Now isAlreadyProcessed should return TRUE
+      const result = isAlreadyProcessed(filePath);
+      expect(result).toBe(true);
+    });
+
+    it('should return true for completed files', () => {
+      const filePath = '/test/completed-file.pdf';
+
+      addFile(filePath);
+      updateFileStatus(filePath, 'complete', 100);
+
+      const result = isAlreadyProcessed(filePath);
+      expect(result).toBe(true);
+    });
+
+    it('should return true for ready-to-upload files', () => {
+      const filePath = '/test/ready-file.pdf';
+
+      addFile(filePath);
+      updateFileAnalysis(filePath, 'Title', 'Description', ['tag']);
+      updateFileStatus(filePath, 'ready-to-upload', 100);
+
+      const result = isAlreadyProcessed(filePath);
+      expect(result).toBe(true);
     });
   });
 });

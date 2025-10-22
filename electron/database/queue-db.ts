@@ -261,7 +261,12 @@ export function getFile(filePath: string): FileRecord | null {
  */
 export function isAlreadyProcessed(filePath: string): boolean {
   const file = getFile(filePath);
-  return file != null;  // Loose equality catches both null and undefined
+  // File is "processed" if it has analysis data (title not null) or is in a final state
+  return file != null && (
+    file.title != null ||  // Has been analyzed
+    file.status === 'complete' ||  // Successfully uploaded
+    file.status === 'ready-to-upload'  // Analysis done, ready for upload
+  );
 }
 
 /**
