@@ -37,3 +37,5 @@ dist/
 # But keep JavaScript files in root during migration
 !node_modules/**/*.js
 /dist-renderer
+/dist-electron
+/release

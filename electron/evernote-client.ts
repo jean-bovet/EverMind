@@ -372,7 +372,9 @@ export async function updateNote(
   const noteStore = client.getNoteStore();
 
   try {
-    // First, get the current note to get the update sequence number
+    console.log(`  Updating note ${noteGuid}...`);
+
+    // First, get the current note to get the update sequence number and attributes
     const currentNote = await noteStore.getNote(noteGuid, false, false, false, false);
 
     // Create note object with updates
@@ -384,18 +386,41 @@ export async function updateNote(
     // Update content if provided
     if (updatedContent) {
       noteToUpdate.content = updatedContent;
+      console.log(`  ✓ Updated note content (${updatedContent.length} bytes)`);
     }
 
     // Update attributes if provided
     if (updatedAttributes) {
-      noteToUpdate.attributes = new Evernote.Types.NoteAttributes(updatedAttributes);
+      // Preserve existing attributes and merge with new ones
+      const existingAttributes = currentNote.attributes || {};
+
+      // Merge attributes, handling applicationData specially
+      const mergedAttributes: any = {
+        ...existingAttributes,
+        ...updatedAttributes
+      };
+
+      // If applicationData is provided, merge it with existing applicationData
+      if (updatedAttributes.applicationData) {
+        mergedAttributes.applicationData = {
+          ...(existingAttributes.applicationData || {}),
+          ...updatedAttributes.applicationData
+        };
+        console.log(`  ✓ Merged applicationData:`, mergedAttributes.applicationData);
+      }
+
+      noteToUpdate.attributes = new Evernote.Types.NoteAttributes(mergedAttributes);
     }
 
     // Perform the update
+    console.log(`  Uploading to Evernote...`);
     const updatedNote = await noteStore.updateNote(noteToUpdate);
+    console.log(`  ✓ Note updated successfully (updateSequenceNum: ${updatedNote.updateSequenceNum})`);
 
     return updatedNote;
   } catch (error: unknown) {
+    console.error('  ✗ Failed to update note:', error);
+
     // Check for rate limit error
     if (
       typeof error === 'object' &&

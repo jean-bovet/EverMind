@@ -125,8 +125,8 @@ const NoteAugmenter: React.FC = () => {
           }
 
           // Check augmentation status
-          const isAugmented = meta.attributes?.applicationData?.aiAugmented === 'true';
-          const augmentedDate = meta.attributes?.applicationData?.aiAugmentedDate;
+          const isAugmented = meta.attributes?.applicationData?.['aiAugmented'] === 'true';
+          const augmentedDate = meta.attributes?.applicationData?.['aiAugmentedDate'];
 
           return {
             guid: meta.guid!,

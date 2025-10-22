@@ -6,6 +6,8 @@ This document outlines the complete user experience flows for the Evernote AI Im
 
 ## Primary User Flows
 
+> **Note:** For detailed implementation of Note Augmentation feature, see [note-augmentation-feature.md](./note-augmentation-feature.md)
+
 ### 1. First-Time Setup Flow
 
 **User Goal:** Get the app running and ready to import files
@@ -383,9 +385,117 @@ OAuth Flow Starts (via CLI Module)
  +--------------------------------------+
 ```
 
+### 6. Note Augmentation Flow
+
+**User Goal:** Augment existing Evernote notes with AI analysis
+
+```
+Main App Screen
+    |
+    v User clicks "Augment Notes" tab
+
+Tab Switches to Augment View
+    |
+    v
+
+ +--------------------------------------+
+ | Evernote AI Importer          [gear]|
+ |                                      |
+ | [Import Files] [Augment Notes]       |
+ |     (active tab underlined)          |
+ |                                      |
+ | Notebook: [Documents v]      [🔄]    |
+ |                                      |
+ | Loading notes...                     |
+ +--------------------------------------+
+         |
+         v Notebooks and notes loaded
+
+ +--------------------------------------+
+ | Augment Existing Notes               |
+ |                                      |
+ | Notebook: [Documents v]      [🔄]    |
+ |                                      |
+ | +----------------------------------+ |
+ | | Meeting Notes Q4 2024            | |
+ | | 📅 Created: Oct 15, 2025         | |
+ | | 🔄 Updated: Oct 20, 2025         | |
+ | | 🏷️ meetings | planning           | |
+ | |                                  | |
+ | | Content: Discussed Q4 plans...   | |
+ | |                                  | |
+ | |              [🤖 Augment with AI]| |
+ | +----------------------------------+ |
+ | | Financial Report 2025            | |
+ | | 📅 Created: Sep 30, 2025         | |
+ | | 🏷️ finance                       | |
+ | | ✓ AI Augmented (10/22/2025)     | |
+ | |              [Already Augmented] | |
+ | +----------------------------------+ |
+ | | Vacation Photos                  | |
+ | | 📅 Created: Aug 12, 2025         | |
+ | |                                  | |
+ | |              [🤖 Augment with AI]| |
+ | +----------------------------------+ |
+ +--------------------------------------+
+         |
+         v User clicks [Augment with AI] on first note
+
+Augmentation Starts
+         |
+         v
+
+ +--------------------------------------+
+ | [################......] 65%         |
+ | Analyzing content with AI...         |
+ +--------------------------------------+
+         |
+         v Progress updates in real-time:
+         |
+         +-> Fetching note from Evernote... (10%)
+         +-> Extracting text from note... (20%)
+         +-> Analyzing content with AI... (30-70%)
+         +-> Building augmented note... (80%)
+         +-> Updating note in Evernote... (90%)
+         +-> Complete! (100%)
+
+Note Updated
+         |
+         v Card refreshes automatically
+
+ +----------------------------------+
+ | Meeting Notes Q4 2024            |
+ | 📅 Created: Oct 15, 2025         |
+ | 🔄 Updated: Oct 22, 2025         |
+ | 🏷️ meetings | planning           |
+ | ✓ AI Augmented (10/22/2025)     |
+ |                                  |
+ | Content: Discussed Q4 plans...   |
+ |                                  |
+ |              [Already Augmented] |
+ +----------------------------------+
+```
+
+**What Happens Behind the Scenes:**
+1. App fetches the complete note from Evernote (including attachments)
+2. Converts ENML (Evernote's XML format) to plain text
+3. Extracts text from PDF/image attachments via OCR if present
+4. Sends combined text to Ollama for AI analysis
+5. AI generates summary, description, and suggested tags
+6. App appends AI analysis to the original note content
+7. Updates note in Evernote with:
+   - Augmented content (original + AI analysis)
+   - Metadata tracking (aiAugmented: true, date stamp)
+8. Badge appears showing "AI Augmented" status
+
+**Error Handling:**
+- Network errors: "Unable to connect to Evernote. Check your connection."
+- Rate limits: "Rate limit exceeded. Retrying in 60 seconds..."
+- AI errors: "AI analysis failed. Please try again."
+
 ## Secondary User Flows
 
-### 6. Error Recovery Flow - Ollama Crash
+### 7. Error Recovery Flow - Ollama Crash
 
 **Scenario:** Ollama crashes while processing files
 
@@ -430,7 +540,7 @@ App Starts Ollama
 User Can Retry Failed Files
 ```
 
-### 7. Drag-and-Drop Flow
+### 8. Drag-and-Drop Flow
 
 **User Goal:** Quick file import via drag-and-drop
 
@@ -455,7 +565,7 @@ Drop Zone Highlights
 File Added to Queue
 ```
 
-### 8. Clear Queue Flow
+### 9. Clear Queue Flow
 
 **User Goal:** Remove processed files from queue
 

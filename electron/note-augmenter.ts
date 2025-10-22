@@ -44,10 +44,14 @@ export async function augmentNote(
   };
 
   try {
+    console.log(`\n=== Starting note augmentation for ${noteGuid} ===`);
+
     // Step 1: Fetch Note (10%)
     sendProgress({ status: 'fetching', progress: 10, message: 'Fetching note from Evernote...' });
+    console.log('  Fetching note from Evernote...');
 
     const note = await getNoteWithContent(noteGuid);
+    console.log(`  ✓ Note fetched: "${note.title}"`);
 
     if (!note.content) {
       throw new Error('Note has no content');
@@ -55,9 +59,11 @@ export async function augmentNote(
 
     // Step 2: Extract Text (20%)
     sendProgress({ status: 'extracting', progress: 20, message: 'Extracting text from note...' });
+    console.log('  Extracting text from note...');
 
     // Convert ENML to plain text
     let extractedText = enmlToPlainText(note.content);
+    console.log(`  ✓ Extracted ${extractedText.length} characters from note content`);
 
     // Extract text from attachments (if any)
     if (note.resources && note.resources.length > 0) {
@@ -116,12 +122,15 @@ export async function augmentNote(
 
     // Step 4: Build Augmented Content (80%)
     sendProgress({ status: 'building', progress: 80, message: 'Building augmented note...' });
+    console.log('  Building augmented note...');
 
     const aiAnalysisEnml = createAIAnalysisEnml(aiResult, new Date().toISOString());
     const augmentedContent = appendToEnml(note.content, aiAnalysisEnml);
+    console.log(`  ✓ Built augmented content (${augmentedContent.length} bytes)`);
 
     // Step 5: Update Note (90%)
     sendProgress({ status: 'uploading', progress: 90, message: 'Updating note in Evernote...' });
+    console.log('  Updating note in Evernote...');
 
     const updatedNote = await updateNote(
       noteGuid,
@@ -136,6 +145,8 @@ export async function augmentNote(
 
     // Step 6: Complete (100%)
     const noteUrl = `${endpoint}/Home.action#n=${updatedNote.guid}`;
+    console.log(`  ✓ Note augmented successfully!`);
+    console.log(`  Note URL: ${noteUrl}\n`);
 
     sendProgress({
       status: 'complete',
@@ -155,6 +166,8 @@ export async function augmentNote(
       : typeof error === 'object' && error !== null && 'errorMessage' in error
       ? String(error.errorMessage)
       : JSON.stringify(error) || 'Unknown error';
+
+    console.error(`  ✗ Augmentation failed: ${errorMessage}\n`);
 
     sendProgress({
       status: 'error',
@@ -189,7 +202,7 @@ export function extractAugmentationStatus(
   attributes: Record<string, string>
 ): { isAugmented: boolean; augmentedDate?: string } {
   return {
-    isAugmented: attributes.aiAugmented === 'true',
-    augmentedDate: attributes.aiAugmentedDate
+    isAugmented: attributes['aiAugmented'] === 'true',
+    augmentedDate: attributes['aiAugmentedDate']
   };
 }

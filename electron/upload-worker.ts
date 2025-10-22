@@ -122,7 +122,7 @@ export class UploadWorker {
       }
 
       // Process from database first, then internal queue
-      const item = readyFiles.length > 0
+      const item = readyFiles.length > 0 && readyFiles[0]
         ? { jsonPath: readyFiles[0].file_path, originalFilePath: readyFiles[0].file_path, retryCount: 0 }
         : this.queue[0];
 

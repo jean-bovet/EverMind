@@ -45,6 +45,15 @@ interface DownloadProgressData {
   error?: string;
 }
 
+interface AugmentProgressData {
+  noteGuid: string;
+  status: 'fetching' | 'extracting' | 'analyzing' | 'building' | 'uploading' | 'complete' | 'error';
+  progress: number;  // 0-100
+  message?: string;
+  error?: string;
+  noteUrl?: string;
+}
+
 interface OllamaStatus {
   installed: boolean;
   running: boolean;
@@ -558,6 +567,178 @@ ipcMain.handle('list-evernote-tags', async () => {
 });
 ```
 
+---
+
+## Note Augmentation API
+
+> **See also:** [note-augmentation-feature.md](./note-augmentation-feature.md) for complete implementation details.
+
+### `listNotebooks()`
+
+Fetches all notebooks from Evernote account.
+
+**Returns:** `Promise<Notebook[]>`
+
+**Type:**
+```typescript
+interface Notebook {
+  guid: string;
+  name: string;
+  defaultNotebook?: boolean;
+}
+```
+
+**Example:**
+```typescript
+const notebooks = await window.electronAPI.listNotebooks();
+// [
+//   { guid: "nb-1", name: "Documents", defaultNotebook: true },
+//   { guid: "nb-2", name: "Work", defaultNotebook: false }
+// ]
+```
+
+**Main Process Handler:**
+```typescript
+ipcMain.handle('list-notebooks', async () => {
+  return await listNotebooks();
+});
+```
+
+---
+
+### `listNotesInNotebook(notebookGuid, offset?, limit?)`
+
+Fetches notes from a specific notebook with pagination.
+
+**Parameters:**
+- `notebookGuid: string` - Notebook GUID
+- `offset?: number` - Starting index (default: 0)
+- `limit?: number` - Max notes to return (default: 50)
+
+**Returns:** `Promise<NoteMetadata[]>`
+
+**Type:**
+```typescript
+interface NoteMetadata {
+  guid: string;
+  title?: string;
+  created?: number;  // Unix timestamp
+  updated?: number;  // Unix timestamp
+  tagGuids?: string[];
+  attributes?: {
+    applicationData?: Record<string, string>;
+  };
+}
+```
+
+**Example:**
+```typescript
+const notes = await window.electronAPI.listNotesInNotebook('nb-1', 0, 50);
+// Returns first 50 notes from notebook
+
+const moreNotes = await window.electronAPI.listNotesInNotebook('nb-1', 50, 50);
+// Returns next 50 notes (pagination)
+```
+
+**Main Process Handler:**
+```typescript
+ipcMain.handle('list-notes-in-notebook', async (_event, notebookGuid, offset, limit) => {
+  return await listNotesInNotebook(notebookGuid, offset, limit);
+});
+```
+
+---
+
+### `getNoteContent(noteGuid)`
+
+Fetches complete note with full content and resources.
+
+**Parameters:**
+- `noteGuid: string` - Note GUID
+
+**Returns:** `Promise<Note>`
+
+**Type:**
+```typescript
+interface Note {
+  guid: string;
+  title?: string;
+  content?: string;  // ENML format
+  resources?: Resource[];  // Attachments
+  attributes?: NoteAttributes;
+  created?: number;
+  updated?: number;
+}
+```
+
+**Example:**
+```typescript
+const note = await window.electronAPI.getNoteContent('note-123');
+console.log(note.title);
+console.log(note.content);  // ENML XML
+console.log(note.resources?.length);  // Number of attachments
+```
+
+**Main Process Handler:**
+```typescript
+ipcMain.handle('get-note-content', async (_event, noteGuid) => {
+  return await getNoteWithContent(noteGuid);
+});
+```
+
+---
+
+### `augmentNote(noteGuid)`
+
+Augments an existing note with AI analysis.
+
+**Parameters:**
+- `noteGuid: string` - Note GUID to augment
+
+**Returns:** `Promise<AugmentationResult>`
+
+**Type:**
+```typescript
+interface AugmentationResult {
+  success: boolean;
+  error?: string;
+  noteUrl?: string;
+}
+```
+
+**Example:**
+```typescript
+const result = await window.electronAPI.augmentNote('note-123');
+
+if (result.success) {
+  console.log('Note augmented! View at:', result.noteUrl);
+} else {
+  console.error('Augmentation failed:', result.error);
+}
+```
+
+**Main Process Handler:**
+```typescript
+ipcMain.handle('augment-note', async (_event, noteGuid) => {
+  return await augmentNote(noteGuid, mainWindow);
+});
+```
+
+**Process:**
+1. Fetches note from Evernote
+2. Extracts text from ENML content
+3. Extracts text from attachments (PDF, images via OCR)
+4. Analyzes combined text with Ollama AI
+5. Appends AI analysis to note content
+6. Updates note in Evernote with:
+   - Augmented content
+   - Metadata (aiAugmented: "true", aiAugmentedDate: timestamp)
+
+**Progress Events:**
+Emits `augment-progress` events during processing. See `onAugmentProgress()`.
+
+---
+
 ## Event Listeners
 
 ### `onFileProgress(callback)`
@@ -697,6 +878,62 @@ const unsubscribe = window.electronAPI.onModelDownloadProgress((data) => {
   }
 });
 ```
+
+---
+
+### `onAugmentProgress(callback)`
+
+Listens to note augmentation progress events.
+
+**Parameters:**
+- `callback: (data: AugmentProgressData) => void`
+
+**Type:**
+```typescript
+interface AugmentProgressData {
+  noteGuid: string;
+  status: 'fetching' | 'extracting' | 'analyzing' | 'building' | 'uploading' | 'complete' | 'error';
+  progress: number;  // 0-100
+  message?: string;
+  error?: string;
+  noteUrl?: string;
+}
+```
+
+**Returns:** `() => void` - Unsubscribe function
+
+**Example:**
+```typescript
+const unsubscribe = window.electronAPI.onAugmentProgress((data) => {
+  if (data.status === 'analyzing') {
+    setProgress(data.progress);
+    setStatus(data.message || 'Analyzing with AI...');
+  }
+
+  if (data.status === 'complete') {
+    console.log('Note augmented! View at:', data.noteUrl);
+    unsubscribe();
+  }
+
+  if (data.status === 'error') {
+    console.error('Augmentation failed:', data.error);
+    unsubscribe();
+  }
+});
+
+await window.electronAPI.augmentNote('note-123');
+```
+
+**Progress Stages:**
+1. **fetching** (10%) - Downloading note from Evernote
+2. **extracting** (20%) - Extracting text from content and attachments
+3. **analyzing** (30-70%) - AI analysis with Ollama
+4. **building** (80%) - Building augmented content
+5. **uploading** (90%) - Updating note in Evernote
+6. **complete** (100%) - Augmentation successful
+7. **error** (0%) - Augmentation failed
+
+---
 
 ## Usage Patterns
 

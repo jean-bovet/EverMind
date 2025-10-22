@@ -33,11 +33,11 @@ let mainWindow: BrowserWindow | null = null;
 const uploadWorker = new UploadWorker(null);
 
 // Determine if we're in development mode
-const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
+const isDev = process.env['NODE_ENV'] === 'development' || !app.isPackaged;
 
 function createWindow() {
   // Get saved window bounds or use defaults
-  const bounds = store.get('windowBounds') as { width: number; height: number };
+  const bounds = (store as any).get('windowBounds') as { width: number; height: number };
 
   mainWindow = new BrowserWindow({
     width: bounds.width,
@@ -76,7 +76,7 @@ function createWindow() {
   mainWindow.on('resize', () => {
     if (mainWindow) {
       const bounds = mainWindow.getBounds();
-      store.set('windowBounds', { width: bounds.width, height: bounds.height });
+      (store as any).set('windowBounds', { width: bounds.width, height: bounds.height });
     }
   });
 
@@ -113,14 +113,14 @@ app.on('window-all-closed', () => {
 // IPC Handlers
 ipcMain.handle('get-settings', () => {
   return {
-    ollamaModel: store.get('ollamaModel'),
-    ollamaHost: store.get('ollamaHost'),
-    ollamaTemperature: store.get('ollamaTemperature'),
+    ollamaModel: (store as any).get('ollamaModel'),
+    ollamaHost: (store as any).get('ollamaHost'),
+    ollamaTemperature: (store as any).get('ollamaTemperature'),
   };
 });
 
 ipcMain.handle('set-setting', (_event, key: string, value: unknown) => {
-  store.set(key, value);
+  (store as any).set(key, value);
   return true;
 });
 
