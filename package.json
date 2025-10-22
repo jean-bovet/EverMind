@@ -9,6 +9,7 @@
     "test:ui": "vitest --ui",
     "test:coverage": "vitest --coverage",
     "test:watch": "vitest --watch",
+    "predev": "npx electron-rebuild -f -w better-sqlite3",
     "dev": "vite",
     "build": "tsc && vite build && electron-builder",
     "preview": "vite build && electron .",
