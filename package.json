@@ -13,7 +13,10 @@
     "dev": "vite",
     "build": "tsc && vite build && electron-builder",
     "preview": "vite build && electron .",
-    "postinstall": "electron-rebuild -f -w better-sqlite3"
+    "postinstall": "electron-rebuild -f -w better-sqlite3",
+    "clean": "rm -rf dist-electron dist-renderer dist",
+    "clean:deps": "rm -rf node_modules",
+    "clean:all": "npm run clean && npm run clean:deps"
   },
   "keywords": [
     "evernote",
