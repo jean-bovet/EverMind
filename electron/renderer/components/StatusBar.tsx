@@ -1,10 +1,9 @@
-
-interface OllamaStatus {
-  installed: boolean;
-  running: boolean;
-  version?: string;
-  models?: string[];
-}
+import {
+  getOllamaStatusText,
+  getOllamaStatusClass,
+  type OllamaStatus
+} from '../../utils/ollama-helpers.js';
+import { formatCount } from '../../utils/format-helpers.js';
 
 interface StatusBarProps {
   ollamaStatus: OllamaStatus | null;
@@ -14,14 +13,14 @@ export default function StatusBar({ ollamaStatus }: StatusBarProps) {
   return (
     <div className="status-bar">
       <div className="status-indicator">
-        <div className={`status-dot ${ollamaStatus?.running ? 'running' : 'stopped'}`} />
+        <div className={`status-dot ${getOllamaStatusClass(ollamaStatus)}`} />
         <span>
-          Ollama: {ollamaStatus?.running ? 'Running' : ollamaStatus?.installed ? 'Installed' : 'Not Installed'}
+          Ollama: {getOllamaStatusText(ollamaStatus)}
         </span>
       </div>
       {ollamaStatus?.models && ollamaStatus.models.length > 0 && (
         <div>
-          {ollamaStatus.models.length} model{ollamaStatus.models.length !== 1 ? 's' : ''} available
+          {formatCount(ollamaStatus.models.length, 'model')} available
         </div>
       )}
       {ollamaStatus?.version && (

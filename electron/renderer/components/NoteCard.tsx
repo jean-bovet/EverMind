@@ -1,5 +1,11 @@
 import React from 'react';
 import type { NotePreview } from '../../utils/note-helpers.js';
+import {
+  formatDate,
+  truncateText,
+  getAugmentButtonTooltip,
+  getAugmentButtonLabel
+} from '../../utils/format-helpers.js';
 
 interface NoteCardProps {
   note: NotePreview & { thumbnailUrl?: string };
@@ -8,19 +14,6 @@ interface NoteCardProps {
 }
 
 const NoteCard: React.FC<NoteCardProps> = ({ note, onAugment, augmenting }) => {
-  const formatDate = (timestamp: number) => {
-    const date = new Date(timestamp);
-    return date.toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    });
-  };
-
-  const truncateText = (text: string, maxLength: number = 200) => {
-    if (text.length <= maxLength) return text;
-    return text.substring(0, maxLength) + '...';
-  };
 
   return (
     <div className="note-card">
@@ -31,7 +24,7 @@ const NoteCard: React.FC<NoteCardProps> = ({ note, onAugment, augmenting }) => {
             ✓ AI Augmented
             {note.augmentedDate && (
               <span className="augmented-date">
-                {' '}({new Date(note.augmentedDate).toLocaleDateString()})
+                {' '}({formatDate(Date.parse(note.augmentedDate))})
               </span>
             )}
           </span>
@@ -65,7 +58,7 @@ const NoteCard: React.FC<NoteCardProps> = ({ note, onAugment, augmenting }) => {
 
       {note.contentPreview && (
         <div className="note-card-preview">
-          {truncateText(note.contentPreview)}
+          {truncateText(note.contentPreview, 200)}
         </div>
       )}
 
@@ -74,15 +67,9 @@ const NoteCard: React.FC<NoteCardProps> = ({ note, onAugment, augmenting }) => {
           className="augment-button"
           onClick={() => onAugment(note.guid)}
           disabled={augmenting || note.isAugmented}
-          title={
-            note.isAugmented
-              ? 'This note has already been augmented'
-              : augmenting
-              ? 'Augmenting...'
-              : 'Augment this note with AI analysis'
-          }
+          title={getAugmentButtonTooltip(note.isAugmented, augmenting)}
         >
-          {augmenting ? '🔄 Augmenting...' : '🤖 Augment with AI'}
+          {getAugmentButtonLabel(augmenting)}
         </button>
       </div>
     </div>

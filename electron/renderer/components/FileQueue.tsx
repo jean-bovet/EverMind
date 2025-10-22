@@ -1,30 +1,10 @@
-
-type FileStatus =
-  | 'pending'           // Waiting to start Stage 1
-  | 'extracting'        // Stage 1: Extracting text from file
-  | 'analyzing'         // Stage 1: AI analysis in progress
-  | 'ready-to-upload'   // Stage 1 complete, waiting for upload slot
-  | 'uploading'         // Stage 2: Currently uploading to Evernote
-  | 'rate-limited'      // Stage 2: Waiting for rate limit to clear
-  | 'retrying'          // Stage 2: Retrying after failure
-  | 'complete'          // Successfully uploaded
-  | 'error';            // Failed at any stage
-
-interface FileItem {
-  path: string;
-  name: string;
-  status: FileStatus;
-  progress: number;
-  message?: string;
-  jsonPath?: string;    // Path to the .evernote.json file (for Stage 2)
-  result?: {
-    title: string;
-    description: string;
-    tags: string[];
-    noteUrl?: string;
-  };
-  error?: string;
-}
+import type { FileItem } from '../../utils/processing-scheduler.js';
+import {
+  getFileStatusLabel,
+  countFilesByStatus,
+  shouldShowProgressBar
+} from '../../utils/file-helpers.js';
+import { formatCount } from '../../utils/format-helpers.js';
 
 interface FileQueueProps {
   files: FileItem[];
@@ -37,13 +17,13 @@ export default function FileQueue({
   onClearCompleted,
   onClearAll
 }: FileQueueProps) {
-  const completedCount = files.filter(f => f.status === 'complete').length;
+  const completedCount = countFilesByStatus(files, 'complete');
 
   return (
     <div className="file-queue">
       <div className="file-queue-header">
         <div className="file-queue-title">
-          {files.length} file{files.length !== 1 ? 's' : ''} in queue
+          {formatCount(files.length, 'file')} in queue
         </div>
         <div className="file-queue-actions">
           {completedCount > 0 && (
@@ -63,20 +43,12 @@ export default function FileQueue({
             <div className="file-item-header">
               <div className="file-item-name">{file.name}</div>
               <div className="file-item-status">
-                {file.status === 'pending' && '⏳ Pending'}
-                {file.status === 'extracting' && '📄 Extracting...'}
-                {file.status === 'analyzing' && '🤖 Analyzing...'}
-                {file.status === 'ready-to-upload' && '⏸️ Ready to upload'}
-                {file.status === 'uploading' && '⬆️ Uploading...'}
-                {file.status === 'rate-limited' && '⏱️ Rate limited'}
-                {file.status === 'retrying' && '🔄 Retrying'}
-                {file.status === 'complete' && '✅ Complete'}
-                {file.status === 'error' && '❌ Error'}
+                {getFileStatusLabel(file.status)}
               </div>
             </div>
 
             {/* Progress bar for active operations */}
-            {['extracting', 'analyzing', 'uploading'].includes(file.status) && (
+            {shouldShowProgressBar(file.status) && (
               <div className="progress-bar">
                 <div
                   className="progress-bar-fill"
@@ -102,7 +74,7 @@ export default function FileQueue({
                 </div>
                 {file.result.tags.length > 0 && (
                   <div style={{ marginTop: 8, display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                    {file.result.tags.map((tag, i) => (
+                    {file.result.tags.map((tag: string, i: number) => (
                       <span
                         key={i}
                         style={{

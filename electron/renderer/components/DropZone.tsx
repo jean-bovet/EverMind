@@ -1,4 +1,5 @@
 import { useState, DragEvent } from 'react';
+import { extractFilePaths } from '../../utils/file-helpers.js';
 
 interface DropZoneProps {
   onFilesAdded: (filePaths: string[]) => void;
@@ -30,17 +31,7 @@ export default function DropZone({ onFilesAdded, disabled }: DropZoneProps) {
     if (disabled) return;
 
     const files = Array.from(e.dataTransfer.files);
-    // Use Electron's webUtils API to get the file path
-    const filePaths = files
-      .map(file => {
-        try {
-          return window.electronAPI.getPathForFile(file);
-        } catch (error) {
-          console.error('Error getting file path:', error);
-          return '';
-        }
-      })
-      .filter(path => path !== '');
+    const filePaths = extractFilePaths(files, (file) => window.electronAPI.getPathForFile(file));
 
     console.log('Dropped files:', filePaths);
 
