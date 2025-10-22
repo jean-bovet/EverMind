@@ -32,6 +32,12 @@ const electronAPI = {
   getUploadQueue: () =>
     ipcRenderer.invoke('get-upload-queue'),
 
+  // Database management
+  clearAllFiles: () =>
+    ipcRenderer.invoke('clear-all-files'),
+  getAllFiles: () =>
+    ipcRenderer.invoke('get-all-files'),
+
   // Ollama management
   checkOllamaInstallation: () => ipcRenderer.invoke('check-ollama'),
   installOllama: () => ipcRenderer.invoke('install-ollama'),

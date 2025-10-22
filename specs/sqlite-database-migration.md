@@ -563,6 +563,216 @@ npm run postinstall  # Rebuilds for Electron
 
 **All tests passing** ✅
 
+## Database-to-UI Integration (October 2025)
+
+### Overview
+
+Added proper integration between SQLite database and React UI with pure mapper functions and IPC handlers for database management.
+
+### Problem
+
+- **Clear All** only cleared UI state, not database → files persisted across app restarts
+- No mechanism to load files from database on startup
+- Database and UI state could become desynchronized
+
+### Solution Components
+
+#### 1. Pure Mapper Module (`electron/utils/db-to-ui-mapper.ts`)
+
+**Design Principles:**
+- Pure functions with no side effects (easily testable)
+- Works in both Node.js and browser contexts
+- No Node.js-specific imports (e.g., `path` module)
+
+**Functions:**
+
+```typescript
+// Parse JSON tags safely
+parseTags(tagsJson: string | null): string[]
+
+// Extract filename from path (pure JS implementation)
+extractFileName(filePath: string): string
+
+// Convert database record to UI FileItem
+mapDbRecordToFileItem(record: FileRecord): FileItem
+
+// Batch conversion
+mapDbRecordsToFileItems(records: FileRecord[]): FileItem[]
+```
+
+**Key Implementation Detail:**
+
+The `extractFileName()` function uses pure JavaScript instead of Node's `path.basename()` to work in renderer process:
+
+```typescript
+export function extractFileName(filePath: string): string {
+  // Handle both Unix (/) and Windows (\) path separators
+  const normalized = filePath.replace(/\\/g, '/');
+  const parts = normalized.split('/');
+  return parts[parts.length - 1] || filePath;
+}
+```
+
+**Why this matters:** Using `import path from 'path'` in renderer process causes:
+```
+Error: Dynamic require of "path" is not supported
+```
+
+#### 2. New IPC Handlers (`electron/main.ts`)
+
+```typescript
+// Clear all files from database
+ipcMain.handle('clear-all-files', async () => {
+  const deletedCount = deleteAllFiles();
+  return { success: true, deletedCount };
+});
+
+// Get all files from database
+ipcMain.handle('get-all-files', async () => {
+  const files = getAllFiles();
+  return files;
+});
+```
+
+**Exposed via Preload API:**
+
+```typescript
+// electron/preload.ts
+clearAllFiles: () => ipcRenderer.invoke('clear-all-files'),
+getAllFiles: () => ipcRenderer.invoke('get-all-files'),
+```
+
+#### 3. UI Integration (`electron/renderer/App.tsx`)
+
+**Startup Loading:**
+
+```typescript
+useEffect(() => {
+  loadFilesFromDatabase();
+}, []);
+
+const loadFilesFromDatabase = async () => {
+  try {
+    const dbRecords = await window.electronAPI.getAllFiles();
+    const fileItems = mapDbRecordsToFileItems(dbRecords);
+    setFiles(fileItems);
+  } catch (error) {
+    console.error('Failed to load files from database:', error);
+  }
+};
+```
+
+**Fixed Clear All:**
+
+```typescript
+const handleClearAll = async () => {
+  // Clear database first
+  await window.electronAPI.clearAllFiles();
+  // Then clear UI state
+  setFiles([]);
+};
+```
+
+### Benefits
+
+1. **Database as Source of Truth**
+   - Files persist across app restarts
+   - UI loads initial state from database
+   - No synchronization drift
+
+2. **Clean Architecture**
+   - Pure functions → easily testable
+   - Clear separation: DB ↔ Mapper ↔ UI
+   - Type-safe throughout
+
+3. **No Periodic Sync Needed**
+   - Event-driven updates via IPC messages
+   - Database writes happen during file processing
+   - UI reads once on startup
+
+### Testing
+
+**New Tests:** `tests/unit/db-to-ui-mapper.test.ts` (15 tests)
+
+```typescript
+describe('db-to-ui-mapper', () => {
+  // Tag parsing tests
+  - Parse valid JSON arrays
+  - Handle null/invalid JSON
+  - Handle non-array JSON
+
+  // Filename extraction tests
+  - Unix paths (/path/to/file.pdf)
+  - Files without paths (file.txt)
+  - Multiple dots (file.name.with.dots.pdf)
+
+  // Record mapping tests
+  - Complete records with all fields
+  - Minimal records (pending files)
+  - Error records with messages
+  - All status types
+  - Batch conversion
+});
+```
+
+**Test Coverage:**
+| Test Suite | Tests | Status |
+|------------|-------|--------|
+| db-to-ui-mapper.test.ts | 15 | ✅ Pass |
+| queue-db.test.ts | 37 | ✅ Pass |
+| Total | 237 | ✅ Pass |
+
+### Architecture Diagram
+
+```
+┌─────────────────────────────────────────┐
+│         React UI (Renderer)             │
+│                                         │
+│  ┌──────────────────────────────────┐  │
+│  │ App.tsx                          │  │
+│  │                                  │  │
+│  │ - useEffect: loadFromDatabase() │  │
+│  │ - handleClearAll(): clear DB+UI │  │
+│  └──────────────┬───────────────────┘  │
+│                 │                       │
+│                 │ IPC Calls             │
+└─────────────────┼───────────────────────┘
+                  │
+        ┌─────────┴──────────┐
+        │   Preload Bridge   │
+        │                    │
+        │ - clearAllFiles()  │
+        │ - getAllFiles()    │
+        └─────────┬──────────┘
+                  │
+┌─────────────────┼───────────────────────┐
+│         Main Process (Node.js)          │
+│                 │                       │
+│  ┌──────────────┴────────────────────┐ │
+│  │ IPC Handlers                      │ │
+│  │                                   │ │
+│  │ - clear-all-files                 │ │
+│  │ - get-all-files                   │ │
+│  └──────────────┬────────────────────┘ │
+│                 │                       │
+│  ┌──────────────┴────────────────────┐ │
+│  │ database/queue-db.ts              │ │
+│  │                                   │ │
+│  │ - deleteAllFiles()                │ │
+│  │ - getAllFiles()                   │ │
+│  └──────────────┬────────────────────┘ │
+│                 │                       │
+│  ┌──────────────┴────────────────────┐ │
+│  │ utils/db-to-ui-mapper.ts          │ │
+│  │ (Pure Functions)                  │ │
+│  │                                   │ │
+│  │ - mapDbRecordsToFileItems()       │ │
+│  │ - extractFileName()               │ │
+│  │ - parseTags()                     │ │
+│  └───────────────────────────────────┘ │
+└─────────────────────────────────────────┘
+```
+
 ## Future Enhancements
 
 ### Potential Improvements

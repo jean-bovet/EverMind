@@ -12,6 +12,8 @@ import {
   type FileProgressData
 } from '../utils/file-state-reducer.js';
 import type { FileItem, FileStatus } from '../utils/processing-scheduler.js';
+import { mapDbRecordsToFileItems } from '../utils/db-to-ui-mapper.js';
+import type { FileRecord } from '../database/queue-db.js';
 
 // Configuration for concurrent processing
 const CONCURRENT_STAGE1 = 3; // Max concurrent analyses
@@ -36,6 +38,21 @@ function App() {
   useEffect(() => {
     checkOllamaStatus();
   }, []);
+
+  // Load files from database on mount
+  useEffect(() => {
+    loadFilesFromDatabase();
+  }, []);
+
+  const loadFilesFromDatabase = async () => {
+    try {
+      const dbRecords = await window.electronAPI.getAllFiles() as FileRecord[];
+      const fileItems = mapDbRecordsToFileItems(dbRecords);
+      setFiles(fileItems);
+    } catch (error) {
+      console.error('Failed to load files from database:', error);
+    }
+  };
 
   const checkOllamaStatus = async () => {
     const status = await window.electronAPI.checkOllamaInstallation();
@@ -132,7 +149,10 @@ function App() {
     setFiles(prev => prev.filter(f => f.status !== 'complete'));
   };
 
-  const handleClearAll = () => {
+  const handleClearAll = async () => {
+    // Clear database first
+    await window.electronAPI.clearAllFiles();
+    // Then clear UI state
     setFiles([]);
   };
 

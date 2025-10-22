@@ -7,7 +7,7 @@ import { processFile, processBatch, analyzeFile } from './file-processor.js';
 import { hasToken, authenticate, removeToken } from './oauth-helper.js';
 import { listTags } from './evernote-client.js';
 import { UploadWorker } from './upload-worker.js';
-import { initDatabase, closeDatabase } from './database/queue-db.js';
+import { initDatabase, closeDatabase, deleteAllFiles, getAllFiles } from './database/queue-db.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -216,6 +216,17 @@ ipcMain.handle('queue-upload', async (_event, jsonPath: string, originalFilePath
 // Get upload queue status
 ipcMain.handle('get-upload-queue', async () => {
   return uploadWorker.getQueueStatus();
+});
+
+// Database management IPC handlers
+ipcMain.handle('clear-all-files', async () => {
+  const deletedCount = deleteAllFiles();
+  return { success: true, deletedCount };
+});
+
+ipcMain.handle('get-all-files', async () => {
+  const files = getAllFiles();
+  return files;
 });
 
 // Cleanup on app quit

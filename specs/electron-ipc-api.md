@@ -236,6 +236,99 @@ ipcMain.handle('process-batch', async (_event, folderPath: string, options: any)
 });
 ```
 
+## Database Management API
+
+### `clearAllFiles()`
+
+Clears all files from the SQLite database queue.
+
+**Returns:** `Promise<{ success: boolean; deletedCount: number }>`
+
+**Example:**
+```typescript
+const result = await window.electronAPI.clearAllFiles();
+console.log(`Deleted ${result.deletedCount} files`);
+```
+
+**Main Process Implementation:**
+```typescript
+ipcMain.handle('clear-all-files', async () => {
+  const deletedCount = deleteAllFiles();
+  return { success: true, deletedCount };
+});
+```
+
+**Use Cases:**
+- "Clear All" button in UI
+- Reset queue for fresh start
+- Remove all pending/failed files
+
+**Note:** This deletes ALL files from the database, including completed uploads. Use with caution.
+
+---
+
+### `getAllFiles()`
+
+Retrieves all files from the database queue.
+
+**Returns:** `Promise<FileRecord[]>`
+
+**Example:**
+```typescript
+const files = await window.electronAPI.getAllFiles();
+console.log(`Found ${files.length} files in queue`);
+
+// Convert to UI format using mapper
+import { mapDbRecordsToFileItems } from '../utils/db-to-ui-mapper';
+const uiFiles = mapDbRecordsToFileItems(files);
+```
+
+**Main Process Implementation:**
+```typescript
+ipcMain.handle('get-all-files', async () => {
+  const files = getAllFiles();
+  return files;
+});
+```
+
+**Use Cases:**
+- Load files from database on app startup
+- Display file queue in UI
+- Synchronize UI state with database
+
+**Return Type:**
+```typescript
+interface FileRecord {
+  id: number;
+  file_path: string;
+  title: string | null;
+  description: string | null;
+  tags: string | null;  // JSON string
+  status: FileStatus;
+  progress: number;
+  error_message: string | null;
+  created_at: string;
+  last_attempt_at: string | null;
+  retry_after: number | null;
+  uploaded_at: string | null;
+  note_url: string | null;
+}
+```
+
+**Integration Example:**
+```typescript
+// In App.tsx
+useEffect(() => {
+  loadFilesFromDatabase();
+}, []);
+
+const loadFilesFromDatabase = async () => {
+  const dbRecords = await window.electronAPI.getAllFiles();
+  const fileItems = mapDbRecordsToFileItems(dbRecords);
+  setFiles(fileItems);
+};
+```
+
 ## Ollama API
 
 ### `checkOllamaInstallation()`
