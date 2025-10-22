@@ -4,12 +4,6 @@
  */
 
 import Database from 'better-sqlite3';
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 // Inline SQL schema (avoids file loading issues in bundled electron app)
 const schemaSQL = `-- Queue database schema for Evernote AI Importer

@@ -7,18 +7,14 @@ import { promises as fs } from 'fs';
 import { createNote } from './evernote-client.js';
 import { colors, warning, info } from './output-formatter.js';
 import {
-  getDatabase,
   addFile,
   getFile,
-  isAlreadyProcessed,
   updateFileAnalysis,
   updateFileUpload,
   updateRetryInfo,
-  updateFileError,
   getReadyToUploadFiles,
   shouldRetry,
-  parseTags,
-  type FileRecord
+  parseTags
 } from './database/queue-db.js';
 
 export interface NoteData {
@@ -212,7 +208,7 @@ export async function uploadNoteFromJSON(filePathOrJsonPath: string): Promise<Up
  * @deprecated - Database tracks all files, no need to scan directories
  * @param directory - Directory to search (ignored)
  */
-export async function findPendingUploads(directory: string): Promise<string[]> {
+export async function findPendingUploads(_directory: string): Promise<string[]> {
   // Return files ready for upload from database
   const files = getReadyToUploadFiles();
   return files.map(f => f.file_path);
@@ -222,7 +218,7 @@ export async function findPendingUploads(directory: string): Promise<string[]> {
  * Attempt to upload all pending uploads that are ready to retry
  * @param directory - Directory to search for pending uploads (ignored, uses DB)
  */
-export async function retryPendingUploads(directory: string): Promise<RetryStats> {
+export async function retryPendingUploads(_directory: string): Promise<RetryStats> {
   const pendingFiles = getReadyToUploadFiles();
 
   const stats: RetryStats = {
@@ -268,7 +264,7 @@ export async function retryPendingUploads(directory: string): Promise<RetryStats
  * Get count of pending uploads
  * @param directory - Directory to search (ignored, uses DB)
  */
-export async function getPendingCount(directory: string): Promise<number> {
+export async function getPendingCount(_directory: string): Promise<number> {
   const files = getReadyToUploadFiles();
   return files.length;
 }

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import DropZone from './components/DropZone';
 import FileQueue from './components/FileQueue';
 import Settings from './components/Settings';
@@ -12,7 +12,7 @@ import {
   updateFileStatus,
   type FileProgressData
 } from '../utils/file-state-reducer.js';
-import type { FileItem, FileStatus } from '../utils/processing-scheduler.js';
+import type { FileItem } from '../utils/processing-scheduler.js';
 import { mapDbRecordsToFileItems } from '../utils/db-to-ui-mapper.js';
 import type { FileRecord } from '../database/queue-db.js';
 

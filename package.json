@@ -31,6 +31,7 @@
   "type": "module",
   "dependencies": {
     "@napi-rs/canvas": "^0.1.80",
+    "@tanstack/react-query": "^5.90.5",
     "better-sqlite3": "^12.4.1",
     "chalk": "^4.1.2",
     "cli-boxes": "^3.0.0",

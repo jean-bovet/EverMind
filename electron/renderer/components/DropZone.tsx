@@ -1,4 +1,4 @@
-import React, { useState, DragEvent } from 'react';
+import { useState, DragEvent } from 'react';
 
 interface DropZoneProps {
   onFilesAdded: (filePaths: string[]) => void;

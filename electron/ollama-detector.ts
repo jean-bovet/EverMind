@@ -1,7 +1,6 @@
-import { app, BrowserWindow, shell, dialog } from 'electron';
+import { shell, dialog } from 'electron';
 import { spawn, exec } from 'child_process';
 import { promises as fs } from 'fs';
-import path from 'path';
 import { promisify } from 'util';
 
 const execAsync = promisify(exec);

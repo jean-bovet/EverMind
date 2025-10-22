@@ -456,6 +456,86 @@ body {
   cursor: not-allowed;
 }
 
+/* Error Message */
+.error-message {
+  background: #3a2020;
+  border: 1px solid #ff3b30;
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 20px;
+  color: #ffcccc;
+}
+
+.error-message strong {
+  color: #ff6b60;
+  margin-right: 8px;
+}
+
+/* Rate Limit Warning */
+.rate-limit-warning {
+  background: #3a3020;
+  border: 1px solid #ff9500;
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.warning-content {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  flex: 1;
+}
+
+.warning-icon {
+  font-size: 24px;
+  flex-shrink: 0;
+}
+
+.warning-text {
+  flex: 1;
+}
+
+.warning-text strong {
+  display: block;
+  color: #ffb340;
+  font-size: 15px;
+  margin-bottom: 6px;
+}
+
+.warning-text p {
+  color: #e8d5b7;
+  font-size: 14px;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.dismiss-button {
+  background: transparent;
+  border: none;
+  color: #999;
+  font-size: 20px;
+  cursor: pointer;
+  padding: 0;
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
+.dismiss-button:hover {
+  background: rgba(255, 149, 0, 0.1);
+  color: #ff9500;
+}
+
 /* Augment Progress */
 .augment-progress {
   background: #2a2a2a;

@@ -12,7 +12,7 @@ import {
   uploadNoteFromJSON,
 } from './upload-queue.js';
 import { filterExistingTags } from './tag-validator.js';
-import { addFile, updateFileStatus } from './database/queue-db.js';
+import { addFile } from './database/queue-db.js';
 
 export interface ProcessFileOptions {
   debug?: boolean;

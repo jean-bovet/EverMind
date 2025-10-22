@@ -1,6 +1,27 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import NoteCard from './NoteCard';
-import { enmlToPlainText } from '../../enml-parser.js';
+
+// Utility function to parse and format rate limit errors
+function parseRateLimitError(error: unknown): string | null {
+  const errorStr = error instanceof Error ? error.message : String(error);
+
+  // Try to extract rate limit info from error message
+  const rateLimitMatch = errorStr.match(/"errorCode":19.*?"rateLimitDuration":(\d+)/);
+  if (rateLimitMatch && rateLimitMatch[1]) {
+    const durationSeconds = parseInt(rateLimitMatch[1], 10);
+    const minutes = Math.floor(durationSeconds / 60);
+    const seconds = durationSeconds % 60;
+
+    if (minutes > 0) {
+      return `Rate limit exceeded. Please wait ${minutes} minute${minutes > 1 ? 's' : ''} and ${seconds} second${seconds !== 1 ? 's' : ''} before trying again.`;
+    } else {
+      return `Rate limit exceeded. Please wait ${seconds} second${seconds !== 1 ? 's' : ''} before trying again.`;
+    }
+  }
+
+  return null;
+}
 
 interface Notebook {
   guid: string;
@@ -32,11 +53,7 @@ interface NotePreview {
 }
 
 const NoteAugmenter: React.FC = () => {
-  const [notebooks, setNotebooks] = useState<Notebook[]>([]);
   const [selectedNotebook, setSelectedNotebook] = useState<string | null>(null);
-  const [notes, setNotes] = useState<NotePreview[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [augmentingNote, setAugmentingNote] = useState<string | null>(null);
   const [augmentProgress, setAugmentProgress] = useState<{
     noteGuid: string;
@@ -44,16 +61,101 @@ const NoteAugmenter: React.FC = () => {
     progress: number;
     message?: string;
   } | null>(null);
+  const [rateLimitWarning, setRateLimitWarning] = useState<string | null>(null);
 
-  // Load notebooks on mount
+  // Fetch notebooks using React Query
+  const {
+    data: notebooks = [],
+    error: notebooksError,
+    isLoading: notebooksLoading
+  } = useQuery({
+    queryKey: ['notebooks'],
+    queryFn: async () => {
+      return await window.electronAPI.listNotebooks();
+    }
+  });
+
+  // Fetch notes for selected notebook using React Query
+  const {
+    data: notes = [],
+    error: notesError,
+    isLoading: notesLoading,
+    refetch: refetchNotes
+  } = useQuery({
+    queryKey: ['notes', selectedNotebook],
+    queryFn: async () => {
+      if (!selectedNotebook) return [];
+
+      // Clear any previous rate limit warnings when fetching new data
+      setRateLimitWarning(null);
+
+      try {
+        const notesMetadata: NoteMetadata[] = await window.electronAPI.listNotesInNotebook(
+          selectedNotebook,
+          0,
+          50
+        );
+
+        // Transform metadata into preview format
+        // NOTE: We skip fetching note content to avoid triggering rate limits
+        // Content preview is optional in NoteCard component
+        const notePreviews: NotePreview[] = notesMetadata.map((meta) => {
+          // Check augmentation status from metadata
+          const isAugmented = meta.attributes?.applicationData?.['aiAugmented'] === 'true';
+          const augmentedDate = meta.attributes?.applicationData?.['aiAugmentedDate'];
+
+          return {
+            guid: meta.guid!,
+            title: meta.title || 'Untitled',
+            contentPreview: '', // Skip preview to avoid rate limits
+            created: meta.created || Date.now(),
+            updated: meta.updated || Date.now(),
+            tags: [], // TODO: Resolve tag names from tagGuids
+            isAugmented,
+            augmentedDate
+          };
+        });
+
+        return notePreviews;
+      } catch (err) {
+        // Check if this is a rate limit error
+        const rateLimitError = parseRateLimitError(err);
+        if (rateLimitError) {
+          setRateLimitWarning(rateLimitError);
+        }
+        throw err; // Re-throw to let React Query handle it
+      }
+    },
+    enabled: selectedNotebook !== null
+  });
+
+  const loading = notebooksLoading || notesLoading;
+  const error = notebooksError || notesError;
+
+  // Auto-select default notebook on mount
   useEffect(() => {
-    loadNotebooks();
-  }, []);
+    if (notebooks.length > 0 && !selectedNotebook) {
+      const defaultNotebook = notebooks.find((nb: Notebook) => nb.defaultNotebook);
+      if (defaultNotebook) {
+        setSelectedNotebook(defaultNotebook.guid);
+      } else {
+        setSelectedNotebook(notebooks[0]!.guid);
+      }
+    }
+  }, [notebooks, selectedNotebook]);
 
   // Subscribe to augmentation progress
   useEffect(() => {
     const unsubscribe = window.electronAPI.onAugmentProgress((data) => {
       setAugmentProgress(data);
+
+      // Check for rate limit errors in augmentation
+      if (data.status === 'error' && data.error) {
+        const rateLimitError = parseRateLimitError(data.error);
+        if (rateLimitError) {
+          setRateLimitWarning(rateLimitError);
+        }
+      }
 
       // When complete or error, refresh the note
       if (data.status === 'complete' || data.status === 'error') {
@@ -61,9 +163,9 @@ const NoteAugmenter: React.FC = () => {
           setAugmentingNote(null);
           setAugmentProgress(null);
 
-          // Refresh notes to show updated augmentation status
-          if (selectedNotebook) {
-            loadNotes(selectedNotebook);
+          // Refresh notes to show updated augmentation status (only if successful)
+          if (data.status === 'complete') {
+            refetchNotes();
           }
         }, 2000);
       }
@@ -72,87 +174,11 @@ const NoteAugmenter: React.FC = () => {
     return () => {
       unsubscribe();
     };
-  }, [selectedNotebook]);
-
-  const loadNotebooks = async () => {
-    setLoading(true);
-    setError(null);
-
-    try {
-      const notebookList = await window.electronAPI.listNotebooks();
-      setNotebooks(notebookList);
-
-      // Auto-select default notebook if exists
-      const defaultNotebook = notebookList.find((nb: Notebook) => nb.defaultNotebook);
-      if (defaultNotebook) {
-        setSelectedNotebook(defaultNotebook.guid);
-        loadNotes(defaultNotebook.guid);
-      } else if (notebookList.length > 0) {
-        setSelectedNotebook(notebookList[0].guid);
-        loadNotes(notebookList[0].guid);
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load notebooks');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const loadNotes = async (notebookGuid: string) => {
-    setLoading(true);
-    setError(null);
-
-    try {
-      const notesMetadata: NoteMetadata[] = await window.electronAPI.listNotesInNotebook(
-        notebookGuid,
-        0,
-        50
-      );
-
-      // Transform metadata into preview format
-      const notePreviews: NotePreview[] = await Promise.all(
-        notesMetadata.map(async (meta) => {
-          // Get full note content for preview
-          let contentPreview = '';
-          try {
-            const fullNote = await window.electronAPI.getNoteContent(meta.guid!);
-            if (fullNote.content) {
-              const plainText = enmlToPlainText(fullNote.content);
-              contentPreview = plainText.substring(0, 200);
-            }
-          } catch (err) {
-            console.warn(`Failed to load preview for note ${meta.guid}:`, err);
-          }
-
-          // Check augmentation status
-          const isAugmented = meta.attributes?.applicationData?.['aiAugmented'] === 'true';
-          const augmentedDate = meta.attributes?.applicationData?.['aiAugmentedDate'];
-
-          return {
-            guid: meta.guid!,
-            title: meta.title || 'Untitled',
-            contentPreview,
-            created: meta.created || Date.now(),
-            updated: meta.updated || Date.now(),
-            tags: [], // TODO: Resolve tag names from tagGuids
-            isAugmented,
-            augmentedDate
-          };
-        })
-      );
-
-      setNotes(notePreviews);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load notes');
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [refetchNotes]);
 
   const handleNotebookChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
     const notebookGuid = event.target.value;
     setSelectedNotebook(notebookGuid);
-    loadNotes(notebookGuid);
   };
 
   const handleAugmentNote = async (noteGuid: string) => {
@@ -162,15 +188,24 @@ const NoteAugmenter: React.FC = () => {
       const result = await window.electronAPI.augmentNote(noteGuid);
 
       if (!result.success) {
-        setError(result.error || 'Failed to augment note');
+        // No need to set error here, it's already displayed in progress
         setAugmentingNote(null);
       }
       // Success is handled by progress listener
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to augment note');
+      console.error('Failed to augment note:', err);
       setAugmentingNote(null);
     }
   };
+
+  // Format error message with rate limit handling
+  const errorMessage = error ? (() => {
+    const rateLimitError = parseRateLimitError(error);
+    if (rateLimitError) {
+      return rateLimitError;
+    }
+    return error instanceof Error ? error.message : String(error);
+  })() : null;
 
   return (
     <div className="note-augmenter">
@@ -187,7 +222,7 @@ const NoteAugmenter: React.FC = () => {
             {notebooks.length === 0 && (
               <option value="">No notebooks found</option>
             )}
-            {notebooks.map((notebook) => (
+            {notebooks.map((notebook: Notebook) => (
               <option key={notebook.guid} value={notebook.guid}>
                 {notebook.name}
                 {notebook.defaultNotebook && ' (Default)'}
@@ -195,20 +230,38 @@ const NoteAugmenter: React.FC = () => {
             ))}
           </select>
           <button
-            onClick={loadNotebooks}
+            onClick={() => refetchNotes()}
             disabled={loading}
             className="refresh-button"
-            title="Refresh notebooks"
+            title="Refresh notes"
           >
             🔄
           </button>
         </div>
       </div>
 
-      {error && (
+      {errorMessage && (
         <div className="error-message">
-          <strong>Error:</strong> {error}
-          <button onClick={() => setError(null)}>✕</button>
+          <strong>Error:</strong> {errorMessage}
+        </div>
+      )}
+
+      {rateLimitWarning && (
+        <div className="rate-limit-warning">
+          <div className="warning-content">
+            <span className="warning-icon">⚠️</span>
+            <div className="warning-text">
+              <strong>Rate Limit Reached</strong>
+              <p>{rateLimitWarning}</p>
+            </div>
+          </div>
+          <button
+            className="dismiss-button"
+            onClick={() => setRateLimitWarning(null)}
+            title="Dismiss warning"
+          >
+            ✕
+          </button>
         </div>
       )}
 
@@ -235,7 +288,7 @@ const NoteAugmenter: React.FC = () => {
         <div className="empty-state">
           <p>No notes found in this notebook.</p>
           {selectedNotebook && (
-            <button onClick={() => loadNotes(selectedNotebook)}>Refresh</button>
+            <button onClick={() => refetchNotes()}>Refresh</button>
           )}
         </div>
       ) : (

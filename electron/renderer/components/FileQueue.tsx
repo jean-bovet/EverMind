@@ -1,4 +1,3 @@
-import React from 'react';
 
 type FileStatus =
   | 'pending'           // Waiting to start Stage 1
