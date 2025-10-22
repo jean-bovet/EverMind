@@ -5,7 +5,13 @@ import Store from 'electron-store';
 import { getOllamaDetector } from './ollama-detector.js';
 import { processFile, processBatch, analyzeFile } from './file-processor.js';
 import { hasToken, authenticate, removeToken } from './oauth-helper.js';
-import { listTags } from './evernote-client.js';
+import {
+  listTags,
+  listNotebooks,
+  listNotesInNotebook,
+  getNoteWithContent
+} from './evernote-client.js';
+import { augmentNote } from './note-augmenter.js';
 import { UploadWorker } from './upload-worker.js';
 import { initDatabase, closeDatabase, deleteAllFiles, getAllFiles } from './database/queue-db.js';
 
@@ -191,6 +197,23 @@ ipcMain.handle('logout-evernote', async () => {
 
 ipcMain.handle('list-evernote-tags', async () => {
   return await listTags();
+});
+
+// Note augmentation IPC handlers
+ipcMain.handle('list-notebooks', async () => {
+  return await listNotebooks();
+});
+
+ipcMain.handle('list-notes-in-notebook', async (_event, notebookGuid: string, offset?: number, limit?: number) => {
+  return await listNotesInNotebook(notebookGuid, offset, limit);
+});
+
+ipcMain.handle('get-note-content', async (_event, noteGuid: string) => {
+  return await getNoteWithContent(noteGuid);
+});
+
+ipcMain.handle('augment-note', async (_event, noteGuid: string) => {
+  return await augmentNote(noteGuid, mainWindow);
 });
 
 // File processing IPC handlers

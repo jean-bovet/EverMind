@@ -50,6 +50,15 @@ const electronAPI = {
   logoutEvernote: () => ipcRenderer.invoke('logout-evernote'),
   listEvernoteTags: () => ipcRenderer.invoke('list-evernote-tags'),
 
+  // Note augmentation
+  listNotebooks: () => ipcRenderer.invoke('list-notebooks'),
+  listNotesInNotebook: (notebookGuid: string, offset?: number, limit?: number) =>
+    ipcRenderer.invoke('list-notes-in-notebook', notebookGuid, offset, limit),
+  getNoteContent: (noteGuid: string) =>
+    ipcRenderer.invoke('get-note-content', noteGuid),
+  augmentNote: (noteGuid: string) =>
+    ipcRenderer.invoke('augment-note', noteGuid),
+
   // Event listeners
   onFileProgress: (callback: (data: FileProgressData) => void) => {
     const subscription = (_event: unknown, data: FileProgressData) => callback(data);
@@ -73,6 +82,12 @@ const electronAPI = {
     const subscription = (_event: unknown, data: DownloadProgressData) => callback(data);
     ipcRenderer.on('model-download-progress', subscription);
     return () => ipcRenderer.removeListener('model-download-progress', subscription);
+  },
+
+  onAugmentProgress: (callback: (data: AugmentProgressData) => void) => {
+    const subscription = (_event: unknown, data: AugmentProgressData) => callback(data);
+    ipcRenderer.on('augment-progress', subscription);
+    return () => ipcRenderer.removeListener('augment-progress', subscription);
   }
 };
 
@@ -108,6 +123,15 @@ export interface DownloadProgressData {
   progress: number;
   message?: string;
   error?: string;
+}
+
+export interface AugmentProgressData {
+  noteGuid: string;
+  status: 'fetching' | 'extracting' | 'analyzing' | 'building' | 'uploading' | 'complete' | 'error';
+  progress: number;  // 0-100
+  message?: string;
+  error?: string;
+  noteUrl?: string;
 }
 
 // Expose the API to the renderer process

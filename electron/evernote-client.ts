@@ -201,6 +201,265 @@ function escapeXml(text: string): string {
 }
 
 /**
+ * List all notebooks from Evernote
+ * @returns Array of notebooks with names and GUIDs
+ */
+export async function listNotebooks(): Promise<Evernote.Types.Notebook[]> {
+  const token = await getToken();
+  const endpoint = process.env['EVERNOTE_ENDPOINT'] || 'https://www.evernote.com';
+
+  if (!token) {
+    throw new Error('Not authenticated. Please run OAuth authentication first');
+  }
+
+  const serviceHost = endpoint.includes('sandbox') ? 'sandbox.evernote.com' : 'www.evernote.com';
+
+  const client = new Evernote.Client({
+    token: token,
+    sandbox: serviceHost.includes('sandbox'),
+    serviceHost: serviceHost,
+  });
+
+  const noteStore = client.getNoteStore();
+
+  try {
+    const notebooks = await noteStore.listNotebooks();
+    return notebooks;
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error
+      ? error.message
+      : typeof error === 'object' && error !== null && 'errorMessage' in error
+      ? String(error.errorMessage)
+      : JSON.stringify(error) || 'Unknown error';
+
+    throw new Error(`Failed to list notebooks: ${errorMessage}`);
+  }
+}
+
+/**
+ * List notes in a specific notebook
+ * @param notebookGuid - GUID of the notebook
+ * @param offset - Starting index for pagination (default: 0)
+ * @param limit - Maximum number of notes to return (default: 50)
+ * @returns Array of note metadata
+ */
+export async function listNotesInNotebook(
+  notebookGuid: string,
+  offset: number = 0,
+  limit: number = 50
+): Promise<Evernote.NoteStore.NoteMetadata[]> {
+  const token = await getToken();
+  const endpoint = process.env['EVERNOTE_ENDPOINT'] || 'https://www.evernote.com';
+
+  if (!token) {
+    throw new Error('Not authenticated. Please run OAuth authentication first');
+  }
+
+  const serviceHost = endpoint.includes('sandbox') ? 'sandbox.evernote.com' : 'www.evernote.com';
+
+  const client = new Evernote.Client({
+    token: token,
+    sandbox: serviceHost.includes('sandbox'),
+    serviceHost: serviceHost,
+  });
+
+  const noteStore = client.getNoteStore();
+
+  try {
+    // Create filter for the notebook
+    const filter = new Evernote.NoteStore.NoteFilter({
+      notebookGuid: notebookGuid,
+      order: Evernote.Types.NoteSortOrder.UPDATED,
+      ascending: false
+    });
+
+    // Specify what metadata to include
+    const resultSpec = new Evernote.NoteStore.NotesMetadataResultSpec({
+      includeTitle: true,
+      includeCreated: true,
+      includeUpdated: true,
+      includeTagGuids: true,
+      includeAttributes: true,
+      includeContentLength: true
+    });
+
+    const notesMetadata = await noteStore.findNotesMetadata(filter, offset, limit, resultSpec);
+
+    return notesMetadata.notes || [];
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error
+      ? error.message
+      : typeof error === 'object' && error !== null && 'errorMessage' in error
+      ? String(error.errorMessage)
+      : JSON.stringify(error) || 'Unknown error';
+
+    throw new Error(`Failed to list notes in notebook: ${errorMessage}`);
+  }
+}
+
+/**
+ * Get full note content including resources
+ * @param noteGuid - GUID of the note to retrieve
+ * @returns Complete note with content and resources
+ */
+export async function getNoteWithContent(noteGuid: string): Promise<Evernote.Types.Note> {
+  const token = await getToken();
+  const endpoint = process.env['EVERNOTE_ENDPOINT'] || 'https://www.evernote.com';
+
+  if (!token) {
+    throw new Error('Not authenticated. Please run OAuth authentication first');
+  }
+
+  const serviceHost = endpoint.includes('sandbox') ? 'sandbox.evernote.com' : 'www.evernote.com';
+
+  const client = new Evernote.Client({
+    token: token,
+    sandbox: serviceHost.includes('sandbox'),
+    serviceHost: serviceHost,
+  });
+
+  const noteStore = client.getNoteStore();
+
+  try {
+    // Get note with all content
+    const note = await noteStore.getNote(
+      noteGuid,
+      true,  // withContent
+      true,  // withResourcesData
+      true,  // withResourcesRecognition
+      true   // withResourcesAlternateData
+    );
+
+    return note;
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error
+      ? error.message
+      : typeof error === 'object' && error !== null && 'errorMessage' in error
+      ? String(error.errorMessage)
+      : JSON.stringify(error) || 'Unknown error';
+
+    throw new Error(`Failed to get note: ${errorMessage}`);
+  }
+}
+
+/**
+ * Update an existing note's content and/or attributes
+ * @param noteGuid - GUID of the note to update
+ * @param updatedContent - New ENML content (optional)
+ * @param updatedAttributes - New attributes (optional)
+ * @returns Updated note
+ */
+export async function updateNote(
+  noteGuid: string,
+  updatedContent?: string,
+  updatedAttributes?: Partial<Evernote.Types.NoteAttributes>
+): Promise<Evernote.Types.Note> {
+  const token = await getToken();
+  const endpoint = process.env['EVERNOTE_ENDPOINT'] || 'https://www.evernote.com';
+
+  if (!token) {
+    throw new Error('Not authenticated. Please run OAuth authentication first');
+  }
+
+  const serviceHost = endpoint.includes('sandbox') ? 'sandbox.evernote.com' : 'www.evernote.com';
+
+  const client = new Evernote.Client({
+    token: token,
+    sandbox: serviceHost.includes('sandbox'),
+    serviceHost: serviceHost,
+  });
+
+  const noteStore = client.getNoteStore();
+
+  try {
+    // First, get the current note to get the update sequence number
+    const currentNote = await noteStore.getNote(noteGuid, false, false, false, false);
+
+    // Create note object with updates
+    const noteToUpdate = new Evernote.Types.Note({
+      guid: noteGuid,
+      updateSequenceNum: currentNote.updateSequenceNum
+    });
+
+    // Update content if provided
+    if (updatedContent) {
+      noteToUpdate.content = updatedContent;
+    }
+
+    // Update attributes if provided
+    if (updatedAttributes) {
+      noteToUpdate.attributes = new Evernote.Types.NoteAttributes(updatedAttributes);
+    }
+
+    // Perform the update
+    const updatedNote = await noteStore.updateNote(noteToUpdate);
+
+    return updatedNote;
+  } catch (error: unknown) {
+    // Check for rate limit error
+    if (
+      typeof error === 'object' &&
+      error !== null &&
+      'errorCode' in error &&
+      error.errorCode === 19
+    ) {
+      const rateLimitDuration = 'rateLimitDuration' in error && typeof error.rateLimitDuration === 'number'
+        ? error.rateLimitDuration
+        : 60;
+
+      throw new Error(`Rate limit exceeded. Retry after ${rateLimitDuration} seconds.`);
+    }
+
+    const errorMessage = error instanceof Error
+      ? error.message
+      : typeof error === 'object' && error !== null && 'errorMessage' in error
+      ? String(error.errorMessage)
+      : JSON.stringify(error) || 'Unknown error';
+
+    throw new Error(`Failed to update note: ${errorMessage}`);
+  }
+}
+
+/**
+ * Get note's application data (custom attributes)
+ * @param noteGuid - GUID of the note
+ * @returns Application data key-value pairs
+ */
+export async function getNoteApplicationData(noteGuid: string): Promise<Record<string, string>> {
+  const token = await getToken();
+  const endpoint = process.env['EVERNOTE_ENDPOINT'] || 'https://www.evernote.com';
+
+  if (!token) {
+    throw new Error('Not authenticated. Please run OAuth authentication first');
+  }
+
+  const serviceHost = endpoint.includes('sandbox') ? 'sandbox.evernote.com' : 'www.evernote.com';
+
+  const client = new Evernote.Client({
+    token: token,
+    sandbox: serviceHost.includes('sandbox'),
+    serviceHost: serviceHost,
+  });
+
+  const noteStore = client.getNoteStore();
+
+  try {
+    // Get note with attributes
+    const note = await noteStore.getNote(noteGuid, false, false, false, false);
+
+    return note.attributes?.applicationData || {};
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error
+      ? error.message
+      : typeof error === 'object' && error !== null && 'errorMessage' in error
+      ? String(error.errorMessage)
+      : JSON.stringify(error) || 'Unknown error';
+
+    throw new Error(`Failed to get note attributes: ${errorMessage}`);
+  }
+}
+
+/**
  * List all tags from Evernote
  * @returns Array of tag names
  */

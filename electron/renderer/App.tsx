@@ -4,6 +4,7 @@ import FileQueue from './components/FileQueue';
 import Settings from './components/Settings';
 import WelcomeWizard from './components/WelcomeWizard';
 import StatusBar from './components/StatusBar';
+import NoteAugmenter from './components/NoteAugmenter';
 import { ProcessingScheduler } from '../utils/processing-scheduler.js';
 import {
   updateFileFromIPCMessage,
@@ -26,7 +27,10 @@ interface OllamaStatus {
   models?: string[];
 }
 
+type View = 'import' | 'augment';
+
 function App() {
+  const [activeView, setActiveView] = useState<View>('import');
   const [files, setFiles] = useState<FileItem[]>([]);
   const [showSettings, setShowSettings] = useState(false);
   const [showWelcome, setShowWelcome] = useState(false);
@@ -185,19 +189,42 @@ function App() {
               </button>
             </header>
 
-            {/* Drop zone */}
-            <DropZone
-              onFilesAdded={handleFilesAdded}
-              disabled={false}
-            />
+            {/* Navigation Tabs */}
+            <div className="nav-tabs">
+              <button
+                className={`nav-tab ${activeView === 'import' ? 'active' : ''}`}
+                onClick={() => setActiveView('import')}
+              >
+                📁 Import Files
+              </button>
+              <button
+                className={`nav-tab ${activeView === 'augment' ? 'active' : ''}`}
+                onClick={() => setActiveView('augment')}
+              >
+                🤖 Augment Notes
+              </button>
+            </div>
 
-            {/* File queue */}
-            {files.length > 0 && (
-              <FileQueue
-                files={files}
-                onClearCompleted={handleClearCompleted}
-                onClearAll={handleClearAll}
-              />
+            {/* View Content */}
+            {activeView === 'import' ? (
+              <>
+                {/* Drop zone */}
+                <DropZone
+                  onFilesAdded={handleFilesAdded}
+                  disabled={false}
+                />
+
+                {/* File queue */}
+                {files.length > 0 && (
+                  <FileQueue
+                    files={files}
+                    onClearCompleted={handleClearCompleted}
+                    onClearAll={handleClearAll}
+                  />
+                )}
+              </>
+            ) : (
+              <NoteAugmenter />
             )}
 
             {/* Status bar */}
