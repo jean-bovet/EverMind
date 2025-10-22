@@ -14,7 +14,8 @@ CREATE TABLE IF NOT EXISTS files (
   last_attempt_at TEXT,
   retry_after INTEGER,  -- Unix timestamp in milliseconds
   uploaded_at TEXT,
-  note_url TEXT
+  note_url TEXT,
+  note_guid TEXT  -- Evernote note GUID
 );
 
 -- Indexes for common queries

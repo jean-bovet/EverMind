@@ -156,10 +156,10 @@ export async function uploadNoteFromJSON(filePathOrJsonPath: string): Promise<Up
     }
 
     // Attempt to create the note in Evernote
-    const noteUrl = await createNote(filePath, noteData.title, noteData.description, noteData.tags);
+    const { noteUrl, noteGuid } = await createNote(filePath, noteData.title, noteData.description, noteData.tags);
 
     // Success! Update database with upload info
-    updateFileUpload(filePath, noteUrl);
+    updateFileUpload(filePath, noteUrl, noteGuid);
 
     return {
       success: true,

@@ -13,14 +13,14 @@ import { mergeNoteAttributes } from '../utils/note-helpers.js';
  * @param title - AI-generated title for the note
  * @param description - AI-generated description
  * @param tags - AI-generated tags
- * @returns URL to the created note
+ * @returns Object with URL and GUID of the created note
  */
 export async function createNote(
   filePath: string,
   title: string,
   description: string,
   tags: string[]
-): Promise<string> {
+): Promise<{ noteUrl: string; noteGuid: string }> {
   const token = await getToken();
   const endpoint = process.env['EVERNOTE_ENDPOINT'] || 'https://www.evernote.com';
 
@@ -82,7 +82,7 @@ export async function createNote(
     spinner.succeed('Note created successfully');
     console.log(`  Note GUID: ${colors.muted(createdNote.guid)}`);
 
-    return noteUrl;
+    return { noteUrl, noteGuid: createdNote.guid };
 
   } catch (error: unknown) {
     spinner.fail('Failed to create note');
@@ -519,5 +519,51 @@ export async function listTags(): Promise<string[]> {
       : JSON.stringify(error) || 'Unknown error';
 
     throw new Error(`Failed to list tags: ${errorMessage}`);
+  }
+}
+
+/**
+ * Check if a note exists in Evernote by its GUID
+ * @param noteGuid - GUID of the note to check
+ * @returns true if note exists, false otherwise
+ */
+export async function checkNoteExists(noteGuid: string): Promise<boolean> {
+  const token = await getToken();
+  const endpoint = process.env['EVERNOTE_ENDPOINT'] || 'https://www.evernote.com';
+
+  if (!token) {
+    throw new Error('Not authenticated. Please run OAuth authentication first');
+  }
+
+  const serviceHost = endpoint.includes('sandbox') ? 'sandbox.evernote.com' : 'www.evernote.com';
+
+  const client = new Evernote.Client({
+    token: token,
+    sandbox: serviceHost.includes('sandbox'),
+    serviceHost: serviceHost,
+  });
+
+  const noteStore = client.getNoteStore();
+
+  try {
+    // Try to get just the note metadata (no content needed)
+    await noteStore.getNote(noteGuid, false, false, false, false);
+    return true;
+  } catch (error: unknown) {
+    // If error is "note not found", return false
+    // Otherwise, log and return false to be safe
+    if (
+      typeof error === 'object' &&
+      error !== null &&
+      'identifier' in error &&
+      (error.identifier === 'EDAMNotFoundException' ||
+       ('errorCode' in error && error.errorCode === 2))
+    ) {
+      return false;
+    }
+
+    // For other errors (auth, network, etc), log and return false
+    console.warn(`Error checking note existence for ${noteGuid}:`, error);
+    return false;
   }
 }

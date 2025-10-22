@@ -13,6 +13,7 @@ import { waitForQueueEmpty, sleep, waitForCalls } from '../utils/test-helpers.js
 vi.mock('../../electron/database/queue-db.js', () => ({
   getReadyToUploadFiles: vi.fn(() => []),
   updateFileStatus: vi.fn(),
+  deleteFile: vi.fn(),
 }));
 
 describe('UploadWorker', () => {

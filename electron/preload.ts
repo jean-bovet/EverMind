@@ -37,6 +37,8 @@ const electronAPI = {
     ipcRenderer.invoke('clear-all-files'),
   getAllFiles: () =>
     ipcRenderer.invoke('get-all-files'),
+  verifyAndCleanup: () =>
+    ipcRenderer.invoke('verify-and-cleanup'),
 
   // Ollama management
   checkOllamaInstallation: () => ipcRenderer.invoke('check-ollama'),

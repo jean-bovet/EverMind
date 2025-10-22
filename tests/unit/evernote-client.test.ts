@@ -9,7 +9,8 @@ import {
   listNotesInNotebook,
   getNoteWithContent,
   updateNote,
-  getNoteApplicationData
+  getNoteApplicationData,
+  checkNoteExists
 } from '../../electron/evernote/client.js';
 import {
   resetEvernoteMocks,
@@ -58,14 +59,17 @@ describe('evernote-client', () => {
   });
 
   describe('createNote', () => {
-    it('should create a note with file attachment', async () => {
+    it('should create a note with file attachment and return URL and GUID', async () => {
       const title = 'Test Note Title';
       const description = 'Test note description';
       const tags = ['tag1', 'tag2'];
 
-      const noteUrl = await createNote(testFilePath, title, description, tags);
+      const result = await createNote(testFilePath, title, description, tags);
 
-      expect(noteUrl).toContain('Home.action#n=mock-note-guid-123');
+      expect(result).toHaveProperty('noteUrl');
+      expect(result).toHaveProperty('noteGuid');
+      expect(result.noteUrl).toContain('Home.action#n=mock-note-guid-123');
+      expect(result.noteGuid).toBe('mock-note-guid-123');
       expect(mockCreateNote).toHaveBeenCalledOnce();
 
       // Verify note was created with correct structure
@@ -194,6 +198,69 @@ describe('evernote-client', () => {
       await expect(
         createNote(nonExistentPath, 'Title', 'Desc', [])
       ).rejects.toThrow();
+    });
+  });
+
+  describe('checkNoteExists', () => {
+    it('should return true when note exists', async () => {
+      mockGetNote.mockResolvedValueOnce({
+        guid: 'existing-note-guid',
+        title: 'Existing Note'
+      });
+
+      const exists = await checkNoteExists('existing-note-guid');
+
+      expect(exists).toBe(true);
+      expect(mockGetNote).toHaveBeenCalledWith('existing-note-guid', false, false, false, false);
+    });
+
+    it('should return false when note not found', async () => {
+      mockGetNote.mockRejectedValueOnce({
+        identifier: 'EDAMNotFoundException',
+        errorCode: 2
+      });
+
+      const exists = await checkNoteExists('non-existent-guid');
+
+      expect(exists).toBe(false);
+    });
+
+    it('should return false when note not found (errorCode 2)', async () => {
+      mockGetNote.mockRejectedValueOnce({
+        errorCode: 2
+      });
+
+      const exists = await checkNoteExists('non-existent-guid');
+
+      expect(exists).toBe(false);
+    });
+
+    it('should return false on authentication error', async () => {
+      const { getToken } = await import('../../electron/evernote/oauth-helper.js');
+      vi.mocked(getToken).mockResolvedValueOnce(null);
+
+      await expect(checkNoteExists('some-guid')).rejects.toThrow(/Not authenticated/);
+    });
+
+    it('should return false on network or other errors', async () => {
+      mockGetNote.mockRejectedValueOnce(new Error('Network timeout'));
+
+      const exists = await checkNoteExists('some-guid');
+
+      expect(exists).toBe(false);
+    });
+
+    it('should work with sandbox endpoint', async () => {
+      process.env['EVERNOTE_ENDPOINT'] = 'https://sandbox.evernote.com';
+
+      mockGetNote.mockResolvedValueOnce({
+        guid: 'sandbox-note-guid',
+        title: 'Sandbox Note'
+      });
+
+      const exists = await checkNoteExists('sandbox-note-guid');
+
+      expect(exists).toBe(true);
     });
   });
 

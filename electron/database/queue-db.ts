@@ -22,7 +22,8 @@ CREATE TABLE IF NOT EXISTS files (
   last_attempt_at TEXT,
   retry_after INTEGER,  -- Unix timestamp in milliseconds
   uploaded_at TEXT,
-  note_url TEXT
+  note_url TEXT,
+  note_guid TEXT  -- Evernote note GUID
 );
 
 -- Indexes for common queries
@@ -56,6 +57,7 @@ export interface FileRecord {
   retry_after: number | null;
   uploaded_at: string | null;
   note_url: string | null;
+  note_guid: string | null;
 }
 
 export interface FileData {
@@ -185,9 +187,9 @@ export function updateFileAnalysis(
 }
 
 /**
- * Mark file as uploaded with note URL
+ * Mark file as uploaded with note URL and GUID
  */
-export function updateFileUpload(filePath: string, noteUrl: string): void {
+export function updateFileUpload(filePath: string, noteUrl: string, noteGuid: string): void {
   const database = getDatabase();
 
   const stmt = database.prepare(`
@@ -196,11 +198,12 @@ export function updateFileUpload(filePath: string, noteUrl: string): void {
         progress = 100,
         uploaded_at = ?,
         note_url = ?,
+        note_guid = ?,
         retry_after = NULL
     WHERE file_path = ?
   `);
 
-  stmt.run(new Date().toISOString(), noteUrl, filePath);
+  stmt.run(new Date().toISOString(), noteUrl, noteGuid, filePath);
 }
 
 /**
@@ -414,4 +417,19 @@ export function parseTags(record: FileRecord): string[] {
   } catch {
     return [];
   }
+}
+
+/**
+ * Get completed files with note GUIDs (for verification and cleanup)
+ */
+export function getCompletedFilesWithGuids(): FileRecord[] {
+  const database = getDatabase();
+
+  const stmt = database.prepare(`
+    SELECT * FROM files
+    WHERE status = 'complete' AND note_guid IS NOT NULL
+    ORDER BY uploaded_at DESC
+  `);
+
+  return stmt.all() as FileRecord[];
 }

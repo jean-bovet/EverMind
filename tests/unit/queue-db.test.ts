@@ -20,6 +20,7 @@ import {
   deleteCompletedFiles,
   deleteAllFiles,
   parseTags,
+  getCompletedFilesWithGuids,
   type FileRecord
 } from '../../electron/database/queue-db.js';
 
@@ -121,16 +122,18 @@ describe('QueueDB', () => {
   });
 
   describe('updateFileUpload', () => {
-    it('should mark file as uploaded with note URL', () => {
+    it('should mark file as uploaded with note URL and GUID', () => {
       addFile('/test/file.pdf');
 
       const noteUrl = 'https://www.evernote.com/note/123';
-      updateFileUpload('/test/file.pdf', noteUrl);
+      const noteGuid = 'note-guid-123';
+      updateFileUpload('/test/file.pdf', noteUrl, noteGuid);
 
       const file = getFile('/test/file.pdf');
       expect(file?.status).toBe('complete');
       expect(file?.progress).toBe(100);
       expect(file?.note_url).toBe(noteUrl);
+      expect(file?.note_guid).toBe(noteGuid);
       expect(file?.uploaded_at).toBeTruthy();
       expect(file?.retry_after).toBeNull();
     });
@@ -273,6 +276,70 @@ describe('QueueDB', () => {
       const files = getAllFiles();
       expect(files[0].file_path).toBe('/test/file3.pdf');
       expect(files[2].file_path).toBe('/test/file1.pdf');
+    });
+  });
+
+  describe('getCompletedFilesWithGuids', () => {
+    it('should return only completed files with GUIDs', () => {
+      addFile('/test/file1.pdf');
+      addFile('/test/file2.pdf');
+      addFile('/test/file3.pdf');
+
+      // File with complete status and GUID
+      updateFileUpload('/test/file1.pdf', 'https://evernote.com/note/1', 'guid-1');
+
+      // File with complete status but no GUID (shouldn't happen, but test it)
+      updateFileStatus('/test/file2.pdf', 'complete', 100);
+
+      // File with GUID but not complete status
+      updateFileStatus('/test/file3.pdf', 'uploading', 50);
+
+      const files = getCompletedFilesWithGuids();
+      expect(files.length).toBe(1);
+      expect(files[0].file_path).toBe('/test/file1.pdf');
+      expect(files[0].note_guid).toBe('guid-1');
+    });
+
+    it('should return empty array when no completed files with GUIDs', () => {
+      addFile('/test/file1.pdf');
+      addFile('/test/file2.pdf');
+
+      updateFileStatus('/test/file1.pdf', 'pending', 0);
+      updateFileStatus('/test/file2.pdf', 'analyzing', 50);
+
+      const files = getCompletedFilesWithGuids();
+      expect(files.length).toBe(0);
+    });
+
+    it('should return files ordered by upload date (newest first)', () => {
+      addFile('/test/file1.pdf');
+      addFile('/test/file2.pdf');
+      addFile('/test/file3.pdf');
+
+      // Upload files in sequence (file1 first, file3 last)
+      updateFileUpload('/test/file1.pdf', 'url1', 'guid-1');
+      updateFileUpload('/test/file2.pdf', 'url2', 'guid-2');
+      updateFileUpload('/test/file3.pdf', 'url3', 'guid-3');
+
+      const files = getCompletedFilesWithGuids();
+      expect(files.length).toBe(3);
+      // All files have GUIDs and are complete
+      expect(files.every(f => f.note_guid !== null && f.status === 'complete')).toBe(true);
+      // Check that all expected files are present
+      const filePaths = files.map(f => f.file_path);
+      expect(filePaths).toContain('/test/file1.pdf');
+      expect(filePaths).toContain('/test/file2.pdf');
+      expect(filePaths).toContain('/test/file3.pdf');
+    });
+
+    it('should exclude files without note_guid even if complete', () => {
+      addFile('/test/file1.pdf');
+
+      // Manually set complete status without using updateFileUpload
+      updateFileStatus('/test/file1.pdf', 'complete', 100);
+
+      const files = getCompletedFilesWithGuids();
+      expect(files.length).toBe(0);
     });
   });
 

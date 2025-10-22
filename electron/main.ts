@@ -14,6 +14,7 @@ import {
 import { augmentNote } from './evernote/note-augmenter.js';
 import { UploadWorker } from './processing/upload-worker.js';
 import { initDatabase, closeDatabase, deleteAllFiles, getAllFiles } from './database/queue-db.js';
+import { verifyAndRemoveUploadedNotes } from './database/cleanup-service.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -86,11 +87,18 @@ function createWindow() {
 }
 
 // App lifecycle
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   // Initialize database
   const dbPath = path.join(app.getPath('userData'), 'queue.db');
   initDatabase(dbPath);
   console.log('Database initialized at:', dbPath);
+
+  // Verify and cleanup uploaded notes on startup
+  try {
+    await verifyAndRemoveUploadedNotes();
+  } catch (error) {
+    console.error('Error during startup cleanup:', error);
+  }
 
   createWindow();
 
@@ -250,6 +258,16 @@ ipcMain.handle('clear-all-files', async () => {
 ipcMain.handle('get-all-files', async () => {
   const files = getAllFiles();
   return files;
+});
+
+ipcMain.handle('verify-and-cleanup', async () => {
+  try {
+    const result = await verifyAndRemoveUploadedNotes();
+    return { success: true, result };
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+    return { success: false, error: errorMsg };
+  }
 });
 
 // Cleanup on app quit

@@ -12,7 +12,7 @@ import {
   uploadNoteFromJSON,
 } from './upload-queue.js';
 import { filterExistingTags } from '../evernote/tag-validator.js';
-import { addFile } from '../database/queue-db.js';
+import { addFile, deleteFile } from '../database/queue-db.js';
 
 export interface ProcessFileOptions {
   debug?: boolean;
@@ -205,6 +205,9 @@ export async function uploadFile(
         }
       });
 
+      // Remove from database immediately after successful upload
+      deleteFile(originalFilePath);
+
       return {
         success: true,
         noteUrl: uploadResult.noteUrl
@@ -363,6 +366,9 @@ export async function processFile(
           noteUrl: uploadResult.noteUrl
         }
       });
+
+      // Remove from database immediately after successful upload
+      deleteFile(absolutePath);
 
       return {
         success: true,

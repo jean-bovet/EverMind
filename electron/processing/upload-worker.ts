@@ -1,6 +1,6 @@
 import { BrowserWindow } from 'electron';
 import { uploadFile as defaultUploadFile, UploadResult } from './file-processor.js';
-import { getReadyToUploadFiles } from '../database/queue-db.js';
+import { getReadyToUploadFiles, deleteFile } from '../database/queue-db.js';
 
 // Configuration
 const UPLOAD_RETRY_DELAY = 5000;        // 5s between retries
@@ -157,6 +157,10 @@ export class UploadWorker {
               noteUrl: result.noteUrl
             }
           });
+
+          // Remove from database immediately after successful upload
+          deleteFile(item.originalFilePath);
+          console.log(`  Removed from database: ${item.originalFilePath}`);
 
         } else if (result.rateLimitDuration) {
           // Rate limited - wait and retry

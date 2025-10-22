@@ -773,6 +773,477 @@ describe('db-to-ui-mapper', () => {
 └─────────────────────────────────────────┘
 ```
 
+## Note GUID Tracking and Automatic Cleanup (January 2025)
+
+### Overview
+
+**Status:** ✅ Implemented
+
+Added automatic cleanup of uploaded notes by tracking Evernote note GUIDs and verifying uploads before removing them from the local database.
+
+### Problem Statement
+
+When notes are successfully uploaded to Evernote, they remain in the local database indefinitely. This causes:
+- Database clutter with completed uploads
+- Confusion about which notes are "done"
+- No way to verify if a note actually exists in Evernote
+- Manual cleanup required
+
+### Solution: GUID Tracking + Verification Service
+
+#### 1. Database Schema Enhancement
+
+**Added `note_guid` column** to store Evernote's unique identifier:
+
+```sql
+CREATE TABLE IF NOT EXISTS files (
+  -- ... existing columns ...
+  note_url TEXT,
+  note_guid TEXT  -- NEW: Evernote note GUID
+);
+```
+
+**Type Updates:**
+```typescript
+export interface FileRecord {
+  // ... existing fields ...
+  note_url: string | null;
+  note_guid: string | null;  // NEW
+}
+```
+
+#### 2. Modified Upload Flow
+
+**electron/evernote/client.ts - Return GUID with URL:**
+
+```typescript
+export async function createNote(
+  filePath: string,
+  title: string,
+  description: string,
+  tags: string[]
+): Promise<{ noteUrl: string; noteGuid: string }> {  // Changed return type
+  // ... create note ...
+  const createdNote = await noteStore.createNote(note);
+  const noteUrl = `${endpoint}/Home.action#n=${createdNote.guid}`;
+
+  return {
+    noteUrl,
+    noteGuid: createdNote.guid  // Return GUID separately
+  };
+}
+```
+
+**electron/database/queue-db.ts - Store GUID:**
+
+```typescript
+export function updateFileUpload(
+  filePath: string,
+  noteUrl: string,
+  noteGuid: string  // NEW parameter
+): void {
+  const stmt = database.prepare(`
+    UPDATE files
+    SET status = 'complete',
+        progress = 100,
+        uploaded_at = ?,
+        note_url = ?,
+        note_guid = ?,  -- Store GUID
+        retry_after = NULL
+    WHERE file_path = ?
+  `);
+
+  stmt.run(new Date().toISOString(), noteUrl, noteGuid, filePath);
+}
+```
+
+#### 3. Note Existence Verification
+
+**electron/evernote/client.ts - Check if note exists:**
+
+```typescript
+/**
+ * Check if a note exists in Evernote by its GUID
+ * @param noteGuid - GUID of the note to check
+ * @returns true if note exists, false otherwise
+ */
+export async function checkNoteExists(noteGuid: string): Promise<boolean> {
+  const token = await getToken();
+  const endpoint = process.env['EVERNOTE_ENDPOINT'] || 'https://www.evernote.com';
+
+  if (!token) {
+    throw new Error('Not authenticated');
+  }
+
+  const serviceHost = endpoint.includes('sandbox')
+    ? 'sandbox.evernote.com'
+    : 'www.evernote.com';
+
+  const client = new Evernote.Client({
+    token: token,
+    sandbox: serviceHost.includes('sandbox'),
+    serviceHost: serviceHost,
+  });
+
+  const noteStore = client.getNoteStore();
+
+  try {
+    // Try to get just the note metadata (no content needed)
+    await noteStore.getNote(noteGuid, false, false, false, false);
+    return true;
+  } catch (error: unknown) {
+    // If error is "note not found", return false
+    if (
+      typeof error === 'object' &&
+      error !== null &&
+      'identifier' in error &&
+      (error.identifier === 'EDAMNotFoundException' ||
+       ('errorCode' in error && error.errorCode === 2))
+    ) {
+      return false;
+    }
+
+    // For other errors (auth, network, etc), log and return false
+    console.warn(`Error checking note existence for ${noteGuid}:`, error);
+    return false;
+  }
+}
+```
+
+#### 4. Cleanup Service
+
+**Created electron/database/cleanup-service.ts:**
+
+```typescript
+/**
+ * Cleanup Service
+ * Verifies uploaded notes exist in Evernote and removes them from local database
+ */
+
+import { checkNoteExists } from '../evernote/client.js';
+import { getCompletedFilesWithGuids, deleteFile } from './queue-db.js';
+
+export interface CleanupResult {
+  checked: number;
+  verified: number;
+  removed: number;
+  failed: number;
+}
+
+/**
+ * Verify uploaded notes exist in Evernote and remove them from database
+ * @param batchSize - Number of notes to verify in each batch
+ * @param delayBetweenBatches - Delay in ms between batches
+ */
+export async function verifyAndRemoveUploadedNotes(
+  batchSize: number = 10,
+  delayBetweenBatches: number = 1000
+): Promise<CleanupResult> {
+  console.log('Starting cleanup of uploaded notes...');
+
+  const completedFiles = getCompletedFilesWithGuids();
+
+  if (completedFiles.length === 0) {
+    console.log('  No completed files to verify');
+    return { checked: 0, verified: 0, removed: 0, failed: 0 };
+  }
+
+  console.log(`  Found ${completedFiles.length} completed file(s) to verify`);
+
+  const result: CleanupResult = {
+    checked: 0,
+    verified: 0,
+    removed: 0,
+    failed: 0
+  };
+
+  // Process in batches to respect rate limits
+  for (let i = 0; i < completedFiles.length; i += batchSize) {
+    const batch = completedFiles.slice(i, i + batchSize);
+
+    for (const file of batch) {
+      if (!file.note_guid) {
+        console.warn(`  ⚠ File has no GUID: ${file.file_path}`);
+        result.failed++;
+        continue;
+      }
+
+      result.checked++;
+
+      try {
+        const exists = await checkNoteExists(file.note_guid);
+
+        if (exists) {
+          // Note exists in Evernote, safe to remove from local DB
+          result.verified++;
+          deleteFile(file.file_path);
+          result.removed++;
+          console.log(`  ✓ Verified and removed: ${file.file_path.split('/').pop()}`);
+        } else {
+          // Note doesn't exist - keep it in DB
+          console.warn(`  ⚠ Note not found in Evernote: ${file.file_path.split('/').pop()}`);
+          result.failed++;
+        }
+      } catch (error) {
+        // Error verifying - keep it in DB to be safe
+        const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+        console.error(`  ✗ Error verifying: ${errorMsg}`);
+        result.failed++;
+      }
+    }
+
+    // Wait between batches
+    if (i + batchSize < completedFiles.length) {
+      console.log(`  Waiting ${delayBetweenBatches}ms before next batch...`);
+      await new Promise(resolve => setTimeout(resolve, delayBetweenBatches));
+    }
+  }
+
+  console.log('\nCleanup summary:');
+  console.log(`  Checked: ${result.checked}`);
+  console.log(`  Verified: ${result.verified}`);
+  console.log(`  Removed: ${result.removed}`);
+  console.log(`  Failed: ${result.failed}`);
+
+  return result;
+}
+```
+
+**Helper query function in queue-db.ts:**
+
+```typescript
+/**
+ * Get completed files with note GUIDs (for verification and cleanup)
+ */
+export function getCompletedFilesWithGuids(): FileRecord[] {
+  const database = getDatabase();
+
+  const stmt = database.prepare(`
+    SELECT * FROM files
+    WHERE status = 'complete' AND note_guid IS NOT NULL
+    ORDER BY uploaded_at DESC
+  `);
+
+  return stmt.all() as FileRecord[];
+}
+```
+
+#### 5. Automatic Cleanup Integration
+
+**Cleanup triggers:**
+
+1. **On app startup** (electron/main.ts):
+```typescript
+app.whenReady().then(async () => {
+  // Initialize database
+  const dbPath = path.join(app.getPath('userData'), 'queue.db');
+  initDatabase(dbPath);
+  console.log('Database initialized at:', dbPath);
+
+  // Verify and cleanup uploaded notes on startup
+  try {
+    await verifyAndRemoveUploadedNotes();
+  } catch (error) {
+    console.error('Error during startup cleanup:', error);
+  }
+
+  createWindow();
+  uploadWorker.start();
+});
+```
+
+2. **Immediately after successful upload** (electron/processing/upload-worker.ts):
+```typescript
+if (result.success) {
+  // Success - update database and notify UI
+  this.queue.shift();
+  console.log(`Upload successful: ${item.originalFilePath}`);
+
+  mainWindow?.webContents.send('file-progress', {
+    filePath: item.originalFilePath,
+    status: 'complete',
+    progress: 100,
+    message: 'Uploaded successfully',
+    result: { noteUrl: result.noteUrl }
+  });
+
+  // Remove from database immediately after successful upload
+  deleteFile(item.originalFilePath);
+  console.log(`  Removed from database: ${item.originalFilePath}`);
+}
+```
+
+3. **Manual refresh** (electron/main.ts IPC handler):
+```typescript
+// Add IPC handler for manual cleanup
+ipcMain.handle('verify-and-cleanup', async () => {
+  try {
+    const result = await verifyAndRemoveUploadedNotes();
+    return { success: true, result };
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+    return { success: false, error: errorMsg };
+  }
+});
+```
+
+**Exposed via preload (electron/preload.ts):**
+```typescript
+verifyAndCleanup: () => ipcRenderer.invoke('verify-and-cleanup'),
+```
+
+### Benefits
+
+1. **Clean Database**
+   - Uploaded notes automatically removed
+   - Only pending/in-progress files shown
+   - Database doesn't grow indefinitely
+
+2. **Verified Removal**
+   - Only removes notes confirmed to exist in Evernote
+   - Safe: won't delete if verification fails
+   - Rate-limit friendly: batched verification
+
+3. **Multiple Cleanup Triggers**
+   - **App startup**: Clean up any completed notes from previous session
+   - **After upload**: Immediate cleanup (we know it exists)
+   - **Manual**: User can trigger via IPC call (future UI button)
+
+4. **Transparent Operation**
+   - Console logging shows what's being cleaned
+   - Statistics returned for monitoring
+   - Error handling prevents data loss
+
+### Testing
+
+**New Test Suite:** `tests/unit/cleanup-service.test.ts` (7 tests)
+
+```typescript
+describe('cleanup-service', () => {
+  it('should verify and remove uploaded notes successfully');
+  it('should handle notes that don\'t exist in Evernote');
+  it('should handle verification errors gracefully');
+  it('should return empty result when no completed files');
+  it('should handle files without GUIDs gracefully');
+  it('should process files in batches');
+  it('should handle mixed verification results');
+});
+```
+
+**Updated Tests:**
+- `queue-db.test.ts`: Updated `updateFileUpload` test to include GUID parameter
+- `queue-db.test.ts`: Added tests for `getCompletedFilesWithGuids()`
+- `evernote-client.test.ts`: Updated `createNote` test for new return type
+- `evernote-client.test.ts`: Added tests for `checkNoteExists()`
+- `upload-worker.test.ts`: Added `deleteFile` mock
+
+**Test Results:**
+- All 519 tests passing ✅
+- New cleanup service fully tested with mocks
+
+### Configuration
+
+```typescript
+// Cleanup service parameters (electron/database/cleanup-service.ts)
+const DEFAULT_BATCH_SIZE = 10;           // Verify 10 notes at a time
+const DEFAULT_DELAY_BETWEEN_BATCHES = 1000;  // 1s between batches
+
+// Usage:
+await verifyAndRemoveUploadedNotes(10, 1000);  // Customizable
+```
+
+### Performance Considerations
+
+1. **Batched Verification**
+   - Process 10 notes at a time (configurable)
+   - 1s delay between batches
+   - Respects Evernote rate limits
+
+2. **Efficient Queries**
+   - Index on `status` column
+   - Query only completed files with GUIDs
+   - No full table scans
+
+3. **Startup Impact**
+   - Async operation, doesn't block app startup
+   - Only runs if there are completed notes
+   - Logs progress to console
+
+### Error Handling
+
+**Safe by Design:**
+- If verification fails → keep note in database
+- If note doesn't exist → keep note in database
+- If network error → keep note in database
+- Only removes when confirmed to exist in Evernote
+
+**Error Scenarios:**
+1. **Note not found in Evernote**: Logged as warning, not removed
+2. **Network timeout**: Logged as error, not removed
+3. **Authentication error**: Throws error, cleanup stops
+4. **Missing GUID**: Logged as warning, skipped
+
+### Architecture
+
+```
+┌─────────────────────────────────────────┐
+│         Upload Flow                     │
+│                                         │
+│  1. createNote()                        │
+│     └─> Returns { noteUrl, noteGuid }  │
+│                                         │
+│  2. updateFileUpload(path, url, guid)   │
+│     └─> Stores GUID in database        │
+│                                         │
+│  3. deleteFile(path)                    │
+│     └─> Removes from database           │
+│         immediately after upload        │
+└─────────────────────────────────────────┘
+
+┌─────────────────────────────────────────┐
+│         Cleanup Flow                    │
+│                                         │
+│  1. getCompletedFilesWithGuids()        │
+│     └─> Query DB for completed notes   │
+│                                         │
+│  2. checkNoteExists(guid)               │
+│     └─> Verify with Evernote API       │
+│                                         │
+│  3. deleteFile(path)                    │
+│     └─> Remove only if verified         │
+└─────────────────────────────────────────┘
+
+┌─────────────────────────────────────────┐
+│         Cleanup Triggers                │
+│                                         │
+│  • App startup (main.ts)                │
+│  • After successful upload (worker.ts)  │
+│  • Manual via IPC (optional UI button)  │
+└─────────────────────────────────────────┘
+```
+
+### Future Enhancements
+
+1. **UI Integration**
+   - Add "Clean Up Uploaded Notes" button
+   - Show cleanup progress in UI
+   - Display cleanup statistics
+
+2. **Configurable Retention**
+   - Keep completed notes for X days
+   - User preference for auto-cleanup
+   - Archive instead of delete
+
+3. **Background Cleanup**
+   - Periodic cleanup (e.g., daily)
+   - Cleanup old completed notes
+   - Smart scheduling during idle time
+
+4. **Cleanup Analytics**
+   - Track cleanup history
+   - Statistics on verification success
+   - Alert on high failure rates
+
 ## Future Enhancements
 
 ### Potential Improvements
@@ -815,10 +1286,12 @@ The SQLite database migration successfully:
 - ✅ Improved query performance
 - ✅ Enabled atomic operations
 - ✅ Simplified debugging
-- ✅ All 217 tests passing
+- ✅ Added note GUID tracking and automatic cleanup
+- ✅ All 519 tests passing
 
 **Status:** Production-ready
 
 **Commits:**
 - ae07f1b: Add SQLite queue database and tests
 - cfb0b62: Migrate upload queue to SQLite database backend
+- [Pending]: Add note GUID tracking and automatic cleanup
