@@ -5,6 +5,7 @@ import crypto from 'crypto';
 import { getToken } from './oauth-helper.js';
 import { createSpinner, colors, warning } from './output-formatter.js';
 import { sanitizeTags, validateTagsForAPI } from './tag-validator.js';
+import { mergeNoteAttributes } from './utils/note-helpers.js';
 
 /**
  * Create a note in Evernote with the file and AI-generated metadata
@@ -391,21 +392,9 @@ export async function updateNote(
 
     // Update attributes if provided
     if (updatedAttributes) {
-      // Preserve existing attributes and merge with new ones
-      const existingAttributes = currentNote.attributes || {};
+      const mergedAttributes = mergeNoteAttributes(currentNote.attributes, updatedAttributes);
 
-      // Merge attributes, handling applicationData specially
-      const mergedAttributes: any = {
-        ...existingAttributes,
-        ...updatedAttributes
-      };
-
-      // If applicationData is provided, merge it with existing applicationData
       if (updatedAttributes.applicationData) {
-        mergedAttributes.applicationData = {
-          ...(existingAttributes.applicationData || {}),
-          ...updatedAttributes.applicationData
-        };
         console.log(`  ✓ Merged applicationData:`, mergedAttributes.applicationData);
       }
 

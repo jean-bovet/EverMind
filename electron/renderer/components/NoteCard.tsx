@@ -1,17 +1,8 @@
 import React from 'react';
+import type { NotePreview } from '../../utils/note-helpers.js';
 
 interface NoteCardProps {
-  note: {
-    guid: string;
-    title: string;
-    contentPreview: string;
-    created: number;
-    updated: number;
-    tags: string[];
-    isAugmented: boolean;
-    augmentedDate?: string;
-    thumbnailUrl?: string;
-  };
+  note: NotePreview & { thumbnailUrl?: string };
   onAugment: (noteGuid: string) => void;
   augmenting: boolean;
 }

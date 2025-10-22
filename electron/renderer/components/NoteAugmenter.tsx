@@ -1,55 +1,14 @@
 import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import NoteCard from './NoteCard';
-
-// Utility function to parse and format rate limit errors
-function parseRateLimitError(error: unknown): string | null {
-  const errorStr = error instanceof Error ? error.message : String(error);
-
-  // Try to extract rate limit info from error message
-  const rateLimitMatch = errorStr.match(/"errorCode":19.*?"rateLimitDuration":(\d+)/);
-  if (rateLimitMatch && rateLimitMatch[1]) {
-    const durationSeconds = parseInt(rateLimitMatch[1], 10);
-    const minutes = Math.floor(durationSeconds / 60);
-    const seconds = durationSeconds % 60;
-
-    if (minutes > 0) {
-      return `Rate limit exceeded. Please wait ${minutes} minute${minutes > 1 ? 's' : ''} and ${seconds} second${seconds !== 1 ? 's' : ''} before trying again.`;
-    } else {
-      return `Rate limit exceeded. Please wait ${seconds} second${seconds !== 1 ? 's' : ''} before trying again.`;
-    }
-  }
-
-  return null;
-}
+import { parseRateLimitError } from '../../utils/rate-limit-helpers.js';
+import { transformNoteMetadata } from '../../utils/note-helpers.js';
+import type { NoteMetadata } from '../../utils/note-helpers.js';
 
 interface Notebook {
   guid: string;
   name: string;
   defaultNotebook?: boolean;
-}
-
-interface NoteMetadata {
-  guid: string;
-  title?: string;
-  created?: number;
-  updated?: number;
-  tagGuids?: string[];
-  attributes?: {
-    applicationData?: Record<string, string>;
-  };
-}
-
-interface NotePreview {
-  guid: string;
-  title: string;
-  contentPreview: string;
-  created: number;
-  updated: number;
-  tags: string[];
-  isAugmented: boolean;
-  augmentedDate?: string;
-  thumbnailUrl?: string;
 }
 
 const NoteAugmenter: React.FC = () => {
@@ -99,24 +58,7 @@ const NoteAugmenter: React.FC = () => {
         // Transform metadata into preview format
         // NOTE: We skip fetching note content to avoid triggering rate limits
         // Content preview is optional in NoteCard component
-        const notePreviews: NotePreview[] = notesMetadata.map((meta) => {
-          // Check augmentation status from metadata
-          const isAugmented = meta.attributes?.applicationData?.['aiAugmented'] === 'true';
-          const augmentedDate = meta.attributes?.applicationData?.['aiAugmentedDate'];
-
-          return {
-            guid: meta.guid!,
-            title: meta.title || 'Untitled',
-            contentPreview: '', // Skip preview to avoid rate limits
-            created: meta.created || Date.now(),
-            updated: meta.updated || Date.now(),
-            tags: [], // TODO: Resolve tag names from tagGuids
-            isAugmented,
-            augmentedDate
-          };
-        });
-
-        return notePreviews;
+        return transformNoteMetadata(notesMetadata);
       } catch (err) {
         // Check if this is a rate limit error
         const rateLimitError = parseRateLimitError(err);
