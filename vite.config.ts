@@ -18,6 +18,7 @@ export default defineConfig({
               external: [
                 'electron',
                 'electron-store',
+                'better-sqlite3',
                 '@napi-rs/canvas',
                 'pdfjs-dist',
                 'tesseract.js',
@@ -71,6 +72,7 @@ export default defineConfig({
   },
   optimizeDeps: {
     exclude: [
+      'better-sqlite3',
       '@napi-rs/canvas',
       'pdfjs-dist',
       'tesseract.js',
