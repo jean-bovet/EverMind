@@ -2,12 +2,9 @@ import { Ollama } from 'ollama';
 import { ensureOllamaReady } from './ollama-manager.js';
 import { createSpinner, colors } from './output-formatter.js';
 import { saveDebugFile } from './debug-helper.js';
+import { parseAIResponse, type AIAnalysisResult } from './utils/ai-response-parser.js';
 
-export interface AIAnalysisResult {
-  title: string;
-  description: string;
-  tags: string[];
-}
+export type { AIAnalysisResult };
 
 /**
  * Analyze file content using Ollama AI to generate title, description and tags
@@ -123,41 +120,3 @@ Respond ONLY with the JSON object, no additional text.`;
   }
 }
 
-/**
- * Parse AI response and extract title, description and tags
- * @param response - Raw response from Ollama
- */
-function parseAIResponse(response: string): AIAnalysisResult {
-  try {
-    // Try to find JSON in the response
-    const jsonMatch = response.match(/\{[\s\S]*\}/);
-
-    if (jsonMatch) {
-      const parsed = JSON.parse(jsonMatch[0]) as Partial<AIAnalysisResult>;
-
-      return {
-        title: parsed.title || 'Untitled Document',
-        description: parsed.description || 'No description provided',
-        tags: Array.isArray(parsed.tags) ? parsed.tags : [],
-      };
-    }
-
-    // Fallback: try to parse the entire response
-    const parsed = JSON.parse(response) as Partial<AIAnalysisResult>;
-    return {
-      title: parsed.title || 'Untitled Document',
-      description: parsed.description || 'No description provided',
-      tags: Array.isArray(parsed.tags) ? parsed.tags : [],
-    };
-
-  } catch (error) {
-    // If parsing fails, create a basic description from the response
-    console.warn('Could not parse AI response as JSON, using fallback parsing.');
-
-    return {
-      title: 'Imported Document',
-      description: response.substring(0, 200) || 'File content analyzed',
-      tags: ['document', 'imported'],
-    };
-  }
-}
