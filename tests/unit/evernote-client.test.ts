@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { promises as fs } from 'fs';
 import path from 'path';
 import os from 'os';
-import { createNote, listTags } from '../../src/evernote-client.js';
+import { createNote, listTags } from '../../electron/evernote-client.js';
 import {
   resetEvernoteMocks,
   mockCreateNote,
@@ -18,7 +18,7 @@ vi.mock('evernote', async () => {
 });
 
 // Mock oauth-helper to return a fake token
-vi.mock('../../src/oauth-helper.js', () => ({
+vi.mock('../../electron/oauth-helper.js', () => ({
   getToken: vi.fn().mockResolvedValue('mock-token-123'),
 }));
 
@@ -89,7 +89,7 @@ describe('evernote-client', () => {
     });
 
     it('should handle authentication error', async () => {
-      const { getToken } = await import('../../src/oauth-helper.js');
+      const { getToken } = await import('../../electron/oauth-helper.js');
       vi.mocked(getToken).mockResolvedValueOnce(null);
 
       await expect(
@@ -205,7 +205,7 @@ describe('evernote-client', () => {
     });
 
     it('should handle authentication error', async () => {
-      const { getToken } = await import('../../src/oauth-helper.js');
+      const { getToken } = await import('../../electron/oauth-helper.js');
       vi.mocked(getToken).mockResolvedValueOnce(null);
 
       await expect(listTags()).rejects.toThrow(/Not authenticated/);

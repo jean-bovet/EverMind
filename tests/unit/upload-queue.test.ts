@@ -11,7 +11,7 @@ import {
   uploadNoteFromJSON,
   findPendingUploads,
   getPendingCount,
-} from '../../src/upload-queue.js';
+} from '../../electron/upload-queue.js';
 import { resetEvernoteMocks, mockCreateNote, mockRateLimitError } from '../mocks/evernote.mock.js';
 import { initDatabase, closeDatabase, updateFileStatus, updateFileUpload } from '../../electron/database/queue-db.js';
 

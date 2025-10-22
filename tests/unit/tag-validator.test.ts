@@ -5,7 +5,7 @@ import {
   filterExistingTags,
   sanitizeTags,
   validateTagsForAPI,
-} from '../../src/tag-validator.js';
+} from '../../electron/tag-validator.js';
 
 describe('tag-validator', () => {
   describe('isValidTagName', () => {

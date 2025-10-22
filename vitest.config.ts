@@ -9,10 +9,9 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],
-      include: ['src/**/*.ts', 'electron/**/*.ts'],
+      include: ['electron/**/*.ts'],
       exclude: [
-        'src/**/*.d.ts',
-        'src/index.ts', // CLI entry point, hard to test
+        'electron/**/*.d.ts',
         'electron/main.ts', // Electron entry point, tested via E2E
         'electron/preload.ts', // Preload script, tested via E2E
         'electron/ollama-detector.ts', // External dependency, tested separately
@@ -31,7 +30,7 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      '@': path.resolve(__dirname, './src'),
+      '@': path.resolve(__dirname, './electron'),
     },
   },
 });

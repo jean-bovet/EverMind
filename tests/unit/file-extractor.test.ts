@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import path from 'path';
-import { extractFileContent } from '../../src/file-extractor.js';
+import { extractFileContent } from '../../electron/file-extractor.js';
 
 const FIXTURES_DIR = path.resolve(__dirname, '../fixtures');
 
