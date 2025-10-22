@@ -1,7 +1,25 @@
+/**
+ * Upload Queue Manager
+ * Now uses SQLite database instead of JSON files
+ */
+
 import { promises as fs } from 'fs';
-import path from 'path';
 import { createNote } from './evernote-client.js';
 import { colors, warning, info } from './output-formatter.js';
+import {
+  getDatabase,
+  addFile,
+  getFile,
+  isAlreadyProcessed,
+  updateFileAnalysis,
+  updateFileUpload,
+  updateRetryInfo,
+  updateFileError,
+  getReadyToUploadFiles,
+  shouldRetry,
+  parseTags,
+  type FileRecord
+} from '../electron/database/queue-db.js';
 
 export interface NoteData {
   filePath: string;
@@ -37,28 +55,22 @@ export interface WaitResult {
 
 /**
  * Get the JSON file path for a given source file
- * @param filePath - Path to the source file
+ * @deprecated - No longer used with database, kept for backwards compatibility
  */
 export function getJSONPath(filePath: string): string {
   return `${filePath}.evernote.json`;
 }
 
 /**
- * Check if a file has already been processed (has JSON)
+ * Check if a file has already been processed (exists in DB)
  * @param filePath - Path to the source file
  */
 export async function hasExistingJSON(filePath: string): Promise<boolean> {
-  const jsonPath = getJSONPath(filePath);
-  try {
-    await fs.access(jsonPath);
-    return true;
-  } catch {
-    return false;
-  }
+  return isAlreadyProcessed(filePath);
 }
 
 /**
- * Save note data to JSON file next to the original file
+ * Save note data to database
  * @param filePath - Path to the original file
  * @param noteData - Note data to save
  */
@@ -66,84 +78,68 @@ export async function saveNoteToJSON(
   filePath: string,
   noteData: { title: string; description: string; tags: string[] }
 ): Promise<string> {
-  const jsonPath = getJSONPath(filePath);
+  // Add file to database if not exists
+  addFile(filePath);
 
-  const queueData: NoteData = {
-    filePath: filePath,
-    title: noteData.title,
-    description: noteData.description,
-    tags: noteData.tags,
-    createdAt: new Date().toISOString(),
-    lastAttempt: null,
-    retryAfter: null,
-  };
+  // Update with analysis results
+  updateFileAnalysis(filePath, noteData.title, noteData.description, noteData.tags);
 
-  await fs.writeFile(jsonPath, JSON.stringify(queueData, null, 2), 'utf-8');
-  return jsonPath;
+  // Return file path (instead of JSON path) for compatibility
+  return filePath;
 }
 
 /**
- * Load note data from JSON file
- * @param jsonPath - Path to the JSON file
+ * Load note data from database
+ * @param filePathOrJsonPath - Path to the file or old JSON path
  */
-export async function loadNoteFromJSON(jsonPath: string): Promise<NoteData> {
-  const content = await fs.readFile(jsonPath, 'utf-8');
-  return JSON.parse(content) as NoteData;
-}
-
-/**
- * Update JSON file with retry information after a rate limit error
- * @param jsonPath - Path to the JSON file
- * @param retryAfterMs - Timestamp when retry should be attempted
- */
-async function updateRetryInfo(jsonPath: string, retryAfterMs: number): Promise<void> {
-  const noteData = await loadNoteFromJSON(jsonPath);
-  noteData.lastAttempt = new Date().toISOString();
-  noteData.retryAfter = retryAfterMs;
-  await fs.writeFile(jsonPath, JSON.stringify(noteData, null, 2), 'utf-8');
-}
-
-/**
- * Check if enough time has passed to retry an upload
- * @param jsonPath - Path to the JSON file
- */
-async function shouldRetry(jsonPath: string): Promise<boolean> {
-  try {
-    const noteData = await loadNoteFromJSON(jsonPath);
-
-    // If no retry time set, we can retry
-    if (!noteData.retryAfter) {
-      return true;
-    }
-
-    // Check if current time is past the retry time
-    return Date.now() >= noteData.retryAfter;
-  } catch (error) {
-    // If we can't read the file, assume we should retry
-    return true;
+export async function loadNoteFromJSON(filePathOrJsonPath: string): Promise<NoteData> {
+  // Handle legacy JSON paths (.evernote.json)
+  let filePath = filePathOrJsonPath;
+  if (filePath.endsWith('.evernote.json')) {
+    filePath = filePath.replace('.evernote.json', '');
   }
+
+  const record = getFile(filePath);
+
+  if (!record) {
+    throw new Error(`File not found in database: ${filePath}`);
+  }
+
+  return {
+    filePath: record.file_path,
+    title: record.title || '',
+    description: record.description || '',
+    tags: parseTags(record),
+    createdAt: record.created_at,
+    lastAttempt: record.last_attempt_at,
+    retryAfter: record.retry_after,
+    uploadedAt: record.uploaded_at || undefined,
+    noteUrl: record.note_url || undefined
+  };
 }
 
 /**
  * Check if a note has been successfully uploaded
- * @param jsonPath - Path to the JSON file
+ * @param filePathOrJsonPath - Path to the file or old JSON path
  */
-export async function isUploaded(jsonPath: string): Promise<boolean> {
-  try {
-    const noteData = await loadNoteFromJSON(jsonPath);
-    return !!noteData.uploadedAt;
-  } catch {
-    return false;
+export async function isUploaded(filePathOrJsonPath: string): Promise<boolean> {
+  let filePath = filePathOrJsonPath;
+  if (filePath.endsWith('.evernote.json')) {
+    filePath = filePath.replace('.evernote.json', '');
   }
+
+  const record = getFile(filePath);
+  return record?.status === 'complete' && !!record.uploaded_at;
 }
 
 /**
- * Upload a note from JSON file to Evernote
- * @param jsonPath - Path to the JSON file
+ * Upload a note from database to Evernote
+ * @param filePathOrJsonPath - Path to the file or old JSON path
  */
-export async function uploadNoteFromJSON(jsonPath: string): Promise<UploadResult> {
+export async function uploadNoteFromJSON(filePathOrJsonPath: string): Promise<UploadResult> {
   try {
-    const noteData = await loadNoteFromJSON(jsonPath);
+    const noteData = await loadNoteFromJSON(filePathOrJsonPath);
+    const { filePath } = noteData;
 
     // Check if already uploaded
     if (noteData.uploadedAt) {
@@ -154,8 +150,6 @@ export async function uploadNoteFromJSON(jsonPath: string): Promise<UploadResult
       };
     }
 
-    const { filePath, title, description, tags } = noteData;
-
     // Verify the original file still exists
     try {
       await fs.access(filePath);
@@ -164,14 +158,10 @@ export async function uploadNoteFromJSON(jsonPath: string): Promise<UploadResult
     }
 
     // Attempt to create the note in Evernote
-    const noteUrl = await createNote(filePath, title, description, tags);
+    const noteUrl = await createNote(filePath, noteData.title, noteData.description, noteData.tags);
 
-    // Success! Update the JSON file with upload info (don't delete)
-    noteData.uploadedAt = new Date().toISOString();
-    noteData.noteUrl = noteUrl;
-    noteData.lastAttempt = new Date().toISOString();
-    noteData.retryAfter = null;
-    await fs.writeFile(jsonPath, JSON.stringify(noteData, null, 2), 'utf-8');
+    // Success! Update database with upload info
+    updateFileUpload(filePath, noteUrl);
 
     return {
       success: true,
@@ -180,6 +170,12 @@ export async function uploadNoteFromJSON(jsonPath: string): Promise<UploadResult
 
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+
+    // Extract file path for database update
+    let filePath = filePathOrJsonPath;
+    if (filePath.endsWith('.evernote.json')) {
+      filePath = filePath.replace('.evernote.json', '');
+    }
 
     // Check if it's a rate limit error
     const isRateLimit = errorMessage.includes('rateLimitDuration') ||
@@ -191,8 +187,8 @@ export async function uploadNoteFromJSON(jsonPath: string): Promise<UploadResult
       const durationSeconds = match && match[1] ? parseInt(match[1], 10) : 60;
       const retryAfterMs = Date.now() + (durationSeconds * 1000);
 
-      // Update JSON with retry time
-      await updateRetryInfo(jsonPath, retryAfterMs);
+      // Update database with retry time
+      updateRetryInfo(filePath, retryAfterMs);
 
       return {
         success: false,
@@ -210,40 +206,22 @@ export async function uploadNoteFromJSON(jsonPath: string): Promise<UploadResult
 }
 
 /**
- * Find all pending upload JSON files in a directory (recursive)
- * Only returns JSONs that haven't been uploaded yet
- * @param directory - Directory to search
+ * Find all pending upload files in a directory (recursive)
+ * @deprecated - Database tracks all files, no need to scan directories
+ * @param directory - Directory to search (ignored)
  */
 export async function findPendingUploads(directory: string): Promise<string[]> {
-  const jsonFiles: string[] = [];
-
-  async function scan(dir: string): Promise<void> {
-    const entries = await fs.readdir(dir, { withFileTypes: true });
-
-    for (const entry of entries) {
-      const fullPath = path.join(dir, entry.name);
-
-      if (entry.isDirectory()) {
-        await scan(fullPath);
-      } else if (entry.isFile() && entry.name.endsWith('.evernote.json')) {
-        // Only include if not yet uploaded
-        if (!(await isUploaded(fullPath))) {
-          jsonFiles.push(fullPath);
-        }
-      }
-    }
-  }
-
-  await scan(directory);
-  return jsonFiles.sort();
+  // Return files ready for upload from database
+  const files = getReadyToUploadFiles();
+  return files.map(f => f.file_path);
 }
 
 /**
  * Attempt to upload all pending uploads that are ready to retry
- * @param directory - Directory to search for pending uploads
+ * @param directory - Directory to search for pending uploads (ignored, uses DB)
  */
 export async function retryPendingUploads(directory: string): Promise<RetryStats> {
-  const pendingFiles = await findPendingUploads(directory);
+  const pendingFiles = getReadyToUploadFiles();
 
   const stats: RetryStats = {
     attempted: 0,
@@ -252,9 +230,9 @@ export async function retryPendingUploads(directory: string): Promise<RetryStats
     failed: 0,
   };
 
-  for (const jsonPath of pendingFiles) {
+  for (const record of pendingFiles) {
     // Check if we should retry this upload
-    const canRetry = await shouldRetry(jsonPath);
+    const canRetry = shouldRetry(record.file_path);
 
     if (!canRetry) {
       // Not ready to retry yet
@@ -263,13 +241,10 @@ export async function retryPendingUploads(directory: string): Promise<RetryStats
 
     stats.attempted++;
 
-    const noteData = await loadNoteFromJSON(jsonPath);
-    if (!noteData.filePath) continue;
-    const fileName = path.basename(noteData.filePath);
-
+    const fileName = record.file_path.split('/').pop() || record.file_path;
     console.log(`  ${colors.info('↻')} Retrying upload: ${colors.highlight(fileName)}`);
 
-    const result = await uploadNoteFromJSON(jsonPath);
+    const result = await uploadNoteFromJSON(record.file_path);
 
     if (result.success) {
       stats.successful++;
@@ -288,17 +263,17 @@ export async function retryPendingUploads(directory: string): Promise<RetryStats
 }
 
 /**
- * Get count of pending uploads in a directory
- * @param directory - Directory to search
+ * Get count of pending uploads
+ * @param directory - Directory to search (ignored, uses DB)
  */
 export async function getPendingCount(directory: string): Promise<number> {
-  const pendingFiles = await findPendingUploads(directory);
-  return pendingFiles.length;
+  const files = getReadyToUploadFiles();
+  return files.length;
 }
 
 /**
  * Wait for all pending uploads to complete with smart retry logic
- * @param directory - Directory containing pending uploads
+ * @param directory - Directory containing pending uploads (ignored, uses DB)
  * @param maxWaitTime - Maximum time to wait in milliseconds (default: 10 minutes)
  */
 export async function waitForPendingUploads(
@@ -310,7 +285,7 @@ export async function waitForPendingUploads(
   let totalFailed = 0;
 
   while (true) {
-    const pendingFiles = await findPendingUploads(directory);
+    const pendingFiles = getReadyToUploadFiles();
 
     if (pendingFiles.length === 0) {
       // All done!
@@ -326,16 +301,11 @@ export async function waitForPendingUploads(
 
     // Find the earliest retry time
     let earliestRetry: number | null = null;
-    for (const jsonPath of pendingFiles) {
-      try {
-        const noteData = await loadNoteFromJSON(jsonPath);
-        if (noteData.retryAfter) {
-          if (!earliestRetry || noteData.retryAfter < earliestRetry) {
-            earliestRetry = noteData.retryAfter;
-          }
+    for (const record of pendingFiles) {
+      if (record.retry_after) {
+        if (!earliestRetry || record.retry_after < earliestRetry) {
+          earliestRetry = record.retry_after;
         }
-      } catch {
-        // Skip files we can't read
       }
     }
 

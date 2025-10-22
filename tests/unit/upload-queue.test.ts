@@ -13,6 +13,7 @@ import {
   getPendingCount,
 } from '../../src/upload-queue.js';
 import { resetEvernoteMocks, mockCreateNote, mockRateLimitError } from '../mocks/evernote.mock.js';
+import { initDatabase, closeDatabase, updateFileStatus, updateFileUpload } from '../../electron/database/queue-db.js';
 
 // Mock the evernote module
 vi.mock('evernote', async () => {
@@ -31,12 +32,15 @@ describe('upload-queue', () => {
 
   beforeEach(async () => {
     resetEvernoteMocks();
+    // Initialize in-memory database for tests
+    initDatabase(':memory:', true);
     tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'queue-test-'));
     testFilePath = path.join(tempDir, 'test.pdf');
     await fs.writeFile(testFilePath, 'test content', 'utf8');
   });
 
   afterEach(async () => {
+    closeDatabase();
     await fs.rm(tempDir, { recursive: true, force: true });
     vi.clearAllMocks();
   });
@@ -59,9 +63,13 @@ describe('upload-queue', () => {
       expect(exists).toBe(false);
     });
 
-    it('should return true if JSON exists', async () => {
-      const jsonPath = getJSONPath(testFilePath);
-      await fs.writeFile(jsonPath, '{}', 'utf8');
+    it('should return true if file exists in database', async () => {
+      // Add file to database instead of creating JSON file
+      await saveNoteToJSON(testFilePath, {
+        title: 'Test',
+        description: 'Test',
+        tags: []
+      });
 
       const exists = await hasExistingJSON(testFilePath);
       expect(exists).toBe(true);
@@ -69,18 +77,19 @@ describe('upload-queue', () => {
   });
 
   describe('saveNoteToJSON', () => {
-    it('should save note data to JSON file', async () => {
+    it('should save note data to database', async () => {
       const noteData = {
         title: 'Test Title',
         description: 'Test Description',
         tags: ['tag1', 'tag2'],
       };
 
-      const jsonPath = await saveNoteToJSON(testFilePath, noteData);
+      const returnPath = await saveNoteToJSON(testFilePath, noteData);
 
-      expect(jsonPath).toBe(getJSONPath(testFilePath));
+      // Now returns file path instead of JSON path
+      expect(returnPath).toBe(testFilePath);
 
-      const savedData = await loadNoteFromJSON(jsonPath);
+      const savedData = await loadNoteFromJSON(testFilePath);
       expect(savedData.title).toBe('Test Title');
       expect(savedData.description).toBe('Test Description');
       expect(savedData.tags).toEqual(['tag1', 'tag2']);
@@ -141,18 +150,16 @@ describe('upload-queue', () => {
     });
 
     it('should return true for uploaded note', async () => {
-      const jsonPath = await saveNoteToJSON(testFilePath, {
+      const filePath = await saveNoteToJSON(testFilePath, {
         title: 'Test',
         description: 'Desc',
         tags: [],
       });
 
-      // Simulate upload
-      const data = await loadNoteFromJSON(jsonPath);
-      data.uploadedAt = new Date().toISOString();
-      await fs.writeFile(jsonPath, JSON.stringify(data), 'utf8');
+      // Simulate upload using database function
+      updateFileUpload(filePath, 'https://evernote.com/note/123');
 
-      const uploaded = await isUploaded(jsonPath);
+      const uploaded = await isUploaded(filePath);
       expect(uploaded).toBe(true);
     });
 
@@ -263,7 +270,7 @@ describe('upload-queue', () => {
   });
 
   describe('findPendingUploads', () => {
-    it('should find pending JSON files', async () => {
+    it('should find pending files ready to upload', async () => {
       // Create multiple test files
       const file1 = path.join(tempDir, 'file1.pdf');
       const file2 = path.join(tempDir, 'file2.pdf');
@@ -274,10 +281,16 @@ describe('upload-queue', () => {
       await saveNoteToJSON(file1, { title: 'T1', description: 'D1', tags: [] });
       await saveNoteToJSON(file2, { title: 'T2', description: 'D2', tags: [] });
 
+      // Mark files as ready-to-upload
+      updateFileStatus(file1, 'ready-to-upload', 100);
+      updateFileStatus(file2, 'ready-to-upload', 100);
+
       const pending = await findPendingUploads(tempDir);
 
       expect(pending.length).toBe(2);
-      expect(pending[0]).toMatch(/\.evernote\.json$/);
+      // Now returns file paths, not JSON paths
+      expect(pending).toContain(file1);
+      expect(pending).toContain(file2);
     });
 
     it('should not include uploaded notes', async () => {
@@ -287,17 +300,20 @@ describe('upload-queue', () => {
       await fs.writeFile(file1, 'content1', 'utf8');
       await fs.writeFile(file2, 'content2', 'utf8');
 
-      const json1 = await saveNoteToJSON(file1, { title: 'T1', description: 'D1', tags: [] });
+      await saveNoteToJSON(file1, { title: 'T1', description: 'D1', tags: [] });
       await saveNoteToJSON(file2, { title: 'T2', description: 'D2', tags: [] });
 
-      // Mark first as uploaded
-      const data1 = await loadNoteFromJSON(json1);
-      data1.uploadedAt = new Date().toISOString();
-      await fs.writeFile(json1, JSON.stringify(data1), 'utf8');
+      // Mark files as ready-to-upload
+      updateFileStatus(file1, 'ready-to-upload', 100);
+      updateFileStatus(file2, 'ready-to-upload', 100);
+
+      // Mark first as uploaded using database function
+      updateFileUpload(file1, 'https://evernote.com/note/123');
 
       const pending = await findPendingUploads(tempDir);
 
       expect(pending.length).toBe(1);
+      expect(pending[0]).toBe(file2);
     });
 
     it('should handle empty directory', async () => {
@@ -318,6 +334,10 @@ describe('upload-queue', () => {
       await saveNoteToJSON(file1, { title: 'T1', description: 'D1', tags: [] });
       await saveNoteToJSON(file2, { title: 'T2', description: 'D2', tags: [] });
 
+      // Mark files as ready-to-upload
+      updateFileStatus(file1, 'ready-to-upload', 100);
+      updateFileStatus(file2, 'ready-to-upload', 100);
+
       const pending = await findPendingUploads(tempDir);
 
       expect(pending.length).toBe(2);
@@ -334,6 +354,10 @@ describe('upload-queue', () => {
 
       await saveNoteToJSON(file1, { title: 'T1', description: 'D1', tags: [] });
       await saveNoteToJSON(file2, { title: 'T2', description: 'D2', tags: [] });
+
+      // Mark files as ready-to-upload
+      updateFileStatus(file1, 'ready-to-upload', 100);
+      updateFileStatus(file2, 'ready-to-upload', 100);
 
       const count = await getPendingCount(tempDir);
 

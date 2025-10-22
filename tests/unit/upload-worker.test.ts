@@ -9,6 +9,12 @@ import {
 } from '../utils/mock-factories.js';
 import { waitForQueueEmpty, sleep, waitForCalls } from '../utils/test-helpers.js';
 
+// Mock the database module to return empty array (no files ready to upload from DB)
+vi.mock('../../electron/database/queue-db.js', () => ({
+  getReadyToUploadFiles: vi.fn(() => []),
+  updateFileStatus: vi.fn(),
+}));
+
 describe('UploadWorker', () => {
   let worker: UploadWorker;
   let mockWindow: any;

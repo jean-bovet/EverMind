@@ -7,6 +7,7 @@ import { processFile, processBatch, analyzeFile } from './file-processor.js';
 import { hasToken, authenticate, removeToken } from '../src/oauth-helper.js';
 import { listTags } from '../src/evernote-client.js';
 import { UploadWorker } from './upload-worker.js';
+import { initDatabase, closeDatabase } from './database/queue-db.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -80,6 +81,11 @@ function createWindow() {
 
 // App lifecycle
 app.whenReady().then(() => {
+  // Initialize database
+  const dbPath = path.join(app.getPath('userData'), 'queue.db');
+  initDatabase(dbPath);
+  console.log('Database initialized at:', dbPath);
+
   createWindow();
 
   // Start upload worker
@@ -216,6 +222,8 @@ ipcMain.handle('get-upload-queue', async () => {
 app.on('before-quit', () => {
   uploadWorker.stop();
   ollamaDetector.cleanup();
+  closeDatabase();
+  console.log('Database closed');
 });
 
 // Export for cleanup

@@ -12,6 +12,7 @@ import {
   uploadNoteFromJSON,
 } from '../src/upload-queue.js';
 import { filterExistingTags } from '../src/tag-validator.js';
+import { addFile, updateFileStatus } from './database/queue-db.js';
 
 export interface ProcessFileOptions {
   debug?: boolean;
@@ -57,6 +58,9 @@ export async function analyzeFile(
   try {
     // Check if file exists
     await fs.access(absolutePath);
+
+    // Add file to database (if not already exists)
+    addFile(absolutePath);
 
     // Check if already processed
     if (await hasExistingJSON(absolutePath)) {

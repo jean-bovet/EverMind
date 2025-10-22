@@ -1,5 +1,6 @@
 import { BrowserWindow } from 'electron';
 import { uploadFile as defaultUploadFile, UploadResult } from './file-processor.js';
+import { getReadyToUploadFiles, updateFileStatus } from './database/queue-db.js';
 
 // Configuration
 const UPLOAD_RETRY_DELAY = 5000;        // 5s between retries
@@ -108,13 +109,23 @@ export class UploadWorker {
    */
   private async processLoop() {
     while (this.isRunning) {
-      if (this.queue.length === 0) {
-        // No files to upload, wait a bit
-        await this.sleep(POLL_INTERVAL);
-        continue;
+      // Check database for files ready to upload
+      const readyFiles = getReadyToUploadFiles();
+
+      if (readyFiles.length === 0) {
+        // Check internal queue as fallback
+        if (this.queue.length === 0) {
+          // No files to upload, wait a bit
+          await this.sleep(POLL_INTERVAL);
+          continue;
+        }
       }
 
-      const item = this.queue[0];
+      // Process from database first, then internal queue
+      const item = readyFiles.length > 0
+        ? { jsonPath: readyFiles[0].file_path, originalFilePath: readyFiles[0].file_path, retryCount: 0 }
+        : this.queue[0];
+
       if (!item) {
         await this.sleep(POLL_INTERVAL);
         continue;
@@ -129,11 +140,14 @@ export class UploadWorker {
         );
 
         if (result.success) {
-          // Success - remove from queue
-          this.queue.shift();
+          // Success - remove from internal queue if it was from there
+          if (readyFiles.length === 0 && this.queue.length > 0) {
+            this.queue.shift();
+          }
           console.log(`Upload successful: ${item.originalFilePath}`);
 
           // Update file with complete status (including noteUrl)
+          // Database is updated via uploadFile function
           this.mainWindow?.webContents.send('file-progress', {
             filePath: item.originalFilePath,
             status: 'complete',
@@ -165,8 +179,10 @@ export class UploadWorker {
           item.retryCount++;
 
           if (item.retryCount >= MAX_UPLOAD_RETRIES) {
-            // Max retries reached - remove from queue and mark as error
-            this.queue.shift();
+            // Max retries reached - remove from internal queue and mark as error
+            if (readyFiles.length === 0 && this.queue.length > 0) {
+              this.queue.shift();
+            }
             console.error(
               `Max retries reached for ${item.originalFilePath}: ${result.error?.message}`
             );
@@ -198,8 +214,10 @@ export class UploadWorker {
         }
 
       } catch (error) {
-        // Critical error - remove from queue and mark as error
-        this.queue.shift();
+        // Critical error - remove from internal queue and mark as error
+        if (readyFiles.length === 0 && this.queue.length > 0) {
+          this.queue.shift();
+        }
         const errorMsg = error instanceof Error ? error.message : 'Unknown error';
         console.error(`Critical error uploading ${item.originalFilePath}:`, error);
 
