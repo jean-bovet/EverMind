@@ -19,7 +19,7 @@ import {
   shouldRetry,
   parseTags,
   type FileRecord
-} from '../electron/database/queue-db.js';
+} from './database/queue-db.js';
 
 export interface NoteData {
   filePath: string;

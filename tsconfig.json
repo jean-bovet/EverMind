@@ -3,7 +3,8 @@
     /* Language and Environment */
     "target": "ES2020",
     "module": "ES2020",
-    "lib": ["ES2020"],
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "jsx": "react-jsx",
 
     /* Modules */
     "moduleResolution": "node",
@@ -12,8 +13,8 @@
     "esModuleInterop": true,
 
     /* Emit */
-    "outDir": "./dist",
-    "rootDir": "./src",
+    "outDir": "./dist-electron",
+    "rootDir": "./",
     "declaration": true,
     "declarationMap": true,
     "sourceMap": true,
@@ -42,8 +43,22 @@
     "noPropertyAccessFromIndexSignature": true,
 
     /* Completeness */
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "types": ["node", "react", "react-dom"],
+    "paths": {
+      "@/*": ["./src/*"],
+      "@electron/*": ["./electron/*"]
+    }
   },
-  "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist", "**/*.spec.ts"]
+  "include": [
+    "electron/**/*"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "dist-electron",
+    "dist-renderer",
+    "release",
+    "**/*.spec.ts"
+  ]
 }

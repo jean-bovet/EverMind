@@ -4,8 +4,8 @@ import path from 'node:path';
 import Store from 'electron-store';
 import { getOllamaDetector } from './ollama-detector.js';
 import { processFile, processBatch, analyzeFile } from './file-processor.js';
-import { hasToken, authenticate, removeToken } from '../src/oauth-helper.js';
-import { listTags } from '../src/evernote-client.js';
+import { hasToken, authenticate, removeToken } from './oauth-helper.js';
+import { listTags } from './evernote-client.js';
 import { UploadWorker } from './upload-worker.js';
 import { initDatabase, closeDatabase } from './database/queue-db.js';
 

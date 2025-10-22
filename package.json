@@ -3,22 +3,15 @@
   "version": "1.0.0",
   "description": "Import files to Evernote with AI-generated descriptions and tags using local Ollama",
   "main": "dist-electron/main.js",
-  "bin": {
-    "evernote-ai-importer": "./dist/index.js"
-  },
   "scripts": {
-    "build": "tsc",
-    "dev": "tsc --watch",
-    "clean": "rm -rf dist",
-    "start": "node dist/index.js",
     "pretest": "npm rebuild better-sqlite3",
     "test": "vitest --run",
     "test:ui": "vitest --ui",
     "test:coverage": "vitest --coverage",
     "test:watch": "vitest --watch",
-    "electron:dev": "vite",
-    "electron:build": "tsc && vite build && electron-builder",
-    "electron:preview": "vite build && electron .",
+    "dev": "vite",
+    "build": "tsc && vite build && electron-builder",
+    "preview": "vite build && electron .",
     "postinstall": "electron-rebuild -f -w better-sqlite3"
   },
   "keywords": [

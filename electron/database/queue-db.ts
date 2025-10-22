@@ -11,6 +11,32 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// Inline SQL schema (avoids file loading issues in bundled electron app)
+const schemaSQL = `-- Queue database schema for Evernote AI Importer
+-- Stores file processing queue and metadata
+
+CREATE TABLE IF NOT EXISTS files (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  file_path TEXT UNIQUE NOT NULL,
+  title TEXT,
+  description TEXT,
+  tags TEXT,  -- JSON array stored as string
+  status TEXT NOT NULL DEFAULT 'pending',  -- pending, extracting, analyzing, ready-to-upload, uploading, rate-limited, retrying, complete, error
+  progress INTEGER DEFAULT 0,  -- 0-100
+  error_message TEXT,
+  created_at TEXT NOT NULL,
+  last_attempt_at TEXT,
+  retry_after INTEGER,  -- Unix timestamp in milliseconds
+  uploaded_at TEXT,
+  note_url TEXT
+);
+
+-- Indexes for common queries
+CREATE INDEX IF NOT EXISTS idx_status ON files(status);
+CREATE INDEX IF NOT EXISTS idx_file_path ON files(file_path);
+CREATE INDEX IF NOT EXISTS idx_retry_after ON files(retry_after);
+`;
+
 export type FileStatus =
   | 'pending'
   | 'extracting'
@@ -68,10 +94,8 @@ export function initDatabase(dbPath: string, force: boolean = false): Database.D
 
   db = new Database(dbPath);
 
-  // Read and execute schema
-  const schemaPath = path.join(__dirname, 'schema.sql');
-  const schema = fs.readFileSync(schemaPath, 'utf-8');
-  db.exec(schema);
+  // Execute schema (imported as raw string at build time)
+  db.exec(schemaSQL);
 
   console.log(`Database initialized at: ${dbPath}`);
   return db;
