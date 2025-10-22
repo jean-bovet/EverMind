@@ -4,36 +4,17 @@ import FileQueue from './components/FileQueue';
 import Settings from './components/Settings';
 import WelcomeWizard from './components/WelcomeWizard';
 import StatusBar from './components/StatusBar';
+import { ProcessingScheduler } from '../utils/processing-scheduler.js';
+import {
+  updateFileFromIPCMessage,
+  addFiles,
+  updateFileStatus,
+  type FileProgressData
+} from '../utils/file-state-reducer.js';
+import type { FileItem, FileStatus } from '../utils/processing-scheduler.js';
 
 // Configuration for concurrent processing
 const CONCURRENT_STAGE1 = 3; // Max concurrent analyses
-
-type FileStatus =
-  | 'pending'           // Waiting to start Stage 1
-  | 'extracting'        // Stage 1: Extracting text from file
-  | 'analyzing'         // Stage 1: AI analysis in progress
-  | 'ready-to-upload'   // Stage 1 complete, waiting for upload slot
-  | 'uploading'         // Stage 2: Currently uploading to Evernote
-  | 'rate-limited'      // Stage 2: Waiting for rate limit to clear
-  | 'retrying'          // Stage 2: Retrying after failure
-  | 'complete'          // Successfully uploaded
-  | 'error';            // Failed at any stage
-
-interface FileItem {
-  path: string;
-  name: string;
-  status: FileStatus;
-  progress: number;
-  message?: string;
-  jsonPath?: string;    // Path to the .evernote.json file (for Stage 2)
-  result?: {
-    title: string;
-    description: string;
-    tags: string[];
-    noteUrl?: string;
-  };
-  error?: string;
-}
 
 interface OllamaStatus {
   installed: boolean;
@@ -49,6 +30,7 @@ function App() {
   const [showWelcome, setShowWelcome] = useState(false);
   const [ollamaStatus, setOllamaStatus] = useState<OllamaStatus | null>(null);
   const processingRef = useRef(false);
+  const scheduler = useRef(new ProcessingScheduler(CONCURRENT_STAGE1));
 
   // Check Ollama status on mount
   useEffect(() => {
@@ -67,37 +49,19 @@ function App() {
 
   // Subscribe to file progress events
   useEffect(() => {
-    const unsubscribe = window.electronAPI.onFileProgress((data) => {
-      setFiles(prev => prev.map(file => {
-        if (file.path === data.filePath) {
-          // Update file with new status and data
-          const updated: FileItem = {
-            ...file,
-            status: data.status,
-            progress: data.progress,
-            message: data.message
-          };
+    const unsubscribe = window.electronAPI.onFileProgress((data: FileProgressData) => {
+      setFiles(prev => {
+        // Use pure function to update file state
+        const updated = updateFileFromIPCMessage(prev, data);
 
-          // Merge result data (keep existing data if not provided)
-          if (data.result) {
-            updated.result = {
-              ...file.result,
-              ...data.result
-            } as typeof file.result;
-          }
-
-          if (data.error) {
-            updated.error = data.error;
-          }
-
-          if (data.jsonPath) {
-            updated.jsonPath = data.jsonPath;
-          }
-
-          return updated;
+        // Log if file not found (for debugging)
+        if (updated === prev) {
+          console.warn(`IPC update for unknown file: ${data.filePath}`);
+          console.warn('Available files:', prev.map(f => f.path));
         }
-        return file;
-      }));
+
+        return updated;
+      });
     });
 
     return () => {
@@ -111,14 +75,8 @@ function App() {
   }, [files]);
 
   const handleFilesAdded = (filePaths: string[]) => {
-    const newFiles: FileItem[] = filePaths.map(path => ({
-      path,
-      name: path.split('/').pop() || path,
-      status: 'pending',
-      progress: 0
-    }));
-
-    setFiles(prev => [...prev, ...newFiles]);
+    // Use pure function to add files
+    setFiles(prev => addFiles(prev, filePaths));
   };
 
   // Process next pending files (up to CONCURRENT_STAGE1 at once)
@@ -128,14 +86,8 @@ function App() {
     processingRef.current = true;
 
     try {
-      const pending = files.filter(f => f.status === 'pending');
-      const processing = files.filter(f =>
-        f.status === 'extracting' || f.status === 'analyzing'
-      );
-
-      // Start new files if we have capacity
-      const available = CONCURRENT_STAGE1 - processing.length;
-      const toProcess = pending.slice(0, available);
+      // Use pure function to determine which files to process
+      const toProcess = scheduler.current.getFilesToProcess(files);
 
       for (const file of toProcess) {
         processFileStage1(file.path);
@@ -148,10 +100,8 @@ function App() {
   // Stage 1: Analyze file (don't await - runs concurrently)
   const processFileStage1 = async (filePath: string) => {
     try {
-      // Mark as extracting
-      setFiles(prev => prev.map(f =>
-        f.path === filePath ? { ...f, status: 'extracting' as FileStatus } : f
-      ));
+      // Don't manually update status - let IPC messages be the single source of truth
+      // The main process will send status updates starting immediately
 
       // Call Stage 1: Extract + Analyze
       const result = await window.electronAPI.analyzeFile(filePath, {});
@@ -159,18 +109,21 @@ function App() {
       if (result.success && result.jsonPath) {
         // Queue for upload (Stage 2)
         await window.electronAPI.queueUpload(result.jsonPath, filePath);
+      } else if (!result.success) {
+        // Analysis failed but didn't throw - IPC should have sent error status
+        // Log for debugging in case IPC message was missed
+        console.warn(`Analysis failed for ${filePath}:`, result.error);
       }
 
     } catch (error) {
+      // This catches exceptions during the IPC call itself
       console.error('Error in Stage 1:', error);
-      setFiles(prev => prev.map(f =>
-        f.path === filePath
-          ? {
-              ...f,
-              status: 'error' as FileStatus,
-              error: error instanceof Error ? error.message : 'Unknown error'
-            }
-          : f
+      // Fallback: update state if IPC message didn't get through
+      setFiles(prev => updateFileStatus(
+        prev,
+        filePath,
+        'error',
+        error instanceof Error ? error.message : 'Unknown error'
       ));
     }
   };
