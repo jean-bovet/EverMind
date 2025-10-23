@@ -34,6 +34,42 @@ All critical tests from this specification have been implemented:
 - Test one concern per test
 - Use minimal setup/teardown
 
+**Bug fixing workflow**
+
+When a bug is discovered, follow this test-driven approach:
+
+1. **Write a failing test** - Create a unit test that reproduces the bug. The test should fail, confirming the bug exists
+2. **Fix the code** - Modify the implementation to address the root cause
+3. **Verify the fix** - Re-run the test. It should now pass, proving the bug is fixed
+
+This approach ensures:
+- The bug is properly understood and documented
+- The fix actually solves the problem
+- The bug won't reappear in the future (regression protection)
+- The test suite grows stronger with each bug found
+
+Example workflow:
+```typescript
+// 1. Bug discovered: Files with overlapping paths cause issues
+describe('File path handling', () => {
+  it('should handle files with overlapping paths', () => {
+    // This test fails initially, reproducing the bug
+    addFile('/test/plain.txt');
+    addFile('/test/plain.txt.evernote.json');
+
+    expect(isAlreadyProcessed('/test/plain.txt')).toBe(true);
+    expect(isAlreadyProcessed('/test/plain.txt.evernote.json')).toBe(true);
+
+    const files = getAllFiles();
+    expect(files.length).toBe(2); // Should be separate records
+  });
+});
+
+// 2. Fix the code (e.g., use exact path matching instead of suffix checking)
+
+// 3. Re-run test - now passes ✅
+```
+
 ---
 
 ## Critical Components to Test
