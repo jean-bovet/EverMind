@@ -93,8 +93,26 @@ export function initDatabase(dbPath: string, force: boolean = false): Database.D
   // Execute schema (imported as raw string at build time)
   db.exec(schemaSQL);
 
+  // Run migrations for existing databases
+  runMigrations(db);
+
   console.log(`Database initialized at: ${dbPath}`);
   return db;
+}
+
+/**
+ * Run database migrations to handle schema changes
+ */
+function runMigrations(database: Database.Database): void {
+  // Check if note_guid column exists
+  const tableInfo = database.pragma('table_info(files)') as Array<{ name: string }>;
+  const hasNoteGuid = tableInfo.some(col => col.name === 'note_guid');
+
+  if (!hasNoteGuid) {
+    console.log('  Running migration: Adding note_guid column...');
+    database.exec('ALTER TABLE files ADD COLUMN note_guid TEXT');
+    console.log('  ✓ Migration complete');
+  }
 }
 
 /**
