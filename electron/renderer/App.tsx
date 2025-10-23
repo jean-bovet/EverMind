@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { AlertTriangle } from 'lucide-react';
-import TopBar from './components/TopBar';
 import UnifiedList from './components/UnifiedList';
 import Settings from './components/Settings';
 import WelcomeWizard from './components/WelcomeWizard';
@@ -264,7 +263,29 @@ function App() {
 
   return (
     <div className="app">
-      <div className="title-bar" />
+      <div className="title-bar">
+        <div className="title-bar-controls">
+          <label htmlFor="notebook-select" className="notebook-label">Notebook:</label>
+          <select
+            id="notebook-select"
+            className="notebook-select"
+            value={selectedNotebook || ''}
+            onChange={(e) => handleNotebookChange(e.target.value)}
+            disabled={notebooks.length === 0}
+          >
+            {notebooks.length === 0 ? (
+              <option value="">Loading...</option>
+            ) : (
+              notebooks.map((notebook) => (
+                <option key={notebook.guid} value={notebook.guid}>
+                  {notebook.name}
+                  {notebook.defaultNotebook ? ' (Default)' : ''}
+                </option>
+              ))
+            )}
+          </select>
+        </div>
+      </div>
 
       <div className="main-content">
         {showWelcome ? (
@@ -277,13 +298,6 @@ function App() {
           />
         ) : (
           <>
-            <TopBar
-              selectedNotebook={selectedNotebook}
-              notebooks={notebooks}
-              onNotebookChange={handleNotebookChange}
-              onSettingsClick={() => setShowSettings(true)}
-            />
-
             {rateLimitWarning && (
               <div className="rate-limit-warning">
                 <span className="warning-icon">
@@ -301,11 +315,16 @@ function App() {
               onFilesDropped={handleFilesAdded}
               onRetryFile={handleRetryFile}
             />
-
-            <StatusBar ollamaStatus={ollamaStatus} />
           </>
         )}
       </div>
+
+      {!showWelcome && (
+        <StatusBar
+          ollamaStatus={ollamaStatus}
+          onSettingsClick={() => setShowSettings(true)}
+        />
+      )}
 
       {showSettings && (
         <Settings

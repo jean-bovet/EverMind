@@ -1,7 +1,7 @@
 # UI Components Reference
 
 > **Type:** Reference
-> **Last Updated:** January 2025
+> **Last Updated:** October 2025
 
 ## Overview
 
@@ -30,6 +30,44 @@ The app uses **Lucide React** for all icons throughout the interface.
 - `FolderOpen` - Drop zones and file operations
 
 All icons are React components imported from the `lucide-react` package and rendered as inline SVG elements.
+
+---
+
+## Layout Structure
+
+### Overview
+The app uses a vertical flex layout with three main structural components at the root level:
+
+```
+┌─────────────────────────────────────────────────────┐
+│ Title Bar (52px fixed height)                      │ ← Top level
+├─────────────────────────────────────────────────────┤
+│                                                     │
+│  Main Content Area (flexible, scrollable)          │ ← Middle level
+│                                                     │
+│  - Rate limit warnings (conditional)               │
+│  - Unified list of notes/files                     │
+│                                                     │
+├─────────────────────────────────────────────────────┤
+│ Status Bar (fixed height)                          │ ← Bottom level
+└─────────────────────────────────────────────────────┘
+```
+
+### Structural Benefits
+- **Full-width header and footer**: Title bar and status bar span the entire window width, creating clear visual boundaries
+- **Maximized content area**: Main content has 20px padding on all sides, with the list taking all available vertical space
+- **Space optimization**: By moving controls to the title bar and status bar, more vertical space is available for content
+- **Clear hierarchy**: Three-tier structure (header/content/footer) provides intuitive visual organization
+
+### Technical Implementation
+```
+.app (height: 100vh, flex column)
+├── .title-bar (flex-shrink: 0, no padding around it)
+├── .main-content (flex: 1, padding: 20px, gap: 20px)
+│   ├── .rate-limit-warning (conditional)
+│   └── .unified-list (flex: 1, scrollable)
+└── .status-bar (flex-shrink: 0, no padding around it)
+```
 
 ---
 
@@ -290,13 +328,58 @@ Displays all files that have been added for processing, showing their current st
 
 ---
 
+## Title Bar
+
+### Purpose
+Provides window drag functionality and houses the notebook selector control.
+
+### Location
+- Fixed at the top of the app window
+- Spans the full width of the window
+- Serves as the draggable area for moving the window
+
+### Visual Design
+```
+┌─────────────────────────────────────────────────────┐
+│                              [Notebook: ... ▾]      │
+└─────────────────────────────────────────────────────┘
+```
+
+**Layout Components:**
+- **Notebook Label**: "Notebook:" text label
+- **Notebook Selector**: Dropdown showing current notebook with available options
+
+### Styling
+- Height: 52px
+- Background: Dark grey (#252525)
+- Padding: 0 20px
+- Notebook selector positioned on the right side
+- Controls are non-draggable (allow interaction), rest of title bar is draggable
+
+**Notebook Selector Styling:**
+- Padding: 6px 10px
+- Background: Slightly lighter grey (#2a2a2a)
+- Border: 1px solid #444
+- Border radius: 5px
+- Font size: 13px
+- Minimum width: 200px
+- Focus state: Blue border (#4a9eff)
+
+### Behavior
+- Title bar area allows window dragging (macOS/Windows behavior)
+- Notebook selector shows loading state when notebooks are being fetched
+- Dropdown displays all notebooks with "(Default)" label for the default notebook
+- Selecting a notebook updates the notes list immediately
+
+---
+
 ## Settings Modal
 
 ### Purpose
 Configure Ollama model selection, view Evernote connection status, and check system status.
 
 ### Trigger
-- Click the ⚙️ icon in the top-right corner of the main screen
+- Click the ⚙️ (Settings) button in the status bar at the bottom of the screen
 
 ### Visual Design
 ```
@@ -347,28 +430,44 @@ Configure Ollama model selection, view Evernote connection status, and check sys
 ## Status Bar
 
 ### Purpose
-Show real-time status of Ollama at the bottom of the app.
+Displays real-time status of Ollama and provides quick access to settings at the bottom of the app.
 
 ### Location
-- Fixed at the bottom of the app window
+- Fixed at the bottom of the app window, at the same structural level as the title bar
+- Spans the full width of the window with no margins
 - Always visible (except in Welcome Wizard)
+- Separated from main content area by a top border
 
 ### Visual Design
 ```
-┌─────────────────────────────────────┐
-│ 🟢 Ollama: Running | 3 models       │
-└─────────────────────────────────────┘
+┌─────────────────────────────────────────────────────┐
+│ ● Ollama: Running  │  3 models available  │  [⚙]  │
+└─────────────────────────────────────────────────────┘
 ```
 
-**States:**
-- 🟢 **Running**: Ollama detected and responding
-- 🟡 **Starting**: Ollama detected but not responding yet
-- 🔴 **Stopped**: Ollama not running or not found
+**Layout Components:**
+- **Status Indicator**: Colored dot + "Ollama: [status]" text
+- **Models Count**: Number of available models (when models exist)
+- **Version Display**: Ollama version (grayed out, when available)
+- **Spacer**: Flexible space to push settings button to the right
+- **Settings Button**: Gear icon button to open settings modal
+
+**Status Indicator States:**
+- 🟢 **Running**: Ollama detected and responding (green dot)
+- 🟡 **Stopped**: Ollama not running or not found (orange dot)
+
+### Styling
+- Background: Dark grey (#252525)
+- Border: 1px solid #333 (top only)
+- Padding: 12px 20px
+- Font size: 12px
+- Gap between elements: 16px
+- Settings button: Transparent background with border, hover effect
 
 ### Behavior
-- Updates automatically every 30 seconds
-- Clickable to refresh status immediately
-- Future: Click to open Settings
+- Updates automatically when Ollama status changes
+- Settings button opens the Settings modal when clicked
+- Full-width footer design provides visual grounding to the interface
 
 ---
 
