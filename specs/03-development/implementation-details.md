@@ -1,5 +1,8 @@
 # Implementation Details
 
+> **Type:** Development Guide
+> **Last Updated:** January 2025
+
 ## File Extraction Implementation
 
 ### PDF Extraction

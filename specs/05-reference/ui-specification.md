@@ -1,8 +1,11 @@
-# UI Specification
+# UI Components Reference
+
+> **Type:** Reference
+> **Last Updated:** January 2025
 
 ## Overview
 
-This document describes the user interface components and their behavior for the Evernote AI Importer Electron app.
+This document describes the user interface components and their behavior for the Electron app.
 
 ---
 

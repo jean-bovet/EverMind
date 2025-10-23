@@ -1,10 +1,12 @@
-# UI Unification: Unified File and Note List
+# Unified List View
 
-**Status:** ✅ Implemented (Uncommitted)
+> **Type:** Feature
+> **Last Updated:** January 2025
+> **Implemented:** Yes
 
-## Overview
+## What It Is
 
-Unified the user interface to display both **files being processed** (new uploads) and **existing Evernote notes** (can be augmented) in a single, cohesive list view.
+The app displays both files being processed (new uploads) and existing Evernote notes (available for augmentation) in a single, unified list view. This provides a cohesive interface where you can see all your content in one place.
 
 ## Problem Statement
 

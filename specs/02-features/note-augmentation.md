@@ -1,34 +1,32 @@
-# Note Augmentation Feature
+# Note Augmentation
 
-**Status:** ✅ Implemented
-**Created:** 2025-10-22
-**Updated:** 2025-10-22
-**Goal:** Add ability to browse existing Evernote notes and augment them with AI analysis
+> **Type:** Feature
+> **Last Updated:** January 2025
+> **Implemented:** Yes
 
-## Implementation Status
+## What It Is
 
-✅ **Completed:**
-- Note browsing with notebook selection
-- React Query integration for intelligent caching
-- Note augmentation with AI analysis
-- Augmentation status tracking via applicationData
-- Rate limit error handling and user feedback
-- Performance optimizations (eliminated bulk content fetching)
-- Warning banner UI for rate limits
-- Progress tracking during augmentation
+The Note Augmentation feature allows you to browse existing notes in your Evernote notebooks and enhance them with AI-generated analysis. The app downloads the note content, analyzes it with local AI (Ollama), and appends the analysis back to the note.
 
-📝 **Known Limitations:**
-- Content previews not shown (optimization to prevent rate limits)
-- Tag names not resolved (shows empty array)
-- No thumbnail support yet
+## Key Features
 
-## Overview
+- Browse notes across all your Evernote notebooks
+- Filter by notebook using dropdown selector
+- Intelligent caching with React Query for fast browsing
+- One-click augmentation with progress tracking
+- Augmentation status badges (shows which notes have been augmented)
+- Rate limit handling with automatic retries
+- Works with note content and attachments (PDFs, images)
 
-Add a new page to the Electron app that allows users to:
-1. Browse existing notes in their Evernote notebooks
-2. View note content and attachments
-3. Augment notes with AI-generated analysis (title, description, tags)
-4. Track which notes have been augmented
+## How It Works
+
+When you augment a note:
+1. The app downloads the note content and attachments from Evernote
+2. Extracts text from attachments (using OCR for images)
+3. Analyzes the combined content with Ollama AI
+4. Appends the AI analysis to the original note content
+5. Updates the note in Evernote with augmentation metadata
+6. Displays a success confirmation
 
 ## User Flow
 

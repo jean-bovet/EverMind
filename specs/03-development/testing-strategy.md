@@ -1,12 +1,15 @@
-# Testing Strategy for Auto-Processing Pipeline
+# Testing Strategy
 
-**Status:** ✅ Implemented (all tests passing - 217 tests)
+> **Type:** Development Guide
+> **Last Updated:** January 2025
 
-**Related Specs:**
-- [Auto-Processing Pipeline](./auto-processing-pipeline.md) - Feature specification
-- [SQLite Database Migration](./sqlite-database-migration.md) - Database implementation
+**Test Status:** 217 tests passing ✅
 
-## Implementation Summary
+**Related Documentation:**
+- [Auto-Processing Pipeline](../02-features/auto-processing-pipeline.md) - Feature specification
+- [SQLite Database](../02-features/sqlite-database.md) - Database implementation
+
+## Test Coverage
 
 All critical tests from this specification have been implemented:
 

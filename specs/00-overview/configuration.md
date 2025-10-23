@@ -1,5 +1,8 @@
 # Configuration Reference
 
+> **Type:** Reference
+> **Last Updated:** January 2025
+
 ## Environment Variables
 
 All configuration is managed through environment variables stored in the `.env` file.

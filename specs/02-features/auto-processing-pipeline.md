@@ -1,40 +1,22 @@
-# Auto-Processing Pipeline with Two-Stage Architecture
+# Auto-Processing Pipeline
 
-**Status:** ✅ Implemented (commits: cd734cc, 19fd105, cfb0b62)
+> **Type:** Feature
+> **Last Updated:** January 2025
+> **Implemented:** Yes (commits: cd734cc, 19fd105, cfb0b62)
 
-**Related Specs:**
-- [SQLite Database Migration](./sqlite-database-migration.md) - Storage backend implementation
-- [Testing Strategy](./testing-strategy.md) - Test coverage for this feature
+**Related Documentation:**
+- [SQLite Database](./sqlite-database.md) - Storage backend
+- [Testing Strategy](../03-development/testing-strategy.md) - Test coverage
 
-## Overview
+## What It Is
 
-Transform the file processing to automatically start on drop with two independent processing stages that can run concurrently.
+The auto-processing pipeline automatically processes files when you drop them into the app, using two independent stages that run concurrently for maximum efficiency.
 
-## Implementation Notes
+## Architecture
 
-This specification has been fully implemented with one major enhancement:
+The pipeline uses a two-stage architecture that enables concurrent processing:
 
-**SQLite Database Backend** - Instead of using `.evernote.json` files as described in section 3, we implemented a SQLite database to store all file metadata and queue state. See [sqlite-database-migration.md](./sqlite-database-migration.md) for complete details.
-
-Key differences from this spec:
-- No `.evernote.json` files created (all data in SQLite database)
-- Upload worker queries database instead of scanning filesystem
-- All file state transitions tracked in centralized database
-- Better performance and reliability than JSON-based approach
-
-## Current Architecture
-
-```
-Drop files → Queue → Click "Process" → [Extract → Analyze → Upload] (sequential, blocking)
-```
-
-**Problems:**
-- User must manually click "Process" button
-- All operations are sequential and blocking
-- No concurrency - processes one file completely before next
-- Rate limits block entire pipeline
-
-## New Architecture
+### Current Flow
 
 ```
 Drop files → Auto-start → [Stage 1: Extract + Analyze] (concurrent, 2-3 files at once)
@@ -44,11 +26,12 @@ Drop files → Auto-start → [Stage 1: Extract + Analyze] (concurrent, 2-3 file
                        Complete
 ```
 
-**Benefits:**
-- Auto-starts processing on drop
-- Stage 1 can process multiple files concurrently
-- Stage 2 handles retries/rate limits independently
-- Pipeline doesn't block on rate limits
+**Key Features:**
+- Processing starts automatically when you drop files
+- Stage 1 processes multiple files concurrently (2-3 at once)
+- Stage 2 runs independently and handles retries/rate limits
+- The pipeline continues processing even when uploads are rate-limited
+- All state is tracked in a SQLite database (no JSON files)
 
 ---
 

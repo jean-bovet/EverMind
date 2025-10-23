@@ -1,5 +1,8 @@
 # System Architecture
 
+> **Type:** Architecture
+> **Last Updated:** January 2025
+
 ## High-Level Architecture
 
 ```

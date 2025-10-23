@@ -1,10 +1,12 @@
-# SQLite Database Migration Specification
+# SQLite Database Queue
 
-## Overview
+> **Type:** Feature
+> **Last Updated:** January 2025
+> **Implemented:** Yes (commits: ae07f1b, cfb0b62)
 
-**Status:** ✅ Implemented (commits: ae07f1b, cfb0b62)
+## What It Is
 
-Migrated the file processing queue from JSON files (`.evernote.json`) to a SQLite database for better performance, reliability, and to fix path collision bugs.
+The app uses a SQLite database to manage the file processing queue, replacing the previous JSON file-based system. This provides better performance, reliability, and fixes path collision bugs.
 
 ## Problem Statement
 

@@ -1,5 +1,8 @@
 # API Integrations
 
+> **Type:** Development Guide
+> **Last Updated:** January 2025
+
 ## Evernote API Integration
 
 ### API Version

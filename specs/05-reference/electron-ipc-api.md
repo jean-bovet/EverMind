@@ -1,8 +1,11 @@
 # IPC API Reference
 
+> **Type:** API Reference
+> **Last Updated:** January 2025
+
 ## Overview
 
-This document provides a complete reference for the Inter-Process Communication (IPC) API between the Renderer process (React UI) and Main process (Node.js backend) in the Evernote AI Importer Electron app.
+This document provides a complete reference for the Inter-Process Communication (IPC) API between the Renderer process (React UI) and Main process (Node.js backend) in the Electron app.
 
 ## API Surface
 

@@ -1,8 +1,11 @@
-# Evernote AI Importer - Project Overview
+# Evernote AI Importer
 
-## Purpose
+> **Type:** Overview
+> **Last Updated:** January 2025
 
-The Evernote AI Importer is a Node.js command-line application designed to automatically analyze files using local AI and import them into Evernote with intelligently generated metadata. The application prioritizes user privacy by processing all AI analysis locally through Ollama, ensuring no file content is sent to external services.
+## What It Is
+
+The Evernote AI Importer is a desktop application (available as both CLI and Electron GUI) that automatically analyzes files using local AI and imports them into Evernote with intelligently generated metadata. The application prioritizes user privacy by processing all AI analysis locally through Ollama, ensuring no file content is sent to external services.
 
 ## Problem Statement
 
@@ -147,7 +150,9 @@ Users retain full control through command-line options, environment variables, a
 - **JSON audit trail**: Complete record of all processed files
 - **Non-blocking workflow**: Rate limits don't prevent processing other files
 
-## Future Enhancements (Potential)
+## Roadmap
+
+Potential future enhancements under consideration:
 
 - Watch folder for automatic import
 - Integration with additional note-taking platforms

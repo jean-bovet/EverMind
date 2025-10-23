@@ -1,8 +1,11 @@
 # User Experience Flows
 
+> **Type:** User Guide
+> **Last Updated:** January 2025
+
 ## Overview
 
-This document outlines the complete user experience flows for the Evernote AI Importer Electron app, from first launch to daily use.
+This document outlines the complete user experience flows for the Electron app, from first launch to daily use.
 
 ## Primary User Flows
 
