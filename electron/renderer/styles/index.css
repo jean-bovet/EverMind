@@ -784,6 +784,11 @@ body {
   to { transform: rotate(360deg); }
 }
 
+/* Lucide icon animations */
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
 /* ====================================
    UNIFIED UI STYLES
    ==================================== */

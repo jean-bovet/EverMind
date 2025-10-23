@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { CheckCircle2 } from 'lucide-react';
 
 interface SettingsProps {
   onClose: () => void;
@@ -96,7 +97,7 @@ export default function Settings({ onClose, onOllamaStatusChange }: SettingsProp
                   alignItems: 'center',
                   gap: 8
                 }}>
-                  <span>✅</span>
+                  <CheckCircle2 size={20} />
                   <span>Connected to Evernote</span>
                 </div>
                 <button

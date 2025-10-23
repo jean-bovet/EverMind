@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Loader } from 'lucide-react';
 
 interface WelcomeWizardProps {
   onComplete: () => void;
@@ -110,7 +111,9 @@ export default function WelcomeWizard({ onComplete, onSkip }: WelcomeWizardProps
   if (step === 'installing') {
     return (
       <div className="welcome-wizard">
-        <div style={{ fontSize: 64, marginBottom: 24 }}>⏳</div>
+        <div style={{ marginBottom: 24 }}>
+          <Loader className="animate-spin" size={64} />
+        </div>
         <h2>Installing Ollama</h2>
         <p>
           Follow the installation instructions in your browser.

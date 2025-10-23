@@ -7,6 +7,30 @@
 
 This document describes the user interface components and their behavior for the Electron app.
 
+## Icon System
+
+The app uses **Lucide React** for all icons throughout the interface.
+
+**Benefits:**
+- **Professional appearance** - Consistent, clean design language
+- **SVG-based** - Crisp and sharp at any size, scalable without pixelation
+- **Customizable** - Easy to adjust size, color, and stroke width
+- **Accessible** - Better screen reader support than emoji
+- **Animated** - Supports animations (e.g., spinning loader)
+
+**Key Icons Used:**
+- `FileText` - Documents and notes
+- `Loader` - Processing states (animated spin)
+- `CheckCircle2` - Success and completion
+- `XCircle` - Errors
+- `RotateCw` - Retry actions
+- `Check` - Checkmarks and confirmation
+- `AlertTriangle` - Warnings
+- `Settings` - Settings button
+- `FolderOpen` - Drop zones and file operations
+
+All icons are React components imported from the `lucide-react` package and rendered as inline SVG elements.
+
 ---
 
 ## Drop Zone Component

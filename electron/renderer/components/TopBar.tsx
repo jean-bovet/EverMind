@@ -1,3 +1,5 @@
+import { Settings } from 'lucide-react';
+
 interface Notebook {
   guid: string;
   name: string;
@@ -52,7 +54,7 @@ const TopBar: React.FC<TopBarProps> = ({
           onClick={onSettingsClick}
           aria-label="Settings"
         >
-          ⚙️
+          <Settings size={18} />
         </button>
       </div>
     </div>

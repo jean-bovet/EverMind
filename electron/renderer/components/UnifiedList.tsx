@@ -1,6 +1,7 @@
 import { useState, DragEvent } from 'react';
 import UnifiedItemCard from './UnifiedItemCard';
 import type { UnifiedItem } from '../../utils/unified-item-helpers.js';
+import { AlertTriangle, Loader, FolderOpen } from 'lucide-react';
 
 interface UnifiedListProps {
   items: UnifiedItem[];
@@ -62,7 +63,9 @@ const UnifiedList: React.FC<UnifiedListProps> = ({
     return (
       <div className="unified-list">
         <div className="error-container">
-          <div className="error-icon">⚠️</div>
+          <div className="error-icon">
+            <AlertTriangle size={48} />
+          </div>
           <div className="error-message">{error}</div>
         </div>
       </div>
@@ -74,7 +77,9 @@ const UnifiedList: React.FC<UnifiedListProps> = ({
     return (
       <div className="unified-list">
         <div className="loading-container">
-          <div className="loading-spinner">⏳</div>
+          <div className="loading-spinner">
+            <Loader className="animate-spin" size={32} />
+          </div>
           <div className="loading-message">Loading notes...</div>
         </div>
       </div>
@@ -91,7 +96,9 @@ const UnifiedList: React.FC<UnifiedListProps> = ({
         onDrop={handleDrop}
       >
         <div className="empty-state">
-          <div className="drop-zone-icon">📁</div>
+          <div className="drop-zone-icon">
+            <FolderOpen size={64} />
+          </div>
           <h2>Drop files or folders here</h2>
           <p>to import into Evernote</p>
         </div>
@@ -110,7 +117,9 @@ const UnifiedList: React.FC<UnifiedListProps> = ({
       {isDragOver && (
         <div className="drop-overlay">
           <div className="drop-overlay-content">
-            <div className="drop-overlay-icon">📁</div>
+            <div className="drop-overlay-icon">
+              <FolderOpen size={64} />
+            </div>
             <div className="drop-overlay-text">Drop files to import</div>
           </div>
         </div>

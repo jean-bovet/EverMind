@@ -1,5 +1,6 @@
 import type { UnifiedItem } from '../../utils/unified-item-helpers.js';
 import { formatShortDate } from '../../utils/format-helpers.js';
+import { FileText, Loader, CheckCircle2, XCircle, RotateCw, Check } from 'lucide-react';
 
 interface UnifiedItemCardProps {
   item: UnifiedItem;
@@ -18,7 +19,7 @@ const UnifiedItemCard: React.FC<UnifiedItemCardProps> = ({
       <div className="unified-item-card processing">
         <div className="item-header">
           <span className="item-icon">
-            {item.type === 'file' ? '⏳' : '🔄'}
+            <Loader className="animate-spin" size={16} />
           </span>
           <span className="item-title">{item.title}</span>
           <span className="item-progress-percent">{item.progress}%</span>
@@ -43,7 +44,9 @@ const UnifiedItemCard: React.FC<UnifiedItemCardProps> = ({
     return (
       <div className="unified-item-card error">
         <div className="item-header">
-          <span className="item-icon">❌</span>
+          <span className="item-icon">
+            <XCircle size={16} />
+          </span>
           <span className="item-title">{item.title}</span>
         </div>
 
@@ -56,7 +59,7 @@ const UnifiedItemCard: React.FC<UnifiedItemCardProps> = ({
             className="retry-button"
             onClick={() => onRetry(item.id)}
           >
-            🔄 Retry
+            <RotateCw size={14} /> Retry
           </button>
         )}
       </div>
@@ -69,7 +72,9 @@ const UnifiedItemCard: React.FC<UnifiedItemCardProps> = ({
       <div className="unified-item-card note">
         {/* Row 1: Icon, Title, Date, Action Button */}
         <div className="item-header">
-          <span className="item-icon">📄</span>
+          <span className="item-icon">
+            <FileText size={16} />
+          </span>
           <span className="item-title">{item.title}</span>
           {item.created && (
             <span className="item-date">
@@ -102,7 +107,7 @@ const UnifiedItemCard: React.FC<UnifiedItemCardProps> = ({
             <>
               {item.tags && item.tags.length > 0 && <span className="metadata-separator"> • </span>}
               <span className="augmented-badge" title={`Augmented on ${item.augmentedDate}`}>
-                ✓ AI Augmented ({formatShortDate(Date.parse(item.augmentedDate))})
+                <Check size={12} /> AI Augmented ({formatShortDate(Date.parse(item.augmentedDate))})
               </span>
             </>
           )}
@@ -116,7 +121,9 @@ const UnifiedItemCard: React.FC<UnifiedItemCardProps> = ({
     return (
       <div className="unified-item-card file-complete">
         <div className="item-header">
-          <span className="item-icon">✅</span>
+          <span className="item-icon">
+            <CheckCircle2 size={16} />
+          </span>
           <span className="item-title">{item.title}</span>
         </div>
 
@@ -142,7 +149,9 @@ const UnifiedItemCard: React.FC<UnifiedItemCardProps> = ({
   return (
     <div className="unified-item-card file">
       <div className="item-header">
-        <span className="item-icon">📁</span>
+        <span className="item-icon">
+          <FileText size={16} />
+        </span>
         <span className="item-title">{item.title}</span>
       </div>
     </div>

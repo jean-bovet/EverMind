@@ -149,7 +149,7 @@ For files being processed:
 
 ## Visual Indicators
 
-The interface uses clear visual indicators to show status:
+The interface uses clear visual indicators to show status. All icons are provided by **Lucide React**, a professional icon library that renders SVG-based icons. This ensures icons are crisp, scalable, and consistent across the interface.
 
 ### Status Badges
 - 🔄 **Processing** - Blue, shows work in progress

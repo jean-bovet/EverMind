@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { AlertTriangle } from 'lucide-react';
 import TopBar from './components/TopBar';
 import UnifiedList from './components/UnifiedList';
 import Settings from './components/Settings';
@@ -285,7 +286,9 @@ function App() {
 
             {rateLimitWarning && (
               <div className="rate-limit-warning">
-                <span className="warning-icon">⚠️</span>
+                <span className="warning-icon">
+                  <AlertTriangle size={20} />
+                </span>
                 <span className="warning-message">{rateLimitWarning}</span>
               </div>
             )}
