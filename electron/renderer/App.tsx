@@ -17,6 +17,8 @@ import { mapDbRecordsToFileItems } from '../utils/db-to-ui-mapper.js';
 import type { FileRecord } from '../database/queue-db.js';
 import {
   mergeNotesAndFiles,
+  createNoteItem,
+  updateItemProgress,
   type UnifiedItem,
 } from '../utils/unified-item-helpers.js';
 import { transformNoteMetadata } from '../utils/note-helpers.js';
@@ -54,6 +56,9 @@ function App() {
   const [showWelcome, setShowWelcome] = useState(false);
   const [ollamaStatus, setOllamaStatus] = useState<OllamaStatus | null>(null);
   const [rateLimitWarning, setRateLimitWarning] = useState<string | null>(null);
+
+  // Note augmentation state - track which notes are being augmented and their progress
+  const [augmentingNotes, setAugmentingNotes] = useState<Map<string, { progress: number, message?: string }>>(new Map());
 
   // Fetch notebooks using React Query
   const {
@@ -99,8 +104,19 @@ function App() {
     enabled: selectedNotebook !== null
   });
 
-  // Merge files and notes into unified items
-  const unifiedItems: UnifiedItem[] = mergeNotesAndFiles(notes, files);
+  // Merge files and notes into unified items, then apply augmentation progress
+  let unifiedItems: UnifiedItem[] = mergeNotesAndFiles(notes, files);
+
+  // Apply augmentation progress to notes that are being augmented
+  unifiedItems = unifiedItems.map(item => {
+    if (item.type === 'note' && item.noteGuid) {
+      const augmentProgress = augmentingNotes.get(item.noteGuid);
+      if (augmentProgress) {
+        return updateItemProgress(item, augmentProgress.progress, augmentProgress.message);
+      }
+    }
+    return item;
+  });
 
   // Check Ollama status on mount
   useEffect(() => {
@@ -165,6 +181,22 @@ function App() {
   // Subscribe to note augmentation progress
   useEffect(() => {
     const unsubscribe = window.electronAPI.onAugmentProgress((data) => {
+      // Update augmentation progress for the note
+      if (data.status !== 'complete' && data.status !== 'error') {
+        // Still processing - update progress
+        setAugmentingNotes(prev => new Map(prev).set(data.noteGuid, {
+          progress: data.progress,
+          message: data.message
+        }));
+      } else {
+        // Complete or error - remove from augmenting notes
+        setAugmentingNotes(prev => {
+          const next = new Map(prev);
+          next.delete(data.noteGuid);
+          return next;
+        });
+      }
+
       // Check for rate limit errors
       if (data.status === 'error' && data.error) {
         const rateLimitError = parseRateLimitError(data.error);
@@ -234,10 +266,22 @@ function App() {
   };
 
   const handleAugmentNote = async (noteGuid: string) => {
+    // Mark note as processing immediately
+    setAugmentingNotes(prev => new Map(prev).set(noteGuid, {
+      progress: 0,
+      message: 'Starting augmentation...'
+    }));
+
     try {
       await window.electronAPI.augmentNote(noteGuid);
     } catch (err) {
       console.error('Failed to augment note:', err);
+      // Remove from augmenting notes on error
+      setAugmentingNotes(prev => {
+        const next = new Map(prev);
+        next.delete(noteGuid);
+        return next;
+      });
     }
   };
 

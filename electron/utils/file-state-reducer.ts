@@ -84,7 +84,8 @@ export function addFiles(
     path: filePath,
     name: filePath.split('/').pop() || filePath,
     status: 'pending',
-    progress: 0
+    progress: 0,
+    created: Date.now()
   }));
 
   return [...files, ...newFiles];

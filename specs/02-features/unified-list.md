@@ -116,12 +116,15 @@ The compact layout achieves:
 
 The list automatically organizes items to keep important things visible:
 
-1. **Active Processing** (🔄) - Files currently being worked on appear at the very top so you can monitor progress
-2. **Errors** (❌) - Any failures appear next, requiring your attention
-3. **Ready to Work** (⏸️) - Items waiting for action, sorted by date (newest first)
-4. **Completed** (✅) - Successfully processed items, sorted by date (newest first)
+1. **Ready to Work** (⏸️) - Items ready for action appear at the very top, sorted by date (newest first):
+   - Newly dropped files (pending)
+   - Files analyzed and ready to upload to Evernote
+   - Notes ready to augment
+2. **Active Processing** (🔄) - Files currently being worked on appear next so you can monitor progress
+3. **Errors** (❌) - Any failures appear after processing items, requiring your attention
+4. **Completed** (✅) - Successfully processed items appear at the bottom, sorted by date (newest first)
 
-This means you always see what needs attention first, followed by recent activity, and completed work at the bottom.
+This means newly dropped files and files ready to upload immediately appear at the top for instant visual feedback, followed by active work, errors that need attention, and completed items at the bottom.
 
 ## Interactions
 

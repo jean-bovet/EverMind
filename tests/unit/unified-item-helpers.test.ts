@@ -264,40 +264,166 @@ describe('unified-item-helpers', () => {
           name: 'file1.pdf',
           status: 'analyzing',
           progress: 50,
+          created: 1500,
         },
       ];
 
       const merged = mergeNotesAndFiles(notes, files);
 
       expect(merged.length).toBe(2);
-      expect(merged[0].type).toBe('file'); // Processing first
-      expect(merged[1].type).toBe('note');
+      expect(merged[0].type).toBe('note'); // Idle note first
+      expect(merged[1].type).toBe('file'); // Then processing file
     });
 
-    it('should sort processing items first', () => {
+    it('should sort idle items first, then processing', () => {
       const notes: NotePreview[] = [
         { guid: 'n1', title: 'N1', created: 3000, updated: 3000, tags: [], isAugmented: false },
         { guid: 'n2', title: 'N2', created: 2000, updated: 2000, tags: [], isAugmented: false },
       ];
 
       const files: FileItem[] = [
-        { path: '/f1.pdf', name: 'f1.pdf', status: 'pending', progress: 0 },
-        { path: '/f2.pdf', name: 'f2.pdf', status: 'analyzing', progress: 50 },
+        { path: '/f1.pdf', name: 'f1.pdf', status: 'pending', progress: 0, created: 4000 }, // Newest
+        { path: '/f2.pdf', name: 'f2.pdf', status: 'analyzing', progress: 50, created: 2500 },
       ];
 
       const merged = mergeNotesAndFiles(notes, files);
 
-      // Processing file should be first
-      expect(merged[0].id).toBe('/f2.pdf');
-      expect(merged[0].status).toBe('processing');
+      // Idle items (pending file + notes) should be first, sorted by date
+      expect(merged[0].id).toBe('/f1.pdf'); // 4000 - newest idle
+      expect(merged[0].status).toBe('idle');
 
-      // Then newer note
-      expect(merged[1].id).toBe('n1');
+      // Then newer note (also idle)
+      expect(merged[1].id).toBe('n1'); // 3000
+      expect(merged[1].status).toBe('idle');
+
+      // Then older note (idle)
+      expect(merged[2].id).toBe('n2'); // 2000
+      expect(merged[2].status).toBe('idle');
+
+      // Then processing file
+      expect(merged[3].id).toBe('/f2.pdf');
+      expect(merged[3].status).toBe('processing');
     });
 
     it('should handle empty arrays', () => {
       expect(mergeNotesAndFiles([], [])).toEqual([]);
-      expect(mergeNotesAndFiles([], [{path: '/f.pdf', name: 'f.pdf', status: 'pending', progress: 0}]).length).toBe(1);
+      expect(mergeNotesAndFiles([], [{path: '/f.pdf', name: 'f.pdf', status: 'pending', progress: 0, created: Date.now()}]).length).toBe(1);
+    });
+
+    it('should sort by complete priority: idle > processing > error > complete', () => {
+      const files: FileItem[] = [
+        { path: '/complete.pdf', name: 'complete.pdf', status: 'complete', progress: 100, created: 1000 },
+        { path: '/error.pdf', name: 'error.pdf', status: 'error', progress: 0, error: 'Failed', created: 2000 },
+        { path: '/idle.pdf', name: 'idle.pdf', status: 'pending', progress: 0, created: 3000 },
+        { path: '/processing.pdf', name: 'processing.pdf', status: 'analyzing', progress: 50, created: 4000 },
+      ];
+
+      const merged = mergeNotesAndFiles([], files);
+
+      expect(merged[0].status).toBe('idle');
+      expect(merged[1].status).toBe('processing');
+      expect(merged[2].status).toBe('error');
+      expect(merged[3].status).toBe('complete');
+    });
+
+    it('should sort by date within same status group (newest first)', () => {
+      const notes: NotePreview[] = [
+        { guid: 'n1', title: 'Old Note', created: 1000, updated: 1000, tags: [], isAugmented: false },
+        { guid: 'n2', title: 'New Note', created: 3000, updated: 3000, tags: [], isAugmented: false },
+        { guid: 'n3', title: 'Mid Note', created: 2000, updated: 2000, tags: [], isAugmented: false },
+      ];
+
+      const merged = mergeNotesAndFiles(notes, []);
+
+      // All are idle status, should be sorted by date (newest first)
+      expect(merged[0].id).toBe('n2'); // 3000
+      expect(merged[1].id).toBe('n3'); // 2000
+      expect(merged[2].id).toBe('n1'); // 1000
+    });
+
+    it('should handle newly dropped files appearing at top', () => {
+      const notes: NotePreview[] = [
+        { guid: 'n1', title: 'Existing Note', created: 2000, updated: 2000, tags: [], isAugmented: false },
+      ];
+
+      const files: FileItem[] = [
+        { path: '/processing.pdf', name: 'processing.pdf', status: 'analyzing', progress: 50, created: 1500 },
+        { path: '/newly-dropped.pdf', name: 'newly-dropped.pdf', status: 'pending', progress: 0, created: 3000 },
+      ];
+
+      const merged = mergeNotesAndFiles(notes, files);
+
+      // Newly dropped (idle) should be first
+      expect(merged[0].id).toBe('/newly-dropped.pdf');
+      expect(merged[0].status).toBe('idle');
+      // Then note (also idle, but older)
+      expect(merged[1].id).toBe('n1');
+      expect(merged[1].status).toBe('idle');
+      // Then processing
+      expect(merged[2].id).toBe('/processing.pdf');
+      expect(merged[2].status).toBe('processing');
+    });
+
+    it('should handle mix of all statuses with multiple items per status', () => {
+      const files: FileItem[] = [
+        { path: '/complete1.pdf', name: 'complete1.pdf', status: 'complete', progress: 100, created: 1000 },
+        { path: '/error1.pdf', name: 'error1.pdf', status: 'error', progress: 0, created: 2000 },
+        { path: '/idle2.pdf', name: 'idle2.pdf', status: 'pending', progress: 0, created: 3000 },
+        { path: '/processing2.pdf', name: 'processing2.pdf', status: 'analyzing', progress: 30, created: 4000 },
+        { path: '/idle1.pdf', name: 'idle1.pdf', status: 'pending', progress: 0, created: 5000 },
+        { path: '/processing1.pdf', name: 'processing1.pdf', status: 'extracting', progress: 80, created: 6000 },
+      ];
+
+      const merged = mergeNotesAndFiles([], files);
+
+      // First 2 should be idle (pending)
+      expect(merged[0].status).toBe('idle');
+      expect(merged[1].status).toBe('idle');
+      // Next 2 should be processing
+      expect(merged[2].status).toBe('processing');
+      expect(merged[3].status).toBe('processing');
+      // Then error
+      expect(merged[4].status).toBe('error');
+      // Finally complete
+      expect(merged[5].status).toBe('complete');
+    });
+
+    it('should prioritize newly dropped idle files over older processing files', () => {
+      const files: FileItem[] = [
+        { path: '/old-processing.pdf', name: 'old-processing.pdf', status: 'uploading', progress: 90, created: 1000 },
+        { path: '/new-dropped.pdf', name: 'new-dropped.pdf', status: 'pending', progress: 0, created: 2000 },
+      ];
+
+      const merged = mergeNotesAndFiles([], files);
+
+      // Idle should come before processing, even if processing started earlier
+      expect(merged[0].id).toBe('/new-dropped.pdf');
+      expect(merged[0].status).toBe('idle');
+      expect(merged[1].id).toBe('/old-processing.pdf');
+      expect(merged[1].status).toBe('processing');
+    });
+
+    it('should treat ready-to-upload files as idle (appear at top)', () => {
+      const files: FileItem[] = [
+        { path: '/processing.pdf', name: 'processing.pdf', status: 'analyzing', progress: 50, created: 4000 },
+        { path: '/ready.pdf', name: 'ready.pdf', status: 'ready-to-upload', progress: 100, created: 3000 },
+        { path: '/pending.pdf', name: 'pending.pdf', status: 'pending', progress: 0, created: 5000 },
+        { path: '/complete.pdf', name: 'complete.pdf', status: 'complete', progress: 100, created: 2000 },
+      ];
+
+      const merged = mergeNotesAndFiles([], files);
+
+      // Both pending and ready-to-upload should be idle (at top)
+      expect(merged[0].id).toBe('/pending.pdf'); // 5000 - newest idle
+      expect(merged[0].status).toBe('idle');
+      expect(merged[1].id).toBe('/ready.pdf'); // 3000 - older idle
+      expect(merged[1].status).toBe('idle');
+      // Then processing
+      expect(merged[2].id).toBe('/processing.pdf');
+      expect(merged[2].status).toBe('processing');
+      // Then complete
+      expect(merged[3].id).toBe('/complete.pdf');
+      expect(merged[3].status).toBe('complete');
     });
   });
 

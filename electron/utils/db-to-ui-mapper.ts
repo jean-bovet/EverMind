@@ -44,6 +44,7 @@ export function mapDbRecordToFileItem(record: FileRecord): FileItem {
     name: extractFileName(record.file_path),
     status: record.status,
     progress: record.progress,
+    created: new Date(record.created_at).getTime(),
   };
 
   // Add optional message based on status

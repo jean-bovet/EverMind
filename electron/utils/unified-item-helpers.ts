@@ -72,13 +72,15 @@ export function createFileItem(
   filePath: string,
   status: FileStatus = 'pending',
   progress: number = 0,
-  message?: string
+  message?: string,
+  created?: number
 ): UnifiedItem {
   const fileName = filePath.split('/').pop() || filePath;
 
   // Map FileStatus to ItemStatus
+  // 'pending' and 'ready-to-upload' are both "ready to work" so they appear at top
   const itemStatus: ItemStatus =
-    status === 'pending' ? 'idle' :
+    status === 'pending' || status === 'ready-to-upload' ? 'idle' :
     status === 'complete' ? 'complete' :
     status === 'error' ? 'error' :
     'processing';
@@ -92,6 +94,7 @@ export function createFileItem(
     fileName,
     progress: itemStatus === 'processing' ? progress : undefined,
     statusMessage: itemStatus === 'processing' ? message : undefined,
+    created,
   };
 }
 
@@ -103,7 +106,8 @@ export function fromFileItem(fileItem: FileItem): UnifiedItem {
     fileItem.path,
     fileItem.status,
     fileItem.progress,
-    fileItem.message
+    fileItem.message,
+    fileItem.created
   );
 }
 
@@ -191,15 +195,19 @@ export function mergeNotesAndFiles(
 
   const allItems = [...fileItems, ...noteItems];
 
-  // Sort: processing first, then by date (newest first)
-  return allItems.sort((a, b) => {
-    // Processing items always come first
-    if (a.status === 'processing' && b.status !== 'processing') return -1;
-    if (a.status !== 'processing' && b.status === 'processing') return 1;
+  // Sort: idle first (newly dropped files), then processing, error, complete
+  // Within each status group, sort by date (newest first)
+  const statusPriority: Record<ItemStatus, number> = {
+    idle: 0,
+    processing: 1,
+    error: 2,
+    complete: 3,
+  };
 
-    // Error items come after processing
-    if (a.status === 'error' && b.status === 'idle') return -1;
-    if (a.status === 'idle' && b.status === 'error') return 1;
+  return allItems.sort((a, b) => {
+    // First, sort by status priority
+    const priorityDiff = statusPriority[a.status] - statusPriority[b.status];
+    if (priorityDiff !== 0) return priorityDiff;
 
     // Within same status, sort by date (newest first)
     const aDate = a.updated || a.created || 0;

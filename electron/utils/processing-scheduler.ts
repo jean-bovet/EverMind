@@ -19,6 +19,7 @@ export interface FileItem {
   name: string;
   status: FileStatus;
   progress: number;
+  created: number; // Timestamp when file was added
   message?: string;
   jsonPath?: string;
   result?: {
