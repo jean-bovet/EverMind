@@ -22,7 +22,7 @@ Documentation for each major feature:
 - **[Auto-Processing Pipeline](02-features/auto-processing-pipeline.md)** - Concurrent file processing
 - **[Note Augmentation](02-features/note-augmentation.md)** - Enhance existing notes with AI
 - **[SQLite Database Queue](02-features/sqlite-database.md)** - File queue management
-- **[Unified List View](02-features/ui-unification.md)** - Combined files and notes interface
+- **[Unified List View](02-features/unified-list.md)** - Combined files and notes interface
 
 ## Development
 
