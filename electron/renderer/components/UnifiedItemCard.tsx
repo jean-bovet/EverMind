@@ -67,47 +67,46 @@ const UnifiedItemCard: React.FC<UnifiedItemCardProps> = ({
   if (item.type === 'note') {
     return (
       <div className="unified-item-card note">
+        {/* Row 1: Icon, Title, Date, Action Button */}
         <div className="item-header">
           <span className="item-icon">📄</span>
-          <div className="item-title-section">
-            <h3 className="item-title">{item.title}</h3>
-            {item.isAugmented && item.augmentedDate && (
-              <span className="augmented-badge" title={`Augmented on ${item.augmentedDate}`}>
-                ✓ AI Augmented ({formatShortDate(Date.parse(item.augmentedDate))})
-              </span>
-            )}
-          </div>
+          <span className="item-title">{item.title}</span>
           {item.created && (
             <span className="item-date">
               {formatShortDate(item.created)}
             </span>
           )}
+          {!item.isAugmented && onAugment && (
+            <button
+              className="augment-button compact"
+              onClick={() => onAugment(item.id)}
+            >
+              Augment
+            </button>
+          )}
         </div>
 
-        {item.tags && item.tags.length > 0 && (
-          <div className="item-tags">
-            {item.tags.map((tag, index) => (
-              <span key={index} className="tag-chip">
-                {tag}
+        {/* Row 2: Tags and Augmented Badge (inline) */}
+        <div className="item-metadata">
+          {item.tags && item.tags.length > 0 && (
+            <span className="item-tags-inline">
+              {item.tags.map((tag, index) => (
+                <span key={index}>
+                  {tag}
+                  {index < item.tags.length - 1 && ' • '}
+                </span>
+              ))}
+            </span>
+          )}
+          {item.isAugmented && item.augmentedDate && (
+            <>
+              {item.tags && item.tags.length > 0 && <span className="metadata-separator"> • </span>}
+              <span className="augmented-badge" title={`Augmented on ${item.augmentedDate}`}>
+                ✓ AI Augmented ({formatShortDate(Date.parse(item.augmentedDate))})
               </span>
-            ))}
-          </div>
-        )}
-
-        {item.contentPreview && (
-          <div className="item-content-preview">
-            {item.contentPreview}
-          </div>
-        )}
-
-        {!item.isAugmented && onAugment && (
-          <button
-            className="augment-button"
-            onClick={() => onAugment(item.id)}
-          >
-            🤖 Augment with AI
-          </button>
-        )}
+            </>
+          )}
+        </div>
       </div>
     );
   }
