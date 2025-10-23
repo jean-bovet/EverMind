@@ -6,271 +6,20 @@
 
 ## What It Is
 
-The app displays both files being processed (new uploads) and existing Evernote notes (available for augmentation) in a single, unified list view. This provides a cohesive interface where you can see all your content in one place.
+The app displays all your content in a single, unified list view. This list seamlessly combines files being processed (new uploads) with existing Evernote notes (available for augmentation). You can see everything in one place: files currently being analyzed, notes ready to augment, completed uploads, and any errors that need attention.
 
-## Problem Statement
+## How It Works
 
-### Before: Separate Views
+When you open the app, you see one list that contains both:
+- **Files you're importing** - New files being processed and uploaded to Evernote
+- **Existing notes** - Notes already in Evernote that can be enhanced with AI
 
-The original UI had two distinct sections:
-1. **File Queue** - Shows files being processed/uploaded
-2. **Note List** - Shows existing Evernote notes that can be augmented
+The list automatically merges these two types of content and displays them together with a smart sorting system that keeps the most important items at the top.
 
-**Issues:**
-- Split attention between two lists
-- No single view of "all my content"
-- Different UI patterns for similar content
-- Code duplication between components
-- Difficult to compare new uploads with existing notes
+## What You See
 
-## Solution: Unified List View
+The interface looks like this:
 
-### Unified Data Model
-
-**Created `electron/utils/unified-item-helpers.ts`:**
-
-A pure TypeScript module providing:
-- Unified data type representing both files and notes
-- Pure transformation functions (easily testable)
-- Consistent state management
-- Type-safe operations
-
-#### Core Types
-
-```typescript
-export type UnifiedItemType = 'note' | 'file';
-export type ItemStatus = 'idle' | 'processing' | 'complete' | 'error';
-
-export interface UnifiedItem {
-  // Common fields
-  id: string;                    // noteGuid or filePath
-  type: UnifiedItemType;         // 'note' or 'file'
-  title: string;
-  status: ItemStatus;
-
-  // Processing state
-  progress?: number;             // 0-100
-  statusMessage?: string;        // "Analyzing...", "Uploading..."
-
-  // Note-specific fields (type='note')
-  noteGuid?: string;
-  created?: number;
-  updated?: number;
-  tags?: string[];
-  isAugmented?: boolean;
-  augmentedDate?: string;
-  contentPreview?: string;
-
-  // File-specific fields (type='file')
-  filePath?: string;
-  fileName?: string;
-
-  // Common result/error fields
-  error?: string;
-  noteUrl?: string;
-}
-```
-
-#### Helper Functions
-
-**Factory Functions:**
-```typescript
-// Create UnifiedItem from NotePreview
-createNoteItem(note: NotePreview): UnifiedItem
-
-// Create UnifiedItem from file path
-createFileItem(filePath: string, status?, progress?, message?): UnifiedItem
-
-// Create UnifiedItem from FileItem
-fromFileItem(fileItem: FileItem): UnifiedItem
-```
-
-**State Update Functions (Immutable):**
-```typescript
-// Update processing state
-updateItemProgress(item, progress, message?): UnifiedItem
-
-// Mark as complete
-markItemComplete(item, result?): UnifiedItem
-
-// Mark as error
-markItemError(item, error): UnifiedItem
-
-// Mark note as augmented
-markNoteAugmented(item, augmentedDate): UnifiedItem
-```
-
-**List Operations:**
-```typescript
-// Merge notes and files into unified list
-mergeNotesAndFiles(notes, files): UnifiedItem[]
-
-// Filter by type
-filterByType(items, type): UnifiedItem[]
-
-// Filter by status
-filterByStatus(items, status): UnifiedItem[]
-
-// Get status counts
-getStatusCounts(items): Record<ItemStatus, number>
-```
-
-### Unified List Component
-
-**Created `electron/renderer/components/UnifiedList.tsx`:**
-
-A React component that:
-- Displays both files and notes in a single list
-- Handles drag-and-drop for new files
-- Shows different empty states
-- Manages loading/error states
-- Provides consistent interaction patterns
-
-#### Component Features
-
-**1. Integrated Drop Zone**
-```typescript
-<UnifiedList
-  items={unifiedItems}
-  onFilesDropped={(paths) => startProcessing(paths)}
-  onAugmentNote={(noteGuid) => augmentNote(noteGuid)}
-  onRetryFile={(filePath) => retryFile(filePath)}
-/>
-```
-
-**2. Smart Empty State**
-- When empty: Shows drop zone prompt
-- When has items: Shows items with drop overlay on drag
-
-**3. State Management**
-- Loading state (⏳)
-- Error state (⚠️)
-- Empty state with drop zone (📁)
-- Items list with drop overlay
-
-**4. Drag and Drop**
-```typescript
-// Always accepts file drops
-onDragOver={(e) => setIsDragOver(true)}
-onDrop={async (e) => {
-  const files = Array.from(e.dataTransfer.files);
-  const paths = await Promise.all(
-    files.map(f => window.electronAPI.getPathForFile(f))
-  );
-  onFilesDropped(paths);
-}}
-```
-
-### Unified Item Card
-
-**Created `electron/renderer/components/UnifiedItemCard.tsx`:**
-
-A single card component that adapts to both files and notes:
-
-```typescript
-<UnifiedItemCard
-  item={unifiedItem}
-  onAugment={item.type === 'note' ? handleAugment : undefined}
-  onRetry={item.type === 'file' ? handleRetry : undefined}
-/>
-```
-
-**Displays:**
-- **Common**: Title, status badge, progress bar (if processing)
-- **Files**: File name, progress, status message, error message
-- **Notes**: Tags, creation date, augmentation status, content preview
-- **Actions**: Type-specific actions (augment for notes, retry for files)
-
-### Sorting and Organization
-
-**Smart Sorting Algorithm** (from `mergeNotesAndFiles`):
-
-1. **Processing items** (🔄) - Always at top
-2. **Error items** (❌) - After processing
-3. **Idle items** (⏸️) - By date (newest first)
-4. **Complete items** (✅) - By date (newest first)
-
-This ensures:
-- Active work is always visible
-- Errors get attention
-- Recent items appear first
-
-### Component Removal
-
-**Deleted old components:**
-- `DropZone.tsx` - Replaced by integrated drop zone in UnifiedList
-- `FileQueue.tsx` - Replaced by UnifiedList
-- `NoteAugmenter.tsx` - Replaced by UnifiedList
-- `NoteCard.tsx` - Replaced by UnifiedItemCard
-
-**Benefits:**
-- ~40% less component code
-- Single source of truth for list rendering
-- Consistent UX patterns
-- Easier to maintain
-
-### App Integration
-
-**Modified `electron/renderer/App.tsx`:**
-
-```typescript
-const App = () => {
-  const [notes, setNotes] = useState<NotePreview[]>([]);
-  const [files, setFiles] = useState<FileItem[]>([]);
-
-  // Merge into unified list
-  const unifiedItems = mergeNotesAndFiles(notes, files);
-
-  return (
-    <div className="app">
-      <TopBar
-        counts={getStatusCounts(unifiedItems)}
-        onClearAll={handleClearAll}
-        onRefresh={handleRefresh}
-      />
-
-      <UnifiedList
-        items={unifiedItems}
-        loading={loading}
-        error={error}
-        onFilesDropped={handleFilesDropped}
-        onAugmentNote={handleAugmentNote}
-        onRetryFile={handleRetryFile}
-      />
-
-      <StatusBar ollamaStatus={ollamaStatus} />
-    </div>
-  );
-};
-```
-
-## Benefits
-
-### 1. Unified User Experience
-
-**Before:**
-```
-┌─────────────────────────────────────┐
-│  Drop Zone                          │
-│  (separate component)               │
-└─────────────────────────────────────┘
-
-┌─────────────────────────────────────┐
-│  File Queue                         │
-│  ─────────────────────────────────  │
-│  📄 file1.pdf    [Processing...]    │
-│  📄 file2.pdf    [Complete]         │
-└─────────────────────────────────────┘
-
-┌─────────────────────────────────────┐
-│  Note Augmenter                     │
-│  ─────────────────────────────────  │
-│  📝 Note 1       [Augment]          │
-│  📝 Note 2       [Augment]          │
-└─────────────────────────────────────┘
-```
-
-**After:**
 ```
 ┌─────────────────────────────────────┐
 │  Unified List                       │
@@ -286,119 +35,116 @@ const App = () => {
 └─────────────────────────────────────┘
 ```
 
-### 2. Simplified Code Architecture
+## Item Display
 
-**Component Count:**
-- Before: 5 components (DropZone, FileQueue, NoteAugmenter, NoteCard, + shared)
-- After: 3 components (UnifiedList, UnifiedItemCard, TopBar)
-- **Reduction:** 40% fewer components
+Each item in the list shows different information depending on what it is:
 
-**Type Safety:**
-- Single `UnifiedItem` type
-- Consistent state management
-- Type-safe transformations
+### Files Being Processed
 
-### 3. Better State Management
+New files being uploaded to Evernote display:
+- File name (e.g., "report.pdf")
+- Processing status (Extracting, Analyzing, Uploading)
+- Progress bar showing completion percentage
+- Status message explaining current step
+- Error message if something went wrong
 
-**Centralized State:**
-```typescript
-// Single source of truth
-const unifiedItems = mergeNotesAndFiles(notes, files);
+### Existing Notes
 
-// Easy filtering
-const processing = filterByStatus(unifiedItems, 'processing');
-const errors = filterByStatus(unifiedItems, 'error');
+Notes already in Evernote display:
+- Note title
+- Tags applied to the note
+- Creation date
+- Augmentation status (shows if already enhanced with AI)
+- Content preview (when available)
 
-// Easy metrics
-const counts = getStatusCounts(unifiedItems);
-// { idle: 5, processing: 2, complete: 10, error: 1 }
+## Smart Sorting
+
+The list automatically organizes items to keep important things visible:
+
+1. **Active Processing** (🔄) - Files currently being worked on appear at the very top so you can monitor progress
+2. **Errors** (❌) - Any failures appear next, requiring your attention
+3. **Ready to Work** (⏸️) - Items waiting for action, sorted by date (newest first)
+4. **Completed** (✅) - Successfully processed items, sorted by date (newest first)
+
+This means you always see what needs attention first, followed by recent activity, and completed work at the bottom.
+
+## Interactions
+
+### Drag and Drop Files
+
+You can drop files anywhere on the list at any time:
+- When the list is empty, you see a drop zone invitation
+- When the list has items, dragging files over it shows a drop overlay
+- Files automatically start processing when dropped
+
+### Work with Notes
+
+For existing Evernote notes in the list:
+- Click "Augment with AI" to enhance a note with AI-generated analysis
+- See augmentation status badges showing which notes have been enhanced
+- View note metadata like tags and creation date
+
+### Manage Files
+
+For files being processed:
+- Watch real-time progress as files are analyzed
+- See status messages explaining each step
+- Retry failed files with one click
+- View complete results including generated titles, descriptions, and tags
+
+## Visual Indicators
+
+The interface uses clear visual indicators to show status:
+
+### Status Badges
+- 🔄 **Processing** - Blue, shows work in progress
+- ✅ **Complete** - Green, indicates successful completion
+- ❌ **Error** - Red, signals something went wrong
+- ⏸️ **Ready** - Gray, waiting for the next step
+- ⏱️ **Rate Limited** - Orange, temporary delay from Evernote
+
+### Progress Bars
+Files being processed show a progress bar that fills from left to right:
+```
+████████████████░░░░░░░░░░░░░░░░ 45%
 ```
 
-### 4. Improved UX
+### Status Messages
+Each item shows a brief message explaining its current state:
+- "Extracting content from PDF..."
+- "Analyzing with AI..."
+- "Uploading to Evernote..."
+- "Complete - view in Evernote →"
+- "Waiting 45s before retry..."
 
-**Consistent Interactions:**
-- Same card design for all items
-- Same status indicators
-- Same progress visualization
-- Same action patterns
+## Empty State
 
-**Smart Sorting:**
-- Active work always visible
-- Errors get attention
-- Recent content appears first
-
-**Always-Available Drop Zone:**
-- Can drop files at any time
-- Doesn't matter if list is empty or full
-- Visual feedback on drag over
-
-### 5. Easier Testing
-
-**Pure Functions:**
-```typescript
-// All helpers are pure functions
-// Easy to test in isolation
-describe('unified-item-helpers', () => {
-  it('should create note item from NotePreview');
-  it('should create file item from path');
-  it('should merge and sort correctly');
-  it('should update progress immutably');
-  // ... etc
-});
-```
-
-**Test Coverage:**
-- `tests/unit/unified-item-helpers.test.ts` (15 tests)
-- All helper functions tested
-- Immutability verified
-- Edge cases covered
-
-## Technical Details
-
-### File Structure
+When you first open the app or after clearing all items, you see a friendly drop zone:
 
 ```
-electron/
-  utils/
-    unified-item-helpers.ts       # NEW: Pure helper functions
-  renderer/
-    components/
-      UnifiedList.tsx             # NEW: Main list component
-      UnifiedItemCard.tsx         # NEW: Card component
-      TopBar.tsx                  # NEW: Top bar with counts
-      DropZone.tsx                # DELETED
-      FileQueue.tsx               # DELETED
-      NoteAugmenter.tsx           # DELETED
-      NoteCard.tsx                # DELETED
-    App.tsx                       # MODIFIED: Use unified components
-    styles/index.css              # MODIFIED: Unified styles
-
-tests/
-  unit/
-    unified-item-helpers.test.ts  # NEW: Helper tests
+┌────────────────┐
+│                │
+│       📁       │
+│                │
+│  Drop files    │
+│     here       │
+│                │
+│  Drag and drop │
+│  your files to │
+│   get started  │
+│                │
+└────────────────┘
 ```
 
-### Type Mappings
+This immediately shows you how to get started - just drag files into the window.
 
-**FileStatus → ItemStatus:**
-```typescript
-'pending'       → 'idle'
-'extracting'    → 'processing'
-'analyzing'     → 'processing'
-'uploading'     → 'processing'
-'ready-to-upload' → 'idle'
-'complete'      → 'complete'
-'error'         → 'error'
-'rate-limited'  → 'processing'
-'retrying'      → 'processing'
-```
+## Always Available
 
-**This simplification:**
-- Reduces UI complexity
-- Makes state easier to reason about
-- Preserves detailed info in `statusMessage`
+The drop zone functionality is always present, even when the list contains items. You can drop new files at any time without needing to navigate to a different screen or clear the existing list.
 
-### State Flow
+## Data Flow
+
+The unified list pulls data from two sources and merges them for display:
 
 ```
 ┌─────────────────────────────────────────┐
@@ -410,242 +156,51 @@ tests/
 │         │                   │          │
 │         ▼                   ▼          │
 │  ┌──────────────┐  ┌─────────────────┐ │
-│  │NotePreview[] │  │   FileItem[]    │ │
+│  │   Notes      │  │     Files       │ │
 │  └──────┬───────┘  └────────┬────────┘ │
 └─────────┼──────────────────┼───────────┘
           │                  │
-          │ mergeNotesAndFiles()
+          │   Merge & Sort   │
           │                  │
           ▼                  ▼
     ┌─────────────────────────────┐
-    │    UnifiedItem[]            │
+    │    Unified List             │
     │  (merged & sorted)          │
     └─────────┬───────────────────┘
               │
               ▼
     ┌─────────────────────────────┐
-    │      UnifiedList            │
+    │   Display as Cards          │
     │  ┌─────────────────────┐    │
-    │  │ UnifiedItemCard     │    │
-    │  │ UnifiedItemCard     │    │
-    │  │ UnifiedItemCard     │    │
+    │  │ File Card           │    │
+    │  │ Note Card           │    │
+    │  │ File Card           │    │
     │  └─────────────────────┘    │
     └─────────────────────────────┘
 ```
 
-### CSS Organization
+The app fetches your existing notes from Evernote and files from the local processing queue, combines them into a single list, sorts them intelligently, and displays each one as an appropriate card.
 
-**New CSS classes:**
-```css
-/* Unified list container */
-.unified-list {}
-.unified-list.empty {}
-.unified-list.drag-over {}
+## User Benefits
 
-/* Empty state */
-.empty-state {}
-.drop-zone-icon {}
+This unified approach provides several advantages:
 
-/* Drop overlay (when items exist) */
-.drop-overlay {}
-.drop-overlay-content {}
+**Single View** - See all your content in one place without switching between different screens or sections
 
-/* Items container */
-.items-container {}
+**Smart Prioritization** - Important items (active work, errors) automatically appear at the top where you'll notice them
 
-/* Loading/error states */
-.loading-container {}
-.error-container {}
-```
+**Consistent Experience** - All items use the same card design, status indicators, and interaction patterns
 
-## Testing
+**Flexible Workflow** - Drop files to start new imports while monitoring existing work and augmenting notes - all in the same view
 
-**New Test Suite:** `tests/unit/unified-item-helpers.test.ts`
+**Clear Status** - Visual indicators and progress bars make it obvious what's happening with each item
 
-```typescript
-describe('unified-item-helpers', () => {
-  describe('createNoteItem', () => {
-    it('should create unified item from note preview');
-    it('should default to "Untitled Note" if no title');
-    it('should preserve all note metadata');
-  });
+## Performance
 
-  describe('createFileItem', () => {
-    it('should create unified item from file path');
-    it('should extract filename correctly');
-    it('should map file status to item status');
-  });
+The list efficiently handles both small and large collections:
+- Items update in real-time as processing progresses
+- Only changed items refresh, keeping the interface responsive
+- The unified view uses less memory than separate lists
+- React efficiently tracks each item by its unique identifier
 
-  describe('mergeNotesAndFiles', () => {
-    it('should merge notes and files');
-    it('should sort processing items first');
-    it('should sort errors after processing');
-    it('should sort by date within same status');
-  });
-
-  describe('State updates', () => {
-    it('should update progress immutably');
-    it('should mark as complete immutably');
-    it('should mark as error immutably');
-    it('should mark note as augmented');
-  });
-
-  describe('Filtering', () => {
-    it('should filter by type');
-    it('should filter by status');
-    it('should get status counts');
-  });
-});
-```
-
-**Coverage:**
-- 15 tests for helper functions
-- All pure functions tested in isolation
-- Immutability verified
-- Edge cases covered
-
-## Migration Impact
-
-### Breaking Changes
-
-**None** - This is an internal UI refactor:
-- Same functionality from user perspective
-- Same IPC API
-- Same database schema
-- Same file processing logic
-
-### Component Lifecycle
-
-**Removed Components:**
-- `DropZone.tsx` - Functionality moved to UnifiedList
-- `FileQueue.tsx` - Replaced by UnifiedList
-- `NoteAugmenter.tsx` - Replaced by UnifiedList
-- `NoteCard.tsx` - Replaced by UnifiedItemCard
-
-**New Components:**
-- `UnifiedList.tsx` - Main list container
-- `UnifiedItemCard.tsx` - Single card for all items
-- `TopBar.tsx` - Status bar with counts
-
-### State Management Changes
-
-**Before:**
-```typescript
-const [files, setFiles] = useState<FileItem[]>([]);
-const [notes, setNotes] = useState<NotePreview[]>([]);
-
-return (
-  <>
-    <DropZone onDrop={handleDrop} />
-    <FileQueue files={files} />
-    <NoteAugmenter notes={notes} />
-  </>
-);
-```
-
-**After:**
-```typescript
-const [files, setFiles] = useState<FileItem[]>([]);
-const [notes, setNotes] = useState<NotePreview[]>([]);
-
-// Merge into unified list
-const unifiedItems = mergeNotesAndFiles(notes, files);
-
-return (
-  <UnifiedList
-    items={unifiedItems}
-    onFilesDropped={handleFilesDropped}
-    onAugmentNote={handleAugmentNote}
-  />
-);
-```
-
-## Performance Considerations
-
-### Rendering Optimization
-
-**Efficient Re-renders:**
-```typescript
-// Pure functions enable memoization
-const unifiedItems = useMemo(
-  () => mergeNotesAndFiles(notes, files),
-  [notes, files]
-);
-
-// Efficient filtering
-const processing = useMemo(
-  () => filterByStatus(unifiedItems, 'processing'),
-  [unifiedItems]
-);
-```
-
-**Key Optimization:**
-- Each item has unique `id` (noteGuid or filePath)
-- React can efficiently track changes
-- Only changed items re-render
-
-### Memory Usage
-
-**Before:**
-- Separate state for files and notes
-- Duplicate rendering logic
-- ~3 component trees
-
-**After:**
-- Single unified list
-- Shared rendering logic
-- 1 component tree
-- **Memory Reduction:** ~30%
-
-## Future Enhancements
-
-### Potential Improvements
-
-1. **Virtual Scrolling**
-   - For lists with 100+ items
-   - Render only visible items
-   - Significant performance boost
-
-2. **Grouping**
-   - Group by status
-   - Group by date
-   - Group by tag
-
-3. **Advanced Filtering**
-   - Search by title
-   - Filter by tag
-   - Filter by date range
-
-4. **Bulk Actions**
-   - Select multiple items
-   - Bulk augment notes
-   - Bulk retry files
-
-5. **Drag to Reorder**
-   - Custom prioritization
-   - Manual sorting
-   - Saved preferences
-
-6. **Export**
-   - Export list as CSV
-   - Copy to clipboard
-   - Share list
-
-## Conclusion
-
-The UI unification successfully:
-- ✅ Unified file and note views into single list
-- ✅ Reduced component count by 40%
-- ✅ Created reusable helper functions
-- ✅ Improved code maintainability
-- ✅ Enhanced user experience
-- ✅ Maintained type safety throughout
-- ✅ Added comprehensive test coverage
-
-**Status:** Implementation complete, ready for commit
-
-**Related Changes:**
-- Deleted: 4 components
-- Added: 3 components + 1 helper module
-- Modified: 1 main component + styles
-- Tests: 15 new tests
+This architecture ensures the interface stays fast and responsive even when processing multiple files simultaneously.
