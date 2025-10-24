@@ -356,10 +356,10 @@ describe('enml-parser', () => {
 
       const enml = createAIAnalysisEnml(aiAnalysis, '2025-10-22T15:30:00.000Z');
 
-      expect(enml).toContain('AI Analysis');
-      expect(enml).toContain('Test Title');
+      expect(enml).toContain('AI Summary');
       expect(enml).toContain('Test description here');
-      expect(enml).toContain('tag1, tag2, tag3');
+      // Tags are not included in the ENML output (they're added to note separately)
+      expect(enml).not.toContain('tag1');
     });
 
     it('should include timestamp in human-readable format', () => {
@@ -380,18 +380,17 @@ describe('enml-parser', () => {
     it('should escape XML special characters', () => {
       const aiAnalysis = {
         title: 'Title with <tags> & "quotes"',
-        description: "Description with 'apostrophes'",
+        description: "Description with 'apostrophes' and <xml> & \"quotes\"",
         tags: ['tag>1', 'tag&2']
       };
 
       const enml = createAIAnalysisEnml(aiAnalysis);
 
-      // Should not contain unescaped characters
-      expect(enml).not.toMatch(/<tags>/);
-      expect(enml).toContain('&lt;tags&gt;');
+      // Description should have escaped characters
+      expect(enml).toContain('&apos;apostrophes&apos;');
+      expect(enml).toContain('&lt;xml&gt;');
       expect(enml).toContain('&amp;');
-      expect(enml).toContain('&quot;');
-      expect(enml).toContain('&apos;');
+      expect(enml).toContain('&quot;quotes&quot;');
     });
 
     it('should use current date if timestamp not provided', () => {
@@ -407,7 +406,7 @@ describe('enml-parser', () => {
       expect(enml).toMatch(/\d{4}/); // Year
     });
 
-    it('should include section labels', () => {
+    it('should include AI Summary header', () => {
       const aiAnalysis = {
         title: 'Title',
         description: 'Description',
@@ -416,9 +415,11 @@ describe('enml-parser', () => {
 
       const enml = createAIAnalysisEnml(aiAnalysis);
 
-      expect(enml).toContain('Summary:');
-      expect(enml).toContain('Description:');
-      expect(enml).toContain('Suggested Tags:');
+      // New format only has "AI Summary" header, no separate section labels
+      expect(enml).toContain('AI Summary');
+      expect(enml).toContain('Description');
+      // Tags are not shown in ENML (they're added to note metadata)
+      expect(enml).not.toContain('Suggested Tags:');
     });
 
     it('should use strong tags for emphasis', () => {
@@ -443,8 +444,9 @@ describe('enml-parser', () => {
 
       const enml = createAIAnalysisEnml(aiAnalysis);
 
-      expect(enml).toContain('Suggested Tags:');
-      // Should not throw error
+      // Should not throw error and should still contain the description
+      expect(enml).toContain('AI Summary');
+      expect(enml).toContain('Description');
     });
 
     it('should handle special characters in all fields', () => {
@@ -456,18 +458,11 @@ describe('enml-parser', () => {
 
       const enml = createAIAnalysisEnml(aiAnalysis);
 
-      // All special chars should be escaped in the content
-      expect(enml).toContain('A &amp; B &lt; C &gt; D'); // Title escaped
-      expect(enml).toContain('&quot;Quoted&quot; &amp; &lt;tagged&gt;'); // Description escaped
-      expect(enml).toContain("isn&apos;t"); // Tag escaped
-      expect(enml).toContain('a&amp;b'); // Tag escaped
-      expect(enml).toContain('c&lt;d'); // Tag escaped
+      // Description should have all special chars escaped
+      expect(enml).toContain('&quot;Quoted&quot; &amp; &lt;tagged&gt;');
 
-      // The original unescaped strings should NOT appear in the content area
-      // (Only in HTML tags like <strong>, <div>, etc.)
-      const contentPart = enml.split('<strong>Summary:</strong>')[1];
-      expect(contentPart).not.toContain('A & B < C > D'); // Should be escaped
-      expect(contentPart).not.toContain('<tagged>'); // Should be escaped
+      // The original unescaped strings should NOT appear in the description
+      expect(enml).not.toContain('"Quoted" & <tagged>');
     });
   });
 });

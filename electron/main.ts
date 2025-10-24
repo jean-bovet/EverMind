@@ -15,6 +15,7 @@ import { augmentNote } from './evernote/note-augmenter.js';
 import { UploadWorker } from './processing/upload-worker.js';
 import { initDatabase, closeDatabase, deleteAllFiles, getAllFiles } from './database/queue-db.js';
 import { verifyAndRemoveUploadedNotes, cleanupAllExpiredCache } from './database/cleanup-service.js';
+import { tagCache } from './evernote/tag-cache.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -105,6 +106,17 @@ app.whenReady().then(async () => {
     cleanupAllExpiredCache();
   } catch (error) {
     console.error('Error during cache cleanup:', error);
+  }
+
+  // Initialize tag cache if authenticated with Evernote
+  try {
+    const isAuthenticated = await hasToken();
+    if (isAuthenticated) {
+      await tagCache.initialize();
+    }
+  } catch (error) {
+    console.warn('Could not initialize tag cache:', error);
+    // Continue app startup even if tag cache fails
   }
 
   createWindow();
@@ -199,7 +211,18 @@ ipcMain.handle('download-model', async (_event, modelName: string) => {
 
 // Evernote IPC handlers
 ipcMain.handle('authenticate-evernote', async () => {
-  return await authenticate();
+  const result = await authenticate();
+
+  // Initialize tag cache after successful authentication
+  if (result.success) {
+    try {
+      await tagCache.initialize();
+    } catch (error) {
+      console.warn('Could not initialize tag cache after authentication:', error);
+    }
+  }
+
+  return result;
 });
 
 ipcMain.handle('check-evernote-auth', async () => {
@@ -207,7 +230,12 @@ ipcMain.handle('check-evernote-auth', async () => {
 });
 
 ipcMain.handle('logout-evernote', async () => {
-  return await removeToken();
+  const result = await removeToken();
+
+  // Clear tag cache on logout
+  tagCache.clear();
+
+  return result;
 });
 
 ipcMain.handle('list-evernote-tags', async () => {

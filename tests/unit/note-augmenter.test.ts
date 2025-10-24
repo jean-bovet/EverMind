@@ -40,22 +40,24 @@ describe('note-augmenter', () => {
       const augmented = buildAugmentedContent(originalEnml, aiResult);
 
       expect(augmented).toContain('Original');
-      expect(augmented).toContain('AI Title');
-      expect(augmented).toContain('AI description');
-      expect(augmented).toContain('tag1, tag2');
+      expect(augmented).toContain('AI Summary');
+      expect(augmented).toContain('AI description here');
+      // Tags are not shown in augmented content (they're added to note metadata)
+      expect(augmented).not.toContain('tag1, tag2');
       expect(augmented).toContain('<hr/>');
     });
 
-    it('should include AI Analysis section', () => {
+    it('should include AI Summary section', () => {
       const originalEnml = '<en-note>Test</en-note>';
       const aiResult = { title: 'T', description: 'D', tags: [] };
 
       const augmented = buildAugmentedContent(originalEnml, aiResult);
 
-      expect(augmented).toContain('AI Analysis');
-      expect(augmented).toContain('Summary:');
-      expect(augmented).toContain('Description:');
-      expect(augmented).toContain('Suggested Tags:');
+      // New format only has "AI Summary" header, no separate section labels
+      expect(augmented).toContain('AI Summary');
+      expect(augmented).toContain('D'); // Description
+      expect(augmented).not.toContain('Summary:');
+      expect(augmented).not.toContain('Suggested Tags:');
     });
 
     it('should include timestamp', () => {
@@ -83,20 +85,20 @@ describe('note-augmenter', () => {
       const originalEnml = '<en-note>Test</en-note>';
       const aiResult = {
         title: 'Title with <tags> & "quotes"',
-        description: "Description with 'apostrophes'",
+        description: "Description with 'apostrophes' and <xml> & \"quotes\"",
         tags: ['tag>1', 'tag&2']
       };
 
       const augmented = buildAugmentedContent(originalEnml, aiResult);
 
-      // Should contain escaped versions
-      expect(augmented).toContain('&lt;tags&gt;');
+      // Description should contain escaped versions
+      expect(augmented).toContain('&apos;apostrophes&apos;');
+      expect(augmented).toContain('&lt;xml&gt;');
       expect(augmented).toContain('&amp;');
-      expect(augmented).toContain('&quot;');
-      expect(augmented).toContain('&apos;');
+      expect(augmented).toContain('&quot;quotes&quot;');
 
       // Should not contain raw special chars in content
-      expect(augmented).not.toContain('<tags>');
+      expect(augmented).not.toContain("'apostrophes'");
     });
   });
 

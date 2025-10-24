@@ -1,18 +1,15 @@
 import { BrowserWindow } from 'electron';
 import path from 'path';
 import { promises as fs } from 'fs';
-import crypto from 'crypto';
 
 // Import existing CLI modules
 import { extractFileContent } from './file-extractor.js';
-import { analyzeContent } from '../ai/ai-analyzer.js';
-import { listTags } from '../evernote/client.js';
+import { contentAnalysisWorkflow } from '../ai/content-analysis-workflow.js';
 import {
   hasExistingJSON,
   saveNoteToJSON,
   uploadNoteFromJSON,
 } from './upload-queue.js';
-import { filterExistingTags } from '../evernote/tag-validator.js';
 import { addFile, deleteFile } from '../database/queue-db.js';
 
 export interface ProcessFileOptions {
@@ -71,22 +68,6 @@ export async function analyzeFile(
       };
     }
 
-    // Send progress update: Fetching tags
-    mainWindow?.webContents.send('file-progress', {
-      filePath: absolutePath,
-      status: 'extracting',
-      progress: 10,
-      message: 'Fetching Evernote tags...'
-    });
-
-    // Fetch existing tags
-    let tags: string[] = [];
-    try {
-      tags = await listTags();
-    } catch (error) {
-      console.warn('Could not fetch tags:', error);
-    }
-
     // Send progress update: Extracting content
     mainWindow?.webContents.send('file-progress', {
       filePath: absolutePath,
@@ -98,9 +79,6 @@ export async function analyzeFile(
     // Extract file content
     const { text, fileType, fileName } = await extractFileContent(absolutePath);
 
-    // Calculate content hash for caching
-    const contentHash = crypto.createHash('md5').update(text).digest('hex');
-
     // Send progress update: Analyzing with AI
     mainWindow?.webContents.send('file-progress', {
       filePath: absolutePath,
@@ -109,18 +87,18 @@ export async function analyzeFile(
       message: 'Analyzing with AI...'
     });
 
-    // Analyze with AI
-    const analysis = await analyzeContent(
+    // Use shared workflow for AI analysis (handles tag fetching, caching, filtering)
+    const analysisResult = await contentAnalysisWorkflow.analyze(
       text,
       fileName,
-      fileType,
-      tags,
-      options.debug || false,
-      options.debug ? absolutePath : null
+      'file',
+      absolutePath,
+      {
+        debug: options.debug || false,
+        useCache: false,
+        sourceFilePath: options.debug ? absolutePath : undefined
+      }
     );
-
-    // Filter tags
-    const { valid: validTags } = filterExistingTags(analysis.tags, tags);
 
     // Send progress update: Saving to JSON
     mainWindow?.webContents.send('file-progress', {
@@ -132,10 +110,10 @@ export async function analyzeFile(
 
     // Save to JSON queue
     const jsonPath = await saveNoteToJSON(absolutePath, {
-      title: analysis.title,
-      description: analysis.description,
-      tags: validTags
-    }, contentHash);
+      title: analysisResult.title,
+      description: analysisResult.description,
+      tags: analysisResult.tags
+    }, analysisResult.contentHash);
 
     // Send progress: Ready for upload
     mainWindow?.webContents.send('file-progress', {
@@ -144,17 +122,17 @@ export async function analyzeFile(
       progress: 100,
       message: 'Analysis complete, ready to upload',
       result: {
-        title: analysis.title,
-        description: analysis.description,
-        tags: validTags
+        title: analysisResult.title,
+        description: analysisResult.description,
+        tags: analysisResult.tags
       }
     });
 
     return {
       success: true,
-      title: analysis.title,
-      description: analysis.description,
-      tags: validTags,
+      title: analysisResult.title,
+      description: analysisResult.description,
+      tags: analysisResult.tags,
       jsonPath
     };
 
@@ -290,22 +268,6 @@ export async function processFile(
       };
     }
 
-    // Send progress update: Fetching tags
-    mainWindow?.webContents.send('file-progress', {
-      filePath: absolutePath,
-      status: 'extracting',
-      progress: 10,
-      message: 'Fetching Evernote tags...'
-    });
-
-    // Fetch existing tags
-    let tags: string[] = [];
-    try {
-      tags = await listTags();
-    } catch (error) {
-      console.warn('Could not fetch tags:', error);
-    }
-
     // Send progress update: Extracting content
     mainWindow?.webContents.send('file-progress', {
       filePath: absolutePath,
@@ -317,9 +279,6 @@ export async function processFile(
     // Extract file content
     const { text, fileType, fileName } = await extractFileContent(absolutePath);
 
-    // Calculate content hash for caching
-    const contentHash = crypto.createHash('md5').update(text).digest('hex');
-
     // Send progress update: Analyzing with AI
     mainWindow?.webContents.send('file-progress', {
       filePath: absolutePath,
@@ -328,18 +287,18 @@ export async function processFile(
       message: 'Analyzing with AI...'
     });
 
-    // Analyze with AI
-    const analysis = await analyzeContent(
+    // Use shared workflow for AI analysis (handles tag fetching, caching, filtering)
+    const analysisResult = await contentAnalysisWorkflow.analyze(
       text,
       fileName,
-      fileType,
-      tags,
-      options.debug || false,
-      options.debug ? absolutePath : null
+      'file',
+      absolutePath,
+      {
+        debug: options.debug || false,
+        useCache: false,
+        sourceFilePath: options.debug ? absolutePath : undefined
+      }
     );
-
-    // Filter tags
-    const { valid: validTags } = filterExistingTags(analysis.tags, tags);
 
     // Send progress update: Saving and uploading
     mainWindow?.webContents.send('file-progress', {
@@ -351,10 +310,10 @@ export async function processFile(
 
     // Save to JSON queue
     const jsonPath = await saveNoteToJSON(absolutePath, {
-      title: analysis.title,
-      description: analysis.description,
-      tags: validTags
-    }, contentHash);
+      title: analysisResult.title,
+      description: analysisResult.description,
+      tags: analysisResult.tags
+    }, analysisResult.contentHash);
 
     // Attempt upload
     const uploadResult = await uploadNoteFromJSON(jsonPath);
@@ -367,9 +326,9 @@ export async function processFile(
         progress: 100,
         message: 'Uploaded successfully',
         result: {
-          title: analysis.title,
-          description: analysis.description,
-          tags: validTags,
+          title: analysisResult.title,
+          description: analysisResult.description,
+          tags: analysisResult.tags,
           noteUrl: uploadResult.noteUrl
         }
       });
@@ -379,9 +338,9 @@ export async function processFile(
 
       return {
         success: true,
-        title: analysis.title,
-        description: analysis.description,
-        tags: validTags,
+        title: analysisResult.title,
+        description: analysisResult.description,
+        tags: analysisResult.tags,
         noteUrl: uploadResult.noteUrl
       };
     } else if (uploadResult.rateLimitDuration) {
@@ -392,17 +351,17 @@ export async function processFile(
         progress: 100,
         message: 'Rate limited - queued for retry',
         result: {
-          title: analysis.title,
-          description: analysis.description,
-          tags: validTags
+          title: analysisResult.title,
+          description: analysisResult.description,
+          tags: analysisResult.tags
         }
       });
 
       return {
         success: true,
-        title: analysis.title,
-        description: analysis.description,
-        tags: validTags
+        title: analysisResult.title,
+        description: analysisResult.description,
+        tags: analysisResult.tags
       };
     } else {
       // Upload failed - queued for retry

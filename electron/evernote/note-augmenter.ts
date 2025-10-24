@@ -1,17 +1,12 @@
 import { BrowserWindow } from 'electron';
-import { getNoteWithContent, updateNote, listTags } from './client.js';
-import { enmlToPlainText, prependToEnml, createAIAnalysisEnml } from './enml-parser.js';
-import { analyzeContent } from '../ai/ai-analyzer.js';
+import { getNoteWithContent, updateNote } from './client.js';
+import { enmlToPlainText, prependToEnml, appendToEnml, createAIAnalysisEnml } from './enml-parser.js';
+import { contentAnalysisWorkflow } from '../ai/content-analysis-workflow.js';
 import { extractFileContent } from '../processing/file-extractor.js';
-import {
-  getCachedNoteAnalysis,
-  saveNoteAnalysisCache,
-  clearNoteAnalysisCache
-} from '../database/queue-db.js';
+import { clearNoteAnalysisCache } from '../database/queue-db.js';
 import { promises as fs } from 'fs';
 import path from 'path';
 import os from 'os';
-import crypto from 'crypto';
 import { parseEvernoteError } from '../utils/rate-limit-helpers.js';
 
 export interface AugmentationResult {
@@ -113,59 +108,24 @@ export async function augmentNote(
       }
     }
 
-    // Step 2.5: Calculate content hash for caching
-    const contentHash = crypto.createHash('md5').update(extractedText).digest('hex');
+    // Step 3: AI Analysis with Workflow (25-75%)
+    sendProgress({ status: 'analyzing', progress: 25, message: 'Analyzing content with AI...' });
 
-    // Step 3: Fetch Available Tags (25%)
-    sendProgress({ status: 'analyzing', progress: 25, message: 'Fetching available tags...' });
-    console.log('  Fetching available tags from Evernote...');
+    // Use shared workflow for AI analysis (handles caching, tag filtering, etc.)
+    const analysisResult = await contentAnalysisWorkflow.analyze(
+      extractedText,
+      note.title || 'Untitled',
+      'note',
+      noteGuid,
+      { useCache: true, debug: false }
+    );
 
-    let availableTags: string[] = [];
-    try {
-      availableTags = await listTags();
-      console.log(`  ✓ Found ${availableTags.length} available tags`);
-    } catch (error) {
-      console.warn('  Could not fetch tags:', error);
-      // Continue without tags if fetch fails
-    }
-
-    // Step 4: AI Analysis (30-70%)
-    sendProgress({ status: 'analyzing', progress: 30, message: 'Analyzing content with AI...' });
-
-    // Check cache first
-    let aiResult;
-    const cached = getCachedNoteAnalysis(noteGuid, contentHash);
-
-    if (cached && Date.now() < cached.expires_at) {
-      // Use cached analysis
-      const cacheAge = Date.now() - new Date(cached.analyzed_at).getTime();
-      const minutesAgo = Math.floor(cacheAge / 60000);
-      console.log(`  ✓ Using cached AI analysis (from ${minutesAgo} minute(s) ago)`);
-
-      aiResult = {
-        title: cached.ai_title,
-        description: cached.ai_description,
-        tags: JSON.parse(cached.ai_tags)
-      };
-
+    // Update progress based on cache hit/miss
+    if (analysisResult.fromCache) {
+      console.log('  ✓ Using cached AI analysis');
       sendProgress({ status: 'analyzing', progress: 70, message: 'Using cached analysis' });
     } else {
-      // Run fresh AI analysis
-      console.log('  Running fresh AI analysis...');
-
-      aiResult = await analyzeContent(
-        extractedText,
-        note.title || 'Untitled',
-        'note',
-        availableTags, // Pass available tags so AI can suggest from existing ones
-        false, // debug
-        null // sourceFilePath
-      );
-
-      // Save to cache immediately after analysis
-      saveNoteAnalysisCache(noteGuid, aiResult, contentHash);
-      console.log('  ✓ Saved AI analysis to cache');
-
+      console.log('  ✓ AI analysis complete');
       sendProgress({ status: 'analyzing', progress: 70, message: 'AI analysis complete' });
     }
 
@@ -173,27 +133,20 @@ export async function augmentNote(
     console.log('  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     console.log('  📊 AI Analysis Results:');
     console.log('  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    console.log(`  Title (Summary): ${aiResult.title}`);
-    console.log(`  Description: ${aiResult.description}`);
-    console.log(`  Suggested Tags: [${aiResult.tags.join(', ')}]`);
+    console.log(`  Title (Summary): ${analysisResult.title}`);
+    console.log(`  Description: ${analysisResult.description}`);
+    console.log(`  Valid Tags: [${analysisResult.tags.join(', ')}]`);
     console.log('  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
 
-    // Step 5: Filter Tags (75%)
-    sendProgress({ status: 'building', progress: 75, message: 'Filtering tags...' });
-
-    // Filter AI tags to only include ones that exist in Evernote
-    const validTags = aiResult.tags.filter(tag => availableTags.includes(tag));
-    console.log(`  ✓ Filtered to ${validTags.length} valid tags: ${validTags.join(', ')}`);
-
-    // Step 6: Build Augmented Content (85%)
+    // Step 4: Build Augmented Content (85%)
     sendProgress({ status: 'building', progress: 85, message: 'Building augmented note...' });
     console.log('  Building augmented note...');
 
-    const aiAnalysisEnml = createAIAnalysisEnml(aiResult, new Date().toISOString());
+    const aiAnalysisEnml = createAIAnalysisEnml(analysisResult, new Date().toISOString());
     const augmentedContent = prependToEnml(note.content, aiAnalysisEnml);
     console.log(`  ✓ Built augmented content (${augmentedContent.length} bytes)`);
 
-    // Step 7: Update Note (95%)
+    // Step 5: Update Note (95%)
     sendProgress({ status: 'uploading', progress: 95, message: 'Updating note in Evernote...' });
     console.log('  Updating note in Evernote...');
 
@@ -206,11 +159,11 @@ export async function augmentNote(
           aiAugmentedDate: new Date().toISOString()
         }
       },
-      aiResult.title,  // Update title to AI summary
-      validTags        // Add valid tags
+      analysisResult.title,  // Update title to AI summary
+      analysisResult.tags    // Add valid tags
     );
 
-    // Step 8: Complete (100%)
+    // Step 6: Complete (100%)
     const noteUrl = `${endpoint}/Home.action#n=${updatedNote.guid}`;
 
     // Clear cache after successful upload
