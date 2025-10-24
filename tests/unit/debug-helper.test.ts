@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { promises as fs } from 'fs';
 import path from 'path';
 import os from 'os';
-import { saveDebugFile } from '../../electron/cli/debug-helper.js';
+import { saveDebugFile } from '../../electron/utils/debug-helper.js';
 
 describe('debug-helper', () => {
   let tempDir: string;

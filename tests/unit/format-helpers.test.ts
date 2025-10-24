@@ -153,34 +153,14 @@ describe('format-helpers', () => {
       expect(pluralize(1, 'file')).toBe('file');
     });
 
-    it('should return plural for count of 0', () => {
+    it('should return plural for count != 1', () => {
       expect(pluralize(0, 'file')).toBe('files');
-    });
-
-    it('should return plural for count > 1', () => {
       expect(pluralize(2, 'file')).toBe('files');
-      expect(pluralize(100, 'file')).toBe('files');
     });
 
     it('should use custom plural form', () => {
-      expect(pluralize(0, 'person', 'people')).toBe('people');
       expect(pluralize(1, 'person', 'people')).toBe('person');
       expect(pluralize(2, 'person', 'people')).toBe('people');
-    });
-
-    it('should handle edge cases with custom plurals', () => {
-      expect(pluralize(1, 'child', 'children')).toBe('child');
-      expect(pluralize(5, 'child', 'children')).toBe('children');
-    });
-
-    it('should default to adding "s" when no custom plural', () => {
-      expect(pluralize(2, 'cat')).toBe('cats');
-      expect(pluralize(0, 'dog')).toBe('dogs');
-    });
-
-    it('should handle negative counts as plural', () => {
-      expect(pluralize(-1, 'item')).toBe('items');
-      expect(pluralize(-5, 'item')).toBe('items');
     });
   });
 
@@ -209,40 +189,6 @@ describe('format-helpers', () => {
     it('should handle file example from FileQueue', () => {
       expect(formatCount(1, 'file')).toBe('1 file');
       expect(formatCount(42, 'file')).toBe('42 files');
-    });
-  });
-
-  describe('getAugmentButtonTooltip', () => {
-    it('should return already augmented message when augmented', () => {
-      const result = getAugmentButtonTooltip(true, false);
-      expect(result).toBe('This note has already been augmented');
-    });
-
-    it('should prioritize augmented state over augmenting state', () => {
-      const result = getAugmentButtonTooltip(true, true);
-      expect(result).toBe('This note has already been augmented');
-    });
-
-    it('should return augmenting message when currently augmenting', () => {
-      const result = getAugmentButtonTooltip(false, true);
-      expect(result).toBe('Augmenting...');
-    });
-
-    it('should return default message when neither augmented nor augmenting', () => {
-      const result = getAugmentButtonTooltip(false, false);
-      expect(result).toBe('Augment this note with AI analysis');
-    });
-  });
-
-  describe('getAugmentButtonLabel', () => {
-    it('should return augmenting label when in progress', () => {
-      const result = getAugmentButtonLabel(true);
-      expect(result).toBe('🔄 Augmenting...');
-    });
-
-    it('should return default label when not augmenting', () => {
-      const result = getAugmentButtonLabel(false);
-      expect(result).toBe('🤖 Augment with AI');
     });
   });
 

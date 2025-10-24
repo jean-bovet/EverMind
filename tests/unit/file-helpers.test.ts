@@ -11,20 +11,6 @@ import type { FileItem, FileStatus } from '../../electron/utils/processing-sched
 
 describe('file-helpers', () => {
 
-  describe('getFileStatusLabel', () => {
-    it('should return correct label for all statuses', () => {
-      expect(getFileStatusLabel('pending')).toBe('⏳ Pending');
-      expect(getFileStatusLabel('extracting')).toBe('📄 Extracting...');
-      expect(getFileStatusLabel('analyzing')).toBe('🤖 Analyzing...');
-      expect(getFileStatusLabel('ready-to-upload')).toBe('⏸️ Ready to upload');
-      expect(getFileStatusLabel('uploading')).toBe('⬆️ Uploading...');
-      expect(getFileStatusLabel('rate-limited')).toBe('⏱️ Rate limited');
-      expect(getFileStatusLabel('retrying')).toBe('🔄 Retrying');
-      expect(getFileStatusLabel('complete')).toBe('✅ Complete');
-      expect(getFileStatusLabel('error')).toBe('❌ Error');
-    });
-  });
-
   describe('countFilesByStatus', () => {
     const mockFiles: FileItem[] = [
       { path: '/file1', name: 'file1', status: 'complete', progress: 100 },
@@ -48,23 +34,6 @@ describe('file-helpers', () => {
 
     it('should handle empty array', () => {
       expect(countFilesByStatus([], 'complete')).toBe(0);
-    });
-  });
-
-  describe('shouldShowProgressBar', () => {
-    it('should return true for active statuses', () => {
-      expect(shouldShowProgressBar('extracting')).toBe(true);
-      expect(shouldShowProgressBar('analyzing')).toBe(true);
-      expect(shouldShowProgressBar('uploading')).toBe(true);
-    });
-
-    it('should return false for inactive statuses', () => {
-      expect(shouldShowProgressBar('pending')).toBe(false);
-      expect(shouldShowProgressBar('ready-to-upload')).toBe(false);
-      expect(shouldShowProgressBar('rate-limited')).toBe(false);
-      expect(shouldShowProgressBar('retrying')).toBe(false);
-      expect(shouldShowProgressBar('complete')).toBe(false);
-      expect(shouldShowProgressBar('error')).toBe(false);
     });
   });
 
