@@ -45,6 +45,9 @@ const UnifiedItemCard: React.FC<UnifiedItemCardProps> = ({
     // Format error for display (user-friendly if Evernote error)
     const displayError = item.error ? (parseEvernoteError(item.error) || item.error) : undefined;
 
+    // Determine the retry handler - use onRetry for files, onAugment for notes
+    const retryHandler = item.type === 'file' ? onRetry : onAugment;
+
     return (
       <div className="unified-item-card error">
         <div className="item-header">
@@ -52,19 +55,23 @@ const UnifiedItemCard: React.FC<UnifiedItemCardProps> = ({
             <XCircle size={16} />
           </span>
           <span className="item-title">{item.title}</span>
+          {item.created && (
+            <span className="item-date">
+              {formatShortDate(item.created)}
+            </span>
+          )}
+          {retryHandler && (
+            <button
+              className="retry-button"
+              onClick={() => retryHandler(item.id)}
+            >
+              <RotateCw size={14} /> Retry
+            </button>
+          )}
         </div>
 
         {displayError && (
           <div className="item-error-message">{displayError}</div>
-        )}
-
-        {item.type === 'file' && onRetry && (
-          <button
-            className="retry-button"
-            onClick={() => onRetry(item.id)}
-          >
-            <RotateCw size={14} /> Retry
-          </button>
         )}
       </div>
     );
