@@ -979,10 +979,10 @@ body {
   border-color: rgba(74, 158, 255, 0.3);
 }
 
-/* Error State */
+/* Error State - Orange (same as warning banner) */
 .unified-item-card.error {
-  background: rgba(255, 59, 48, 0.05);
-  border-color: rgba(255, 59, 48, 0.3);
+  background: #3a3020;
+  border-color: #ff9500;
 }
 
 /* Item Header */
@@ -1102,7 +1102,7 @@ body {
 
 .item-error-message {
   font-size: 13px;
-  color: #ff3b30;
+  color: #ffb340;
   margin-bottom: 12px;
   line-height: 1.5;
 }

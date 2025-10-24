@@ -58,7 +58,7 @@ function App() {
   const [rateLimitWarning, setRateLimitWarning] = useState<string | null>(null);
 
   // Note augmentation state - track which notes are being augmented and their progress
-  const [augmentingNotes, setAugmentingNotes] = useState<Map<string, { progress: number, message?: string }>>(new Map());
+  const [augmentingNotes, setAugmentingNotes] = useState<Map<string, { progress: number, message?: string, error?: string }>>(new Map());
 
   // Fetch notebooks using React Query
   const {
@@ -112,6 +112,16 @@ function App() {
     if (item.type === 'note' && item.noteGuid) {
       const augmentProgress = augmentingNotes.get(item.noteGuid);
       if (augmentProgress) {
+        // If there's an error, show error state
+        if (augmentProgress.error) {
+          return {
+            ...item,
+            status: 'error' as const,
+            error: augmentProgress.error,
+            progress: 0
+          };
+        }
+        // Otherwise show progress
         return updateItemProgress(item, augmentProgress.progress, augmentProgress.message);
       }
     }
@@ -182,25 +192,26 @@ function App() {
   useEffect(() => {
     const unsubscribe = window.electronAPI.onAugmentProgress((data) => {
       // Update augmentation progress for the note
-      if (data.status !== 'complete' && data.status !== 'error') {
+      if (data.status === 'error' && data.error) {
+        // Error - show inline in the note row
+        setAugmentingNotes(prev => new Map(prev).set(data.noteGuid, {
+          progress: 0,
+          message: 'Failed',
+          error: data.error
+        }));
+      } else if (data.status !== 'complete') {
         // Still processing - update progress
         setAugmentingNotes(prev => new Map(prev).set(data.noteGuid, {
           progress: data.progress,
           message: data.message
         }));
       } else {
-        // Complete or error - remove from augmenting notes
+        // Complete - remove from augmenting notes
         setAugmentingNotes(prev => {
           const next = new Map(prev);
           next.delete(data.noteGuid);
           return next;
         });
-      }
-
-      // Show ALL augmentation errors in warning banner
-      if (data.status === 'error' && data.error) {
-        const displayError = formatErrorForDisplay(data.error);
-        setRateLimitWarning(displayError);
       }
 
       // When complete or error, refresh the note
