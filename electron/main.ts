@@ -214,7 +214,8 @@ ipcMain.handle('authenticate-evernote', async () => {
   const result = await authenticate();
 
   // Initialize tag cache after successful authentication
-  if (result.success) {
+  // authenticate() returns the token string on success
+  if (result) {
     try {
       await tagCache.initialize();
     } catch (error) {

@@ -6,8 +6,8 @@
 import Database from 'better-sqlite3';
 
 // Cache expiry: 24 hours (configurable via env)
-export const NOTE_CACHE_EXPIRY_MS = process.env.NOTE_CACHE_HOURS
-  ? parseInt(process.env.NOTE_CACHE_HOURS) * 60 * 60 * 1000
+export const NOTE_CACHE_EXPIRY_MS = process.env['NOTE_CACHE_HOURS']
+  ? parseInt(process.env['NOTE_CACHE_HOURS']) * 60 * 60 * 1000
   : 24 * 60 * 60 * 1000;
 
 // Inline SQL schema (avoids file loading issues in bundled electron app)

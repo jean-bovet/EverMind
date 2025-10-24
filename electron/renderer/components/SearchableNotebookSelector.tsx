@@ -55,6 +55,7 @@ export function SearchableNotebookSelector({
         document.removeEventListener('mousedown', handleClickOutside);
       };
     }
+    return undefined; // Explicit return for when isOpen is false
   }, [isOpen]);
 
   // Focus search input when dropdown opens

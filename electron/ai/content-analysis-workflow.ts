@@ -6,7 +6,7 @@
  */
 
 import crypto from 'crypto';
-import { analyzeContent, type AIAnalysisResult } from './ai-analyzer.js';
+import { analyzeContent } from './ai-analyzer.js';
 import { tagCache } from '../evernote/tag-cache.js';
 import { filterExistingTags } from '../evernote/tag-validator.js';
 import {

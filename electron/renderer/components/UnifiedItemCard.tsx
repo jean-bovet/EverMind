@@ -109,7 +109,7 @@ const UnifiedItemCard: React.FC<UnifiedItemCardProps> = ({
               {item.tags.map((tag, index) => (
                 <span key={index}>
                   {tag}
-                  {index < item.tags.length - 1 && ' • '}
+                  {index < item.tags!.length - 1 && ' • '}
                 </span>
               ))}
             </span>

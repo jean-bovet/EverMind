@@ -79,7 +79,7 @@ export async function analyzeFile(
     );
 
     // Extract file content
-    const { text, fileType, fileName } = await extractFileContent(absolutePath);
+    const { text, fileType: _fileType, fileName } = await extractFileContent(absolutePath);
 
     // Send progress update: Analyzing with AI
     mainWindow?.webContents.send('file-progress',
@@ -249,7 +249,7 @@ export async function processFile(
     );
 
     // Extract file content
-    const { text, fileType, fileName } = await extractFileContent(absolutePath);
+    const { text, fileType: _fileType, fileName } = await extractFileContent(absolutePath);
 
     // Send progress update: Analyzing with AI
     mainWindow?.webContents.send('file-progress',
