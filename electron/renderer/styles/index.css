@@ -55,6 +55,29 @@ body {
   border-color: #4a9eff;
 }
 
+.refresh-notes-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 8px;
+  background: #2a2a2a;
+  color: #e0e0e0;
+  border: 1px solid #444;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.refresh-notes-button:hover:not(:disabled) {
+  background: #333;
+  border-color: #4a9eff;
+}
+
+.refresh-notes-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .clear-completed-button {
   display: flex;
   align-items: center;

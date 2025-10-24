@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { AlertTriangle, Trash2 } from 'lucide-react';
+import { AlertTriangle, Trash2, RefreshCw } from 'lucide-react';
 import UnifiedList from './components/UnifiedList';
 import Settings from './components/Settings';
 import WelcomeWizard from './components/WelcomeWizard';
@@ -360,6 +360,14 @@ function App() {
               ))
             )}
           </select>
+          <button
+            className="refresh-notes-button"
+            onClick={() => refetchNotes()}
+            disabled={notesLoading}
+            title="Refresh notes list"
+          >
+            <RefreshCw size={16} className={notesLoading ? 'animate-spin' : ''} />
+          </button>
           {completedCount > 0 && (
             <button
               className="clear-completed-button"

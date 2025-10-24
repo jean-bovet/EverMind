@@ -70,10 +70,16 @@ export class ContentAnalysisWorkflow {
       const cached = this.checkCache(sourceId, contentHash);
       if (cached) {
         console.log('  ✓ Using cached AI analysis');
+
+        // Filter cached tags to ensure only valid tags are returned
+        // This handles cases where tags may have been deleted from Evernote since caching
+        const cachedTags = JSON.parse(cached.ai_tags);
+        const { valid: validCachedTags } = filterExistingTags(cachedTags, availableTags);
+
         return {
           title: cached.ai_title,
           description: cached.ai_description,
-          tags: JSON.parse(cached.ai_tags),
+          tags: validCachedTags,
           contentHash,
           fromCache: true
         };
@@ -94,8 +100,14 @@ export class ContentAnalysisWorkflow {
     const { valid: validTags } = filterExistingTags(aiResult.tags, availableTags);
 
     // Step 6: Save to cache if note augmentation
+    // IMPORTANT: Save the filtered result with valid tags only
     if (contentType === 'note') {
-      saveNoteAnalysisCache(sourceId, aiResult, contentHash);
+      const filteredResult = {
+        title: aiResult.title,
+        description: aiResult.description,
+        tags: validTags  // Save filtered tags, not raw AI tags
+      };
+      saveNoteAnalysisCache(sourceId, filteredResult, contentHash);
     }
 
     return {

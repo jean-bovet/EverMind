@@ -116,6 +116,10 @@ describe('ContentAnalysisWorkflow', () => {
 
       vi.mocked(tagCacheModule.tagCache.getTags).mockReturnValue(['cached-tag1', 'cached-tag2']);
       vi.mocked(queueDb.getCachedNoteAnalysis).mockReturnValue(mockCached);
+      vi.mocked(tagValidator.filterExistingTags).mockReturnValue({
+        valid: ['cached-tag1', 'cached-tag2'],
+        rejected: []
+      });
 
       const result = await workflow.analyze(
         'Note content',
@@ -133,8 +137,57 @@ describe('ContentAnalysisWorkflow', () => {
       // Should not call AI analyzer
       expect(aiAnalyzer.analyzeContent).not.toHaveBeenCalled();
 
-      // Should not call tag filter (cached tags already filtered)
-      expect(tagValidator.filterExistingTags).not.toHaveBeenCalled();
+      // Should call tag filter to validate cached tags
+      expect(tagValidator.filterExistingTags).toHaveBeenCalledWith(
+        ['cached-tag1', 'cached-tag2'],
+        ['cached-tag1', 'cached-tag2']
+      );
+    });
+
+    it('should return only filtered tags from cache (bug regression test)', async () => {
+      // This test reproduces the bug where cached results contain unfiltered tags
+      // Scenario: AI suggested tags including invalid ones, but cache stored raw AI result
+      const mockCached = {
+        note_guid: 'note456',
+        ai_title: 'Cached Title',
+        ai_description: 'Cached Description',
+        ai_tags: JSON.stringify(['work', 'personal', 'invalid-tag', 'another-invalid']), // UNFILTERED tags
+        analyzed_at: new Date().toISOString(),
+        content_hash: 'def456',
+        expires_at: Date.now() + 3600000
+      };
+
+      // Only 'work' and 'personal' actually exist in Evernote
+      vi.mocked(tagCacheModule.tagCache.getTags).mockReturnValue(['work', 'personal']);
+      vi.mocked(queueDb.getCachedNoteAnalysis).mockReturnValue(mockCached);
+
+      // Mock filterExistingTags to return only valid tags
+      vi.mocked(tagValidator.filterExistingTags).mockReturnValue({
+        valid: ['work', 'personal'],
+        rejected: [
+          { tag: 'invalid-tag', reason: 'Tag does not exist in Evernote' },
+          { tag: 'another-invalid', reason: 'Tag does not exist in Evernote' }
+        ]
+      });
+
+      const result = await workflow.analyze(
+        'Note content',
+        'My Note',
+        'note',
+        'note456',
+        { useCache: true }
+      );
+
+      // FIXED: Now returns only valid tags that exist in Evernote
+      expect(result.tags).toEqual(['work', 'personal']);
+      expect(result.tags).not.toContain('invalid-tag');
+      expect(result.tags).not.toContain('another-invalid');
+
+      // Verify filterExistingTags was called to filter cached tags
+      expect(tagValidator.filterExistingTags).toHaveBeenCalledWith(
+        ['work', 'personal', 'invalid-tag', 'another-invalid'],
+        ['work', 'personal']
+      );
     });
 
     it('should run fresh analysis when cache is expired (note)', async () => {
