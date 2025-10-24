@@ -23,7 +23,9 @@ The app uses **Lucide React** for all icons throughout the interface.
 - `Loader` - Processing states (animated spin)
 - `CheckCircle2` - Success and completion
 - `XCircle` - Errors
-- `RotateCw` - Retry actions
+- `RotateCw` - Retry actions and refresh button
+- `RefreshCw` - Manual refresh notes list
+- `Trash2` - Clear completed files
 - `Check` - Checkmarks and confirmation
 - `AlertTriangle` - Warnings
 - `Settings` - Settings button
@@ -331,7 +333,7 @@ Displays all files that have been added for processing, showing their current st
 ## Title Bar
 
 ### Purpose
-Provides window drag functionality and houses the notebook selector control.
+Provides window drag functionality and houses the notebook selector and action buttons.
 
 ### Location
 - Fixed at the top of the app window
@@ -340,20 +342,22 @@ Provides window drag functionality and houses the notebook selector control.
 
 ### Visual Design
 ```
-┌─────────────────────────────────────────────────────┐
-│                              [Notebook: ... ▾]      │
-└─────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────┐
+│          [Notebook: ... ▾] [↻] [Clear 3]                      │
+└────────────────────────────────────────────────────────────────┘
 ```
 
 **Layout Components:**
 - **Notebook Label**: "Notebook:" text label
 - **Notebook Selector**: Dropdown showing current notebook with available options
+- **Refresh Button**: Manual refresh icon (spins while loading)
+- **Clear Completed Button**: Removes completed files from list (only visible when completed files exist)
 
 ### Styling
 - Height: 52px
 - Background: Dark grey (#252525)
 - Padding: 0 20px
-- Notebook selector positioned on the right side
+- Controls positioned on the right side in a horizontal group
 - Controls are non-draggable (allow interaction), rest of title bar is draggable
 
 **Notebook Selector Styling:**
@@ -365,11 +369,31 @@ Provides window drag functionality and houses the notebook selector control.
 - Minimum width: 200px
 - Focus state: Blue border (#4a9eff)
 
+**Refresh Button Styling:**
+- Padding: 6px 8px (icon only)
+- Background: #2a2a2a
+- Border: 1px solid #444
+- Border radius: 5px
+- Hover: Blue border (#4a9eff)
+- Disabled state: 50% opacity
+
+**Clear Completed Button Styling:**
+- Padding: 6px 12px
+- Background: #2a2a2a
+- Border: 1px solid #444
+- Border radius: 5px
+- Font size: 12px
+- Displays icon + count (e.g., "Clear 3")
+- Hover: Blue border (#4a9eff)
+
 ### Behavior
 - Title bar area allows window dragging (macOS/Windows behavior)
 - Notebook selector shows loading state when notebooks are being fetched
 - Dropdown displays all notebooks with "(Default)" label for the default notebook
 - Selecting a notebook updates the notes list immediately
+- Refresh button spins during loading and is disabled while fetching
+- Clear completed button only appears when completed files exist (count > 0)
+- Clicking clear completed removes all completed files from database and refreshes list
 
 ---
 

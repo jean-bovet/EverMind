@@ -54,7 +54,14 @@ New files being uploaded to Evernote display:
 - Processing status (Extracting, Analyzing, Uploading)
 - Progress bar showing completion percentage
 - Status message explaining current step
-- Error message if something went wrong
+
+### Error Display
+
+When an error occurs, the row maintains its structure:
+- **Row 1:** Error icon, title, date, retry button
+- **Row 2:** Error message
+
+Both files and notes show retry buttons in error state. This ensures users can always see what failed and when, with easy access to retry.
 
 ### Existing Notes
 
@@ -128,6 +135,22 @@ This means newly dropped files and files ready to upload immediately appear at t
 
 ## Interactions
 
+### Title Bar Controls
+
+The title bar provides quick access to common actions:
+
+**Notebook Selector** - Choose which notebook to view notes from
+
+**Refresh Button** - Manually refresh the notes list
+- Icon spins during refresh
+- Disabled while loading
+- Useful after making changes in Evernote
+
+**Clear Completed Button** - Remove completed files from the list
+- Only visible when completed files exist
+- Shows count of completed files (e.g., "Clear 3")
+- Removes files from database after successful upload
+
 ### Drag and Drop Files
 
 You can drop files anywhere on the list at any time:
@@ -147,8 +170,15 @@ For existing Evernote notes in the list:
 For files being processed:
 - Watch real-time progress as files are analyzed
 - See status messages explaining each step
-- Retry failed files with one click
+- Retry failed files or notes with one click
 - View complete results including generated titles, descriptions, and tags
+
+### Auto-Refresh Behavior
+
+The list automatically refreshes in these scenarios:
+- After a file completes uploading to Evernote (1.5s delay)
+- After a note completes augmentation
+- This ensures newly created/updated notes appear without manual refresh
 
 ## Visual Indicators
 

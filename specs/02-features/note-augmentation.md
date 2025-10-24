@@ -12,8 +12,12 @@ The Note Augmentation feature allows you to browse existing notes in your Everno
 
 - Browse notes across all your Evernote notebooks
 - Filter by notebook using dropdown selector
+- Manual refresh button to update notes list
 - Intelligent caching with React Query for fast browsing
 - One-click augmentation with progress tracking
+- Tag cache service - tags fetched once at startup for fast filtering
+- AI-suggested tags filtered against existing Evernote tags only
+- Note titles and tags updated during augmentation
 - Augmentation status badges (shows which notes have been augmented)
 - Rate limit handling with automatic retries
 - Works with note content and attachments (PDFs, images)
@@ -24,9 +28,30 @@ When you augment a note:
 1. The app downloads the note content and attachments from Evernote
 2. Extracts text from attachments (using OCR for images)
 3. Analyzes the combined content with Ollama AI
-4. Appends the AI analysis to the original note content
-5. Updates the note in Evernote with augmentation metadata
-6. Displays a success confirmation
+4. **Filters AI-suggested tags** - Only tags that exist in your Evernote account are kept
+5. **Updates note title and tags** - AI-generated title and filtered tags are applied
+6. Appends the AI analysis to the original note content
+7. Updates the note in Evernote with augmentation metadata
+8. Displays a success confirmation
+
+## Tag Cache & Filtering
+
+The app uses an intelligent tag management system to ensure only valid tags are applied:
+
+**Tag Cache Service** (`electron/evernote/tag-cache.ts`)
+- Fetches all Evernote tags once at app startup
+- Stored in memory for fast lookups (no repeated API calls)
+- Automatically initialized after authentication
+- Can be refreshed if tags are added during session
+
+**AI Tag Filtering Workflow** (`electron/ai/content-analysis-workflow.ts`)
+- AI suggests tags based on note content
+- Suggested tags are filtered against cached Evernote tags (case-insensitive)
+- Only matching tags are applied to the note
+- Prevents creation of unwanted tags in Evernote
+- Handles both fresh analysis and cached results
+
+**Bug Fix:** Previous versions saved unfiltered AI tags to cache, causing invalid tags to be applied on cache hits. Now both cache save and retrieval properly filter tags.
 
 ## User Flow
 
