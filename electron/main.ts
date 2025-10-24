@@ -13,7 +13,7 @@ import {
 } from './evernote/client.js';
 import { augmentNote } from './evernote/note-augmenter.js';
 import { UploadWorker } from './processing/upload-worker.js';
-import { initDatabase, closeDatabase, deleteAllFiles, getAllFiles } from './database/queue-db.js';
+import { initDatabase, closeDatabase, deleteAllFiles, deleteCompletedFiles, getAllFiles } from './database/queue-db.js';
 import { verifyAndRemoveUploadedNotes, cleanupAllExpiredCache } from './database/cleanup-service.js';
 import { tagCache } from './evernote/tag-cache.js';
 
@@ -287,6 +287,11 @@ ipcMain.handle('get-upload-queue', async () => {
 // Database management IPC handlers
 ipcMain.handle('clear-all-files', async () => {
   const deletedCount = deleteAllFiles();
+  return { success: true, deletedCount };
+});
+
+ipcMain.handle('clear-completed-files', async () => {
+  const deletedCount = deleteCompletedFiles();
   return { success: true, deletedCount };
 });
 

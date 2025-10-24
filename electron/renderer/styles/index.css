@@ -55,6 +55,26 @@ body {
   border-color: #4a9eff;
 }
 
+.clear-completed-button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: #2a2a2a;
+  color: #e0e0e0;
+  border: 1px solid #444;
+  border-radius: 5px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.clear-completed-button:hover {
+  background: #333;
+  border-color: #4a9eff;
+}
+
 .main-content {
   flex: 1;
   display: flex;
@@ -1115,20 +1135,25 @@ body {
 
 /* Buttons */
 .retry-button {
-  padding: 8px 16px;
+  padding: 4px 12px;
   background: #ff9f0a;
   color: #fff;
   border: none;
-  border-radius: 6px;
-  font-size: 13px;
+  border-radius: 4px;
+  font-size: 12px;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  flex-shrink: 0;
 }
 
 .retry-button:hover {
   background: #ffb340;
-  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(255, 159, 10, 0.3);
 }
 
 .view-note-link {

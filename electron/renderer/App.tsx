@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, Trash2 } from 'lucide-react';
 import UnifiedList from './components/UnifiedList';
 import Settings from './components/Settings';
 import WelcomeWizard from './components/WelcomeWizard';
@@ -311,6 +311,21 @@ function App() {
     setSelectedNotebook(notebookGuid);
   };
 
+  const handleClearCompleted = async () => {
+    try {
+      const result = await window.electronAPI.clearCompletedFiles();
+      if (result.success) {
+        // Reload files from database to update UI
+        await loadFilesFromDatabase();
+      }
+    } catch (error) {
+      console.error('Failed to clear completed files:', error);
+    }
+  };
+
+  // Count completed files
+  const completedCount = files.filter(f => f.status === 'complete').length;
+
   // Determine loading and error states
   const loading = notebooksLoading || notesLoading;
   const error = notebooksError || notesError;
@@ -345,6 +360,16 @@ function App() {
               ))
             )}
           </select>
+          {completedCount > 0 && (
+            <button
+              className="clear-completed-button"
+              onClick={handleClearCompleted}
+              title={`Clear ${completedCount} completed file${completedCount > 1 ? 's' : ''}`}
+            >
+              <Trash2 size={16} />
+              <span>Clear {completedCount}</span>
+            </button>
+          )}
         </div>
       </div>
 

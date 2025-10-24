@@ -35,6 +35,8 @@ const electronAPI = {
   // Database management
   clearAllFiles: () =>
     ipcRenderer.invoke('clear-all-files'),
+  clearCompletedFiles: () =>
+    ipcRenderer.invoke('clear-completed-files'),
   getAllFiles: () =>
     ipcRenderer.invoke('get-all-files'),
   verifyAndCleanup: () =>
