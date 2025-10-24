@@ -136,3 +136,24 @@ export function parseEvernoteError(error: unknown): string | null {
 
   return null;
 }
+
+/**
+ * Format error for display in UI
+ * Tries to parse as known Evernote error first, falls back to raw error
+ * Pure function for easy testing
+ *
+ * @param error - Error to format (string or unknown type)
+ * @returns User-friendly error message (or raw error if not recognized)
+ *
+ * @example
+ * formatErrorForDisplay('Attempt updateNote where RTE room has already been open')
+ * // => "Cannot update note: it is currently open in another Evernote client..."
+ *
+ * @example
+ * formatErrorForDisplay('Failed to update note: {"errorCode":2,"parameter":"Note.title"}')
+ * // => "Failed to update note: {"errorCode":2,"parameter":"Note.title"}"
+ */
+export function formatErrorForDisplay(error: string): string {
+  const parsedError = parseEvernoteError(error);
+  return parsedError || error; // Fallback to raw error if not recognized
+}

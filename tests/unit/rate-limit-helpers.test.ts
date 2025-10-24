@@ -6,7 +6,8 @@ import {
   parseRateLimitError,
   isRTEConflictError,
   parseRTEConflictError,
-  parseEvernoteError
+  parseEvernoteError,
+  formatErrorForDisplay
 } from '../../electron/utils/rate-limit-helpers.js';
 
 describe('rate-limit-helpers', () => {
@@ -264,6 +265,60 @@ describe('rate-limit-helpers', () => {
       const error = new Error('Attempt updateNote where RTE room has already been open: {"errorCode":19,"rateLimitDuration":60}');
       const result = parseEvernoteError(error);
       expect(result).toContain('currently open in another Evernote client');
+    });
+  });
+
+  describe('formatErrorForDisplay', () => {
+    it('should format rate limit errors with user-friendly message', () => {
+      const error = 'Failed to update: {"errorCode":19,"rateLimitDuration":60}';
+      const result = formatErrorForDisplay(error);
+      expect(result).toBe('Rate limit exceeded. Please wait 1 minute before trying again.');
+    });
+
+    it('should format RTE conflict errors with user-friendly message', () => {
+      const error = 'Attempt updateNote where RTE room has already been open for note: abc-123';
+      const result = formatErrorForDisplay(error);
+      expect(result).toBe('Cannot update note: it is currently open in another Evernote client. Please close the note and try again.');
+    });
+
+    it('should return raw error for unrecognized error types', () => {
+      const error = 'Failed to update note: {"errorCode":2,"parameter":"Note.title"}';
+      const result = formatErrorForDisplay(error);
+      expect(result).toBe('Failed to update note: {"errorCode":2,"parameter":"Note.title"}');
+    });
+
+    it('should return raw error for generic error strings', () => {
+      const error = 'Some random error message';
+      const result = formatErrorForDisplay(error);
+      expect(result).toBe('Some random error message');
+    });
+
+    it('should return raw error for validation errors', () => {
+      const error = 'Validation failed: title is required';
+      const result = formatErrorForDisplay(error);
+      expect(result).toBe('Validation failed: title is required');
+    });
+
+    it('should handle empty error string', () => {
+      const error = '';
+      const result = formatErrorForDisplay(error);
+      expect(result).toBe('');
+    });
+
+    it('should format errors consistently with parseEvernoteError', () => {
+      // This test ensures formatErrorForDisplay uses parseEvernoteError correctly
+      const rteError = 'RTE room conflict';
+      const rateLimitError = '{"errorCode":19,"rateLimitDuration":120}';
+      const unknownError = 'Unknown error';
+
+      // RTE should be formatted
+      expect(formatErrorForDisplay(rteError)).toContain('currently open in another Evernote client');
+
+      // Rate limit should be formatted
+      expect(formatErrorForDisplay(rateLimitError)).toContain('Rate limit exceeded');
+
+      // Unknown should return as-is
+      expect(formatErrorForDisplay(unknownError)).toBe('Unknown error');
     });
   });
 

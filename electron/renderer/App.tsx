@@ -23,7 +23,7 @@ import {
 } from '../utils/unified-item-helpers.js';
 import { transformNoteMetadata } from '../utils/note-helpers.js';
 import type { NoteMetadata } from '../utils/note-helpers.js';
-import { parseEvernoteError } from '../utils/rate-limit-helpers.js';
+import { formatErrorForDisplay } from '../utils/rate-limit-helpers.js';
 
 // Configuration for concurrent processing
 const CONCURRENT_STAGE1 = 3; // Max concurrent analyses
@@ -197,12 +197,10 @@ function App() {
         });
       }
 
-      // Check for Evernote errors (rate limit or RTE conflict)
+      // Show ALL augmentation errors in warning banner
       if (data.status === 'error' && data.error) {
-        const evernoteError = parseEvernoteError(data.error);
-        if (evernoteError) {
-          setRateLimitWarning(evernoteError);
-        }
+        const displayError = formatErrorForDisplay(data.error);
+        setRateLimitWarning(displayError);
       }
 
       // When complete or error, refresh the note
