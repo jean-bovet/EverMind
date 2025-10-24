@@ -116,7 +116,20 @@ export async function augmentNote(
     // Step 2.5: Calculate content hash for caching
     const contentHash = crypto.createHash('md5').update(extractedText).digest('hex');
 
-    // Step 3: AI Analysis (30-70%)
+    // Step 3: Fetch Available Tags (25%)
+    sendProgress({ status: 'analyzing', progress: 25, message: 'Fetching available tags...' });
+    console.log('  Fetching available tags from Evernote...');
+
+    let availableTags: string[] = [];
+    try {
+      availableTags = await listTags();
+      console.log(`  ✓ Found ${availableTags.length} available tags`);
+    } catch (error) {
+      console.warn('  Could not fetch tags:', error);
+      // Continue without tags if fetch fails
+    }
+
+    // Step 4: AI Analysis (30-70%)
     sendProgress({ status: 'analyzing', progress: 30, message: 'Analyzing content with AI...' });
 
     // Check cache first
@@ -144,7 +157,7 @@ export async function augmentNote(
         extractedText,
         note.title || 'Untitled',
         'note',
-        [], // Don't restrict tags for note augmentation
+        availableTags, // Pass available tags so AI can suggest from existing ones
         false, // debug
         null // sourceFilePath
       );
@@ -156,18 +169,23 @@ export async function augmentNote(
       sendProgress({ status: 'analyzing', progress: 70, message: 'AI analysis complete' });
     }
 
-    // Step 4: Get Available Tags (75%)
-    sendProgress({ status: 'building', progress: 75, message: 'Fetching available tags...' });
-    console.log('  Fetching available tags from Evernote...');
+    // Output AI analysis results for debugging
+    console.log('  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log('  📊 AI Analysis Results:');
+    console.log('  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log(`  Title (Summary): ${aiResult.title}`);
+    console.log(`  Description: ${aiResult.description}`);
+    console.log(`  Suggested Tags: [${aiResult.tags.join(', ')}]`);
+    console.log('  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
 
-    const availableTags = await listTags();
-    console.log(`  ✓ Found ${availableTags.length} available tags`);
+    // Step 5: Filter Tags (75%)
+    sendProgress({ status: 'building', progress: 75, message: 'Filtering tags...' });
 
     // Filter AI tags to only include ones that exist in Evernote
     const validTags = aiResult.tags.filter(tag => availableTags.includes(tag));
     console.log(`  ✓ Filtered to ${validTags.length} valid tags: ${validTags.join(', ')}`);
 
-    // Step 5: Build Augmented Content (85%)
+    // Step 6: Build Augmented Content (85%)
     sendProgress({ status: 'building', progress: 85, message: 'Building augmented note...' });
     console.log('  Building augmented note...');
 
@@ -175,7 +193,7 @@ export async function augmentNote(
     const augmentedContent = prependToEnml(note.content, aiAnalysisEnml);
     console.log(`  ✓ Built augmented content (${augmentedContent.length} bytes)`);
 
-    // Step 6: Update Note (95%)
+    // Step 7: Update Note (95%)
     sendProgress({ status: 'uploading', progress: 95, message: 'Updating note in Evernote...' });
     console.log('  Updating note in Evernote...');
 
@@ -192,7 +210,7 @@ export async function augmentNote(
       validTags        // Add valid tags
     );
 
-    // Step 7: Complete (100%)
+    // Step 8: Complete (100%)
     const noteUrl = `${endpoint}/Home.action#n=${updatedNote.guid}`;
 
     // Clear cache after successful upload
