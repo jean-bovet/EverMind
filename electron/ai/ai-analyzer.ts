@@ -1,7 +1,6 @@
 import { Ollama } from 'ollama';
 import { ensureOllamaReady } from './ollama-manager.js';
-import { createSpinner, colors } from '../cli/output-formatter.js';
-import { saveDebugFile } from '../cli/debug-helper.js';
+import { saveDebugFile } from '../utils/debug-helper.js';
 import { parseAIResponse, type AIAnalysisResult } from '../utils/ai-response-parser.js';
 
 export type { AIAnalysisResult };
@@ -36,8 +35,8 @@ export async function analyzeContent(
 
   const ollama = new Ollama({ host: ollamaHost });
 
-  // Show analysis progress
-  const spinner = createSpinner(`Analyzing content with Ollama (${colors.highlight(model)})`).start();
+  // Log analysis start
+  console.log(`Analyzing content with Ollama (${model})...`);
 
   // Truncate text if too long to avoid token limits
   const maxLength = 4000;
@@ -83,9 +82,7 @@ Respond ONLY with the JSON object, no additional text.`;
 
   // Save prompt if debug mode is enabled
   if (debug && sourceFilePath) {
-    spinner.stop();
     await saveDebugFile(sourceFilePath, 'prompt', prompt);
-    spinner.start();
   }
 
   try {
@@ -103,18 +100,17 @@ Respond ONLY with the JSON object, no additional text.`;
 
     // Save response if debug mode is enabled
     if (debug && sourceFilePath) {
-      spinner.stop();
       await saveDebugFile(sourceFilePath, 'response', response.response);
     }
 
     // Parse the AI response
     const result = parseAIResponse(response.response);
 
-    spinner.succeed('AI analysis completed successfully');
+    console.log('AI analysis completed successfully');
 
     return result;
   } catch (error) {
-    spinner.fail('AI analysis failed');
+    console.error('AI analysis failed');
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     throw new Error(`Failed to analyze content with Ollama: ${errorMessage}`);
   }

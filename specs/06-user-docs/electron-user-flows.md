@@ -360,7 +360,7 @@ Settings Modal
          |
          v User clicks [Connect Evernote]
 
-OAuth Flow Starts (via CLI Module)
+OAuth Flow Starts (via OAuth Helper)
          |
          +-> Browser Opens
          |   |

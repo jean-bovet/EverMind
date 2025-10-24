@@ -5,7 +5,6 @@
 
 import { promises as fs } from 'fs';
 import { createNote } from '../evernote/client.js';
-import { colors, warning, info } from '../cli/output-formatter.js';
 import {
   addFile,
   getFile,
@@ -242,20 +241,20 @@ export async function retryPendingUploads(_directory: string): Promise<RetryStat
     stats.attempted++;
 
     const fileName = record.file_path.split('/').pop() || record.file_path;
-    console.log(`  ${colors.info('↻')} Retrying upload: ${colors.highlight(fileName)}`);
+    console.log(`Retrying upload: ${fileName}`);
 
     const result = await uploadNoteFromJSON(record.file_path);
 
     if (result.success) {
       stats.successful++;
-      console.log(`    ${colors.success('✓')} Uploaded successfully`);
+      console.log('Uploaded successfully');
     } else if (result.rateLimitDuration) {
       stats.rateLimited++;
-      console.log(`    ${colors.error('⚠')} Rate limited - retry in ${result.rateLimitDuration}s`);
+      console.log(`Rate limited - retry in ${result.rateLimitDuration}s`);
     } else {
       stats.failed++;
       const errorMessage = result.error?.message || 'Unknown error';
-      console.log(`    ${colors.error('✗')} Failed: ${errorMessage}`);
+      console.log(`Failed: ${errorMessage}`);
     }
   }
 
@@ -294,7 +293,7 @@ export async function waitForPendingUploads(
 
     // Check if we've exceeded max wait time
     if (Date.now() - startTime > maxWaitTime) {
-      console.log(`\n${warning(`Timeout reached. ${pendingFiles.length} uploads still pending.`)}`);
+      console.warn(`Timeout reached. ${pendingFiles.length} uploads still pending.`);
       totalFailed = pendingFiles.length;
       break;
     }
@@ -319,7 +318,7 @@ export async function waitForPendingUploads(
         const waitTime = Math.max(0, earliestRetry - Date.now());
         if (waitTime > 0) {
           const waitSeconds = Math.ceil(waitTime / 1000);
-          console.log(`\n${info(`Waiting ${waitSeconds}s until next retry...`)}`);
+          console.log(`Waiting ${waitSeconds}s until next retry...`);
           await new Promise(resolve => setTimeout(resolve, Math.min(waitTime, 5000))); // Wait max 5s at a time
         }
       } else {

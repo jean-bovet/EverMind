@@ -2,7 +2,6 @@ import Evernote from 'evernote';
 import { promises as fs } from 'fs';
 import path from 'path';
 import { getToken } from './oauth-helper.js';
-import { createSpinner, colors, warning } from '../cli/output-formatter.js';
 import { sanitizeTags, validateTagsForAPI } from './tag-validator.js';
 import { mergeNoteAttributes } from '../utils/note-helpers.js';
 import {
@@ -43,7 +42,7 @@ export async function createNote(
 
   const noteStore = client.getNoteStore();
 
-  const spinner = createSpinner('Creating note in Evernote').start();
+  console.log('Creating note in Evernote...');
 
   try {
     // Read file data for attachment
@@ -59,9 +58,7 @@ export async function createNote(
     // Warn if any tags were filtered out
     if (validTags.length < tags.length) {
       const invalidTags = tags.filter(tag => !validTags.includes(tag));
-      spinner.stop();
-      console.warn(warning(`Filtered out ${invalidTags.length} invalid tag(s): ${invalidTags.join(', ')}`));
-      spinner.start();
+      console.warn(`Filtered out ${invalidTags.length} invalid tag(s): ${invalidTags.join(', ')}`);
     }
 
     // Create note with ENML content
@@ -83,13 +80,13 @@ export async function createNote(
 
     const noteUrl = `${endpoint}/Home.action#n=${createdNote.guid}`;
 
-    spinner.succeed('Note created successfully');
-    console.log(`  Note GUID: ${colors.muted(createdNote.guid)}`);
+    console.log('Note created successfully');
+    console.log(`Note GUID: ${createdNote.guid}`);
 
     return { noteUrl, noteGuid: createdNote.guid };
 
   } catch (error: unknown) {
-    spinner.fail('Failed to create note');
+    console.error('Failed to create note');
 
     // Better error handling for Evernote API errors
     console.error('Evernote API Error:', error);

@@ -5,7 +5,7 @@
 
 ## What It Is
 
-The Evernote AI Importer is a desktop application (available as both CLI and Electron GUI) that automatically analyzes files using local AI and imports them into Evernote with intelligently generated metadata. The application prioritizes user privacy by processing all AI analysis locally through Ollama, ensuring no file content is sent to external services.
+The Evernote AI Importer is an Electron desktop application that automatically analyzes files using local AI and imports them into Evernote with intelligently generated metadata. The application prioritizes user privacy by processing all AI analysis locally through Ollama, ensuring no file content is sent to external services.
 
 ## Problem Statement
 
@@ -103,14 +103,15 @@ Convert saved emails (as text/PDF) to Evernote notes with summaries and appropri
 - **JavaScript**: Primary programming language (CommonJS modules)
 
 ### Key Dependencies
+- **electron**: Desktop application framework
 - **ollama**: Ollama API client for local AI inference
 - **evernote**: Official Evernote SDK for API integration
 - **pdf-parse**: PDF text extraction
 - **mammoth**: Microsoft Word document parsing
 - **tesseract.js**: OCR engine for image text extraction
-- **commander**: CLI framework
 - **dotenv**: Environment variable management
 - **oauth**: OAuth 1.0a authentication
+- **react**: UI component library
 
 ### External Services
 - **Evernote API**: Cloud note storage and synchronization
@@ -131,7 +132,7 @@ By only using existing Evernote tags, the application maintains the user's caref
 The application handles errors gracefully, cleans up resources automatically, and provides clear error messages with remediation steps.
 
 ### 5. User Control
-Users retain full control through command-line options, environment variables, and the ability to review AI-generated content before manual adjustments if needed.
+Users retain full control through the UI settings panel, environment variables, and the ability to review AI-generated content before manual adjustments if needed.
 
 ## Success Metrics
 

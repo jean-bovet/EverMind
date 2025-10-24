@@ -12,8 +12,8 @@ Welcome to the comprehensive documentation for the Evernote AI Importer. This ap
 
 Learn how the app is built:
 
-- **[System Architecture](01-architecture/system-architecture.md)** - CLI architecture and components
 - **[Electron Architecture](01-architecture/electron-architecture.md)** - Desktop app architecture
+- **[System Architecture](01-architecture/system-architecture.md)** - *(Historical: Legacy CLI architecture)*
 
 ## Features
 
@@ -83,13 +83,12 @@ End-user guides and workflows
 
 ## Key Concepts
 
-### Two Modes: CLI and GUI
+### Electron Desktop Application
 
-The app is available in two modes:
-- **CLI (Command-line)**: Node.js script for terminal users
-- **GUI (Electron app)**: Desktop application with visual interface
-
-Both modes share the same core processing logic.
+The app is a native desktop application built with Electron:
+- **GUI Interface**: Modern desktop UI with drag-and-drop support
+- **Cross-platform**: macOS, Windows, and Linux support
+- **Native Integration**: System file dialogs and OS conventions
 
 ### Local AI Processing
 

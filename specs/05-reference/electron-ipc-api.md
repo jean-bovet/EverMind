@@ -501,7 +501,7 @@ ipcMain.handle('authenticate-evernote', async () => {
 **Authentication Flow:**
 1. Opens browser to Evernote OAuth page
 2. User logs in and authorizes
-3. User enters verification code in CLI
+3. User enters verification code in the app
 4. Token saved to `.evernote-token`
 
 ---

@@ -1,7 +1,6 @@
 import { spawn, execSync, ChildProcess } from 'child_process';
 import { existsSync } from 'fs';
 import http from 'http';
-import { success, info, warning, colors } from '../cli/output-formatter.js';
 
 let ollamaProcess: ChildProcess | null = null;
 let wasStartedByUs = false;
@@ -80,7 +79,7 @@ function isOllamaRunning(host: string = 'http://localhost:11434'): Promise<boole
  */
 function startOllama(ollamaPath: string): Promise<void> {
   return new Promise((resolve, reject) => {
-    console.log('  ' + info('Starting Ollama server...'));
+    console.log('Starting Ollama server...');
 
     ollamaProcess = spawn(ollamaPath, ['serve'], {
       detached: false,
@@ -95,7 +94,7 @@ function startOllama(ollamaPath: string): Promise<void> {
     setTimeout(async () => {
       if (await isOllamaRunning()) {
         wasStartedByUs = true;
-        console.log('  ' + success('Ollama server started successfully'));
+        console.log('Ollama server started successfully');
         resolve();
       } else {
         reject(new Error('Ollama started but is not responding'));
@@ -125,7 +124,7 @@ function isModelAvailable(model: string, ollamaPath: string): boolean {
  */
 function pullModel(model: string, ollamaPath: string): Promise<void> {
   return new Promise((resolve, reject) => {
-    console.log('  ' + info(`Downloading model "${colors.highlight(model)}"... This may take a few minutes.`));
+    console.log(`Downloading model "${model}"... This may take a few minutes.`);
 
     const pullProcess = spawn(ollamaPath, ['pull', model], {
       stdio: 'inherit',
@@ -133,7 +132,7 @@ function pullModel(model: string, ollamaPath: string): Promise<void> {
 
     pullProcess.on('close', (code) => {
       if (code === 0) {
-        console.log('  ' + success(`Model "${model}" downloaded successfully`));
+        console.log(`Model "${model}" downloaded successfully`);
         resolve();
       } else {
         reject(new Error(`Failed to download model "${model}"`));
@@ -163,22 +162,22 @@ export async function ensureOllamaReady(model: string, host: string = 'http://lo
     );
   }
 
-  console.log('  ' + success(`Ollama found at: ${colors.muted(ollamaPath)}`));
+  console.log(`Ollama found at: ${ollamaPath}`);
 
   // Step 2: Check if Ollama is running
   const running = await isOllamaRunning(host);
   if (!running) {
     await startOllama(ollamaPath);
   } else {
-    console.log('  ' + success('Ollama is already running'));
+    console.log('Ollama is already running');
   }
 
   // Step 3: Check if the required model is available
   if (!isModelAvailable(model, ollamaPath)) {
-    console.log('  ' + info(`Model "${colors.highlight(model)}" not found locally.`));
+    console.log(`Model "${model}" not found locally.`);
     await pullModel(model, ollamaPath);
   } else {
-    console.log('  ' + success(`Model "${colors.highlight(model)}" is available`));
+    console.log(`Model "${model}" is available`);
   }
 }
 
@@ -188,15 +187,15 @@ export async function ensureOllamaReady(model: string, host: string = 'http://lo
  */
 export function stopOllama(force: boolean = false): void {
   if (ollamaProcess && (wasStartedByUs || force)) {
-    console.log(info('\nStopping Ollama server...'));
+    console.log('Stopping Ollama server...');
     try {
       ollamaProcess.kill('SIGTERM');
       ollamaProcess = null;
       wasStartedByUs = false;
-      console.log(success('Ollama server stopped'));
+      console.log('Ollama server stopped');
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      console.warn(warning(`Could not stop Ollama: ${errorMessage}`));
+      console.warn(`Could not stop Ollama: ${errorMessage}`);
     }
   }
 }

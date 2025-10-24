@@ -1,6 +1,8 @@
-# System Architecture
+# System Architecture (Historical)
 
-> **Type:** Architecture
+> **⚠️ DEPRECATED:** This document describes the legacy CLI-based architecture. The application is now Electron-only. See [Electron Architecture](electron-architecture.md) for current architecture.
+
+> **Type:** Architecture (Historical)
 > **Last Updated:** January 2025
 
 ## High-Level Architecture
