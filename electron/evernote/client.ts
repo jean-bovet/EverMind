@@ -372,12 +372,16 @@ export async function getNoteWithContent(noteGuid: string): Promise<Evernote.Typ
  * @param noteGuid - GUID of the note to update
  * @param updatedContent - New ENML content (optional)
  * @param updatedAttributes - New attributes (optional)
+ * @param updatedTitle - New title (optional)
+ * @param updatedTags - New tags (optional)
  * @returns Updated note
  */
 export async function updateNote(
   noteGuid: string,
   updatedContent?: string,
-  updatedAttributes?: Partial<Evernote.Types.NoteAttributes>
+  updatedAttributes?: Partial<Evernote.Types.NoteAttributes>,
+  updatedTitle?: string,
+  updatedTags?: string[]
 ): Promise<Evernote.Types.Note> {
   const token = await getToken();
   const endpoint = process.env['EVERNOTE_ENDPOINT'] || 'https://www.evernote.com';
@@ -405,7 +409,9 @@ export async function updateNote(
     // Create note object with updates
     const noteToUpdate = new Evernote.Types.Note({
       guid: noteGuid,
-      updateSequenceNum: currentNote.updateSequenceNum
+      title: updatedTitle || currentNote.title, // Use new title if provided
+      updateSequenceNum: currentNote.updateSequenceNum,
+      tagNames: updatedTags // Add tags if provided
     });
 
     // Update content if provided

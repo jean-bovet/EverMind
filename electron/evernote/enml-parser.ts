@@ -94,12 +94,63 @@ export function enmlToHtml(enml: string): string {
 }
 
 /**
+ * Prepend content to the beginning of ENML (after opening <en-note>)
+ * Pure function - no side effects
+ * @param originalEnml - Original ENML content
+ * @param additionalContent - Content to prepend
+ * @returns Updated ENML with prepended content
+ */
+export function prependToEnml(originalEnml: string, additionalContent: string): string {
+  // Ensure we have valid input
+  if (!originalEnml || originalEnml.trim() === '') {
+    throw new Error('Original ENML cannot be empty');
+  }
+
+  // Extract XML declaration and DOCTYPE if present
+  const xmlDeclarationMatch = originalEnml.match(/<\?xml[^?]*\?>/);
+  const xmlDeclaration = xmlDeclarationMatch
+    ? xmlDeclarationMatch[0]
+    : '<?xml version="1.0" encoding="UTF-8"?>';
+
+  const doctypeMatch = originalEnml.match(/<!DOCTYPE[^>]*>/);
+  const doctype = doctypeMatch
+    ? doctypeMatch[0]
+    : '<!DOCTYPE en-note SYSTEM "http://xml.evernote.com/pub/enml2.dtd">';
+
+  // Remove XML declaration and DOCTYPE from original content
+  let content = originalEnml.replace(/<\?xml[^?]*\?>/g, '');
+  content = content.replace(/<!DOCTYPE[^>]*>/g, '');
+
+  // Find the opening <en-note> tag
+  const openingTagMatch = content.match(/<en-note[^>]*>/);
+  if (!openingTagMatch) {
+    throw new Error('Invalid ENML: missing opening <en-note> tag');
+  }
+
+  // Insert new content after the opening tag
+  const insertPosition = openingTagMatch.index! + openingTagMatch[0].length;
+  const beforeInsertion = content.substring(0, insertPosition);
+  const afterInsertion = content.substring(insertPosition);
+
+  // Build the augmented content
+  const augmentedContent = `${beforeInsertion}
+  ${additionalContent}
+  <hr/>
+${afterInsertion}`;
+
+  // Reconstruct full ENML with declarations
+  return `${xmlDeclaration}
+${doctype}
+${augmentedContent}`;
+}
+
+/**
  * Append additional content to existing ENML, maintaining valid structure
  * @param originalEnml - Original ENML content
  * @param additionalContent - New content to append (should be valid ENML fragments)
  * @returns Updated ENML with appended content
  */
-export function appendToEnml(originalEnml: string, additionalContent: string): string {
+export function appendToEnml(originalEnml: string, additionalContent: string): string{
   // Ensure we have valid input
   if (!originalEnml || originalEnml.trim() === '') {
     throw new Error('Original ENML cannot be empty');
@@ -171,20 +222,12 @@ export function createAIAnalysisEnml(
       .replace(/'/g, '&apos;');
   };
 
-  const escapedTitle = escapeXml(aiAnalysis.title);
   const escapedDescription = escapeXml(aiAnalysis.description);
-  const escapedTags = aiAnalysis.tags.map(escapeXml).join(', ');
 
   return `  <div>
-    <strong>🤖 AI Analysis (${dateStr})</strong>
+    <strong>📝 AI Summary (${dateStr})</strong>
   </div>
   <div>
-    <strong>Summary:</strong> ${escapedTitle}
-  </div>
-  <div>
-    <strong>Description:</strong> ${escapedDescription}
-  </div>
-  <div>
-    <strong>Suggested Tags:</strong> ${escapedTags}
+    ${escapedDescription}
   </div>`;
 }

@@ -1,6 +1,6 @@
 import { BrowserWindow } from 'electron';
-import { getNoteWithContent, updateNote } from './client.js';
-import { enmlToPlainText, appendToEnml, createAIAnalysisEnml } from './enml-parser.js';
+import { getNoteWithContent, updateNote, listTags } from './client.js';
+import { enmlToPlainText, prependToEnml, createAIAnalysisEnml } from './enml-parser.js';
 import { analyzeContent } from '../ai/ai-analyzer.js';
 import { extractFileContent } from '../processing/file-extractor.js';
 import {
@@ -156,16 +156,27 @@ export async function augmentNote(
       sendProgress({ status: 'analyzing', progress: 70, message: 'AI analysis complete' });
     }
 
-    // Step 4: Build Augmented Content (80%)
-    sendProgress({ status: 'building', progress: 80, message: 'Building augmented note...' });
+    // Step 4: Get Available Tags (75%)
+    sendProgress({ status: 'building', progress: 75, message: 'Fetching available tags...' });
+    console.log('  Fetching available tags from Evernote...');
+
+    const availableTags = await listTags();
+    console.log(`  ✓ Found ${availableTags.length} available tags`);
+
+    // Filter AI tags to only include ones that exist in Evernote
+    const validTags = aiResult.tags.filter(tag => availableTags.includes(tag));
+    console.log(`  ✓ Filtered to ${validTags.length} valid tags: ${validTags.join(', ')}`);
+
+    // Step 5: Build Augmented Content (85%)
+    sendProgress({ status: 'building', progress: 85, message: 'Building augmented note...' });
     console.log('  Building augmented note...');
 
     const aiAnalysisEnml = createAIAnalysisEnml(aiResult, new Date().toISOString());
-    const augmentedContent = appendToEnml(note.content, aiAnalysisEnml);
+    const augmentedContent = prependToEnml(note.content, aiAnalysisEnml);
     console.log(`  ✓ Built augmented content (${augmentedContent.length} bytes)`);
 
-    // Step 5: Update Note (90%)
-    sendProgress({ status: 'uploading', progress: 90, message: 'Updating note in Evernote...' });
+    // Step 6: Update Note (95%)
+    sendProgress({ status: 'uploading', progress: 95, message: 'Updating note in Evernote...' });
     console.log('  Updating note in Evernote...');
 
     const updatedNote = await updateNote(
@@ -176,10 +187,12 @@ export async function augmentNote(
           aiAugmented: 'true',
           aiAugmentedDate: new Date().toISOString()
         }
-      }
+      },
+      aiResult.title,  // Update title to AI summary
+      validTags        // Add valid tags
     );
 
-    // Step 6: Complete (100%)
+    // Step 7: Complete (100%)
     const noteUrl = `${endpoint}/Home.action#n=${updatedNote.guid}`;
 
     // Clear cache after successful upload

@@ -543,6 +543,43 @@ describe('evernote-client', () => {
         const updateCall = mockUpdateNote.mock.calls[0][0];
         expect(updateCall.updateSequenceNum).toBe(123); // From mock
       });
+
+      it('should preserve note title when updating', async () => {
+        mockUpdateNote.mockResolvedValueOnce({ guid: 'n1', updateSequenceNum: 124 });
+
+        await updateNote('n1', '<en-note>Updated</en-note>');
+
+        const updateCall = mockUpdateNote.mock.calls[0][0];
+        expect(updateCall.title).toBe('Original'); // From beforeEach mock
+      });
+
+      it('should update note title when provided', async () => {
+        mockUpdateNote.mockResolvedValueOnce({ guid: 'n1', updateSequenceNum: 124 });
+
+        await updateNote('n1', '<en-note>Updated</en-note>', undefined, 'New Title');
+
+        const updateCall = mockUpdateNote.mock.calls[0][0];
+        expect(updateCall.title).toBe('New Title');
+      });
+
+      it('should add tags when provided', async () => {
+        mockUpdateNote.mockResolvedValueOnce({ guid: 'n1', updateSequenceNum: 124 });
+
+        await updateNote('n1', '<en-note>Updated</en-note>', undefined, undefined, ['tag1', 'tag2']);
+
+        const updateCall = mockUpdateNote.mock.calls[0][0];
+        expect(updateCall.tagNames).toEqual(['tag1', 'tag2']);
+      });
+
+      it('should update both title and tags', async () => {
+        mockUpdateNote.mockResolvedValueOnce({ guid: 'n1', updateSequenceNum: 124 });
+
+        await updateNote('n1', '<en-note>Updated</en-note>', undefined, 'AI Summary', ['work', 'important']);
+
+        const updateCall = mockUpdateNote.mock.calls[0][0];
+        expect(updateCall.title).toBe('AI Summary');
+        expect(updateCall.tagNames).toEqual(['work', 'important']);
+      });
     });
 
     describe('getNoteApplicationData', () => {
