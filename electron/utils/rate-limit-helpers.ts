@@ -88,3 +88,51 @@ export function parseRateLimitError(error: unknown): string | null {
   const formattedDuration = formatDuration(duration);
   return `Rate limit exceeded. Please wait ${formattedDuration} before trying again.`;
 }
+
+/**
+ * Detect if error is an RTE conflict (note open in another client)
+ * @param error - Error from Evernote API
+ * @returns true if error is an RTE conflict error
+ */
+export function isRTEConflictError(error: unknown): boolean {
+  const errorStr = error instanceof Error ? error.message : String(error);
+  return /RTE room|already been open/.test(errorStr);
+}
+
+/**
+ * Parse RTE conflict error and return user-friendly message
+ * @param error - Error from Evernote API
+ * @returns User-friendly error message, or null if not an RTE conflict error
+ *
+ * @example
+ * parseRTEConflictError(error)
+ * // => "Cannot update note: it is currently open in another Evernote client. Please close the note and try again."
+ */
+export function parseRTEConflictError(error: unknown): string | null {
+  if (!isRTEConflictError(error)) {
+    return null;
+  }
+  return 'Cannot update note: it is currently open in another Evernote client. Please close the note and try again.';
+}
+
+/**
+ * Parse any Evernote error (rate limit OR RTE conflict)
+ * @param error - Error from Evernote API
+ * @returns User-friendly error message, or null if not a known error type
+ *
+ * @example
+ * parseEvernoteError(error)
+ * // => "Cannot update note: it is currently open in another Evernote client..."
+ * // or "Rate limit exceeded. Please wait 15 minutes..."
+ */
+export function parseEvernoteError(error: unknown): string | null {
+  // Check RTE conflict first (more specific)
+  const rteError = parseRTEConflictError(error);
+  if (rteError) return rteError;
+
+  // Check rate limit
+  const rateLimitError = parseRateLimitError(error);
+  if (rateLimitError) return rateLimitError;
+
+  return null;
+}

@@ -73,7 +73,8 @@ export function createFileItem(
   status: FileStatus = 'pending',
   progress: number = 0,
   message?: string,
-  created?: number
+  created?: number,
+  error?: string
 ): UnifiedItem {
   const fileName = filePath.split('/').pop() || filePath;
 
@@ -95,6 +96,7 @@ export function createFileItem(
     progress: itemStatus === 'processing' ? progress : undefined,
     statusMessage: itemStatus === 'processing' ? message : undefined,
     created,
+    error,
   };
 }
 
@@ -107,7 +109,8 @@ export function fromFileItem(fileItem: FileItem): UnifiedItem {
     fileItem.status,
     fileItem.progress,
     fileItem.message,
-    fileItem.created
+    fileItem.created,
+    fileItem.error
   );
 }
 

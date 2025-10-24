@@ -3,7 +3,10 @@ import {
   isRateLimitError,
   extractRateLimitDuration,
   formatDuration,
-  parseRateLimitError
+  parseRateLimitError,
+  isRTEConflictError,
+  parseRTEConflictError,
+  parseEvernoteError
 } from '../../electron/utils/rate-limit-helpers.js';
 
 describe('rate-limit-helpers', () => {
@@ -194,6 +197,73 @@ describe('rate-limit-helpers', () => {
     it('should handle real-world error format from Evernote', () => {
       const error = new Error('Failed to get note: {"errorCode":19,"message":null,"rateLimitDuration":1052}');
       expect(parseRateLimitError(error)).toBe('Rate limit exceeded. Please wait 17 minutes and 32 seconds before trying again.');
+    });
+  });
+
+  describe('isRTEConflictError', () => {
+    it('should detect RTE room errors', () => {
+      const error = new Error('Attempt updateNote where RTE room has already been open for note: abc-123');
+      expect(isRTEConflictError(error)).toBe(true);
+    });
+
+    it('should detect "already been open" errors', () => {
+      const error = new Error('Cannot update note that has already been open');
+      expect(isRTEConflictError(error)).toBe(true);
+    });
+
+    it('should return false for non-RTE errors', () => {
+      const error = new Error('Network error');
+      expect(isRTEConflictError(error)).toBe(false);
+    });
+
+    it('should return false for rate limit errors', () => {
+      const error = new Error('{"errorCode":19,"rateLimitDuration":60}');
+      expect(isRTEConflictError(error)).toBe(false);
+    });
+  });
+
+  describe('parseRTEConflictError', () => {
+    it('should parse RTE room error with user-friendly message', () => {
+      const error = new Error('Attempt updateNote where RTE room has already been open for note: abc-123');
+      expect(parseRTEConflictError(error)).toBe(
+        'Cannot update note: it is currently open in another Evernote client. Please close the note and try again.'
+      );
+    });
+
+    it('should return null for non-RTE errors', () => {
+      const error = new Error('Network error');
+      expect(parseRTEConflictError(error)).toBeNull();
+    });
+
+    it('should return null for rate limit errors', () => {
+      const error = new Error('{"errorCode":19,"rateLimitDuration":60}');
+      expect(parseRTEConflictError(error)).toBeNull();
+    });
+  });
+
+  describe('parseEvernoteError', () => {
+    it('should parse RTE conflict errors first', () => {
+      const error = new Error('Attempt updateNote where RTE room has already been open for note: abc-123');
+      expect(parseEvernoteError(error)).toBe(
+        'Cannot update note: it is currently open in another Evernote client. Please close the note and try again.'
+      );
+    });
+
+    it('should parse rate limit errors', () => {
+      const error = new Error('{"errorCode":19,"rateLimitDuration":60}');
+      expect(parseEvernoteError(error)).toBe('Rate limit exceeded. Please wait 1 minute before trying again.');
+    });
+
+    it('should return null for unknown errors', () => {
+      const error = new Error('Some other error');
+      expect(parseEvernoteError(error)).toBeNull();
+    });
+
+    it('should prioritize RTE errors over rate limit format', () => {
+      // Edge case: error message contains both RTE and rate limit info
+      const error = new Error('Attempt updateNote where RTE room has already been open: {"errorCode":19,"rateLimitDuration":60}');
+      const result = parseEvernoteError(error);
+      expect(result).toContain('currently open in another Evernote client');
     });
   });
 

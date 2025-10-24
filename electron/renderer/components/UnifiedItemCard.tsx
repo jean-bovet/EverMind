@@ -1,5 +1,6 @@
 import type { UnifiedItem } from '../../utils/unified-item-helpers.js';
 import { formatShortDate } from '../../utils/format-helpers.js';
+import { parseEvernoteError } from '../../utils/rate-limit-helpers.js';
 import { FileText, Loader, CheckCircle2, XCircle, RotateCw, Check } from 'lucide-react';
 
 interface UnifiedItemCardProps {
@@ -41,6 +42,9 @@ const UnifiedItemCard: React.FC<UnifiedItemCardProps> = ({
 
   // Error state
   if (item.status === 'error') {
+    // Format error for display (user-friendly if Evernote error)
+    const displayError = item.error ? (parseEvernoteError(item.error) || item.error) : undefined;
+
     return (
       <div className="unified-item-card error">
         <div className="item-header">
@@ -50,8 +54,8 @@ const UnifiedItemCard: React.FC<UnifiedItemCardProps> = ({
           <span className="item-title">{item.title}</span>
         </div>
 
-        {item.error && (
-          <div className="item-error-message">{item.error}</div>
+        {displayError && (
+          <div className="item-error-message">{displayError}</div>
         )}
 
         {item.type === 'file' && onRetry && (

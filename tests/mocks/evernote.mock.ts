@@ -145,6 +145,15 @@ export function mockRateLimitError() {
   });
 }
 
+// Helper to setup RTE (Real-Time Editing) conflict error
+export function mockRTEConflictError() {
+  mockUpdateNote.mockRejectedValueOnce({
+    errorCode: 19,
+    message: 'Attempt updateNote where RTE room has already been open for note: test-guid',
+    rateLimitDuration: 60,
+  });
+}
+
 // Helper to setup authentication error
 export function mockAuthError() {
   mockCreateNote.mockRejectedValueOnce(new Error('Not authenticated'));

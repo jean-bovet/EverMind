@@ -21,6 +21,7 @@ import {
   mockGetNote,
   mockUpdateNote,
   mockRateLimitError,
+  mockRTEConflictError,
   mockAuthError,
 } from '../mocks/evernote.mock.js';
 
@@ -102,6 +103,18 @@ describe('evernote-client', () => {
       await expect(
         createNote(testFilePath, 'Title', 'Desc', [])
       ).rejects.toThrow(/Rate limit/);
+    });
+
+    it('should preserve original RTE conflict error message', async () => {
+      mockCreateNote.mockRejectedValueOnce({
+        errorCode: 19,
+        message: 'Attempt createNote where RTE room has already been open for note: test-guid',
+        rateLimitDuration: 60,
+      });
+
+      await expect(
+        createNote(testFilePath, 'Title', 'Desc', [])
+      ).rejects.toThrow(/RTE room has already been open/);
     });
 
     it('should handle authentication error', async () => {
@@ -506,6 +519,13 @@ describe('evernote-client', () => {
 
         await expect(updateNote('n1', '<en-note>New</en-note>'))
           .rejects.toThrow(/Rate limit/);
+      });
+
+      it('should preserve original RTE conflict error message', async () => {
+        mockRTEConflictError();
+
+        await expect(updateNote('n1', '<en-note>New</en-note>'))
+          .rejects.toThrow(/RTE room has already been open/);
       });
 
       it('should handle version conflicts', async () => {

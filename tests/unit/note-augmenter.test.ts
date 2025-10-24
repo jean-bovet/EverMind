@@ -19,6 +19,12 @@ vi.mock('../../electron/ai/ai-analyzer.js', () => ({
   analyzeContent: vi.fn()
 }));
 
+vi.mock('../../electron/database/queue-db.js', () => ({
+  getCachedNoteAnalysis: vi.fn().mockReturnValue(null), // No cache by default
+  saveNoteAnalysisCache: vi.fn(),
+  clearNoteAnalysisCache: vi.fn()
+}));
+
 describe('note-augmenter', () => {
 
   describe('buildAugmentedContent', () => {

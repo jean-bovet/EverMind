@@ -90,23 +90,47 @@ export async function createNote(
     // Better error handling for Evernote API errors
     console.error('Evernote API Error:', error);
 
-    // Check if it's a rate limit error (errorCode 19)
+    // Check for error code 19 (can be either RTE conflict or rate limit)
     if (
       typeof error === 'object' &&
       error !== null &&
-      ('errorCode' in error && error.errorCode === 19 || 'identifier' in error && error.identifier === 'EDAMUserException')
+      'errorCode' in error &&
+      error.errorCode === 19
     ) {
+      const errorMessage = 'message' in error && typeof error.message === 'string'
+        ? error.message
+        : '';
+
+      // Check if it's an RTE room conflict - preserve original error for detection
+      if (errorMessage.includes('RTE room') || errorMessage.includes('already been open')) {
+        throw error;  // Re-throw original error to preserve error details
+      }
+
+      // Otherwise, it's a rate limit error
       const rateLimitDuration = 'rateLimitDuration' in error && typeof error.rateLimitDuration === 'number'
         ? error.rateLimitDuration
         : 60;
 
       const errorDetails = {
-        errorCode: 'errorCode' in error ? error.errorCode : 19,
+        errorCode: 19,
         rateLimitDuration: rateLimitDuration,
         parameter: 'parameter' in error ? error.parameter : undefined,
         message: `Rate limit exceeded. Retry after ${rateLimitDuration} seconds.`,
       };
       throw new Error(`Failed to create Evernote note: ${JSON.stringify(errorDetails)}`);
+    }
+
+    // Check for other EDAMUserException errors
+    if (
+      typeof error === 'object' &&
+      error !== null &&
+      'identifier' in error &&
+      error.identifier === 'EDAMUserException'
+    ) {
+      const errorMessage = 'message' in error && typeof error.message === 'string'
+        ? error.message
+        : 'Unknown EDAMUserException';
+      throw new Error(`Failed to create Evernote note: ${errorMessage}`);
     }
 
     const errorMessage = error instanceof Error
@@ -410,13 +434,23 @@ export async function updateNote(
   } catch (error: unknown) {
     console.error('  ✗ Failed to update note:', error);
 
-    // Check for rate limit error
+    // Check for error code 19 (can be either RTE conflict or rate limit)
     if (
       typeof error === 'object' &&
       error !== null &&
       'errorCode' in error &&
       error.errorCode === 19
     ) {
+      const errorMessage = 'message' in error && typeof error.message === 'string'
+        ? error.message
+        : '';
+
+      // Check if it's an RTE room conflict - preserve original error for detection
+      if (errorMessage.includes('RTE room') || errorMessage.includes('already been open')) {
+        throw error;  // Re-throw original error to preserve error details
+      }
+
+      // Otherwise, it's a rate limit error
       const rateLimitDuration = 'rateLimitDuration' in error && typeof error.rateLimitDuration === 'number'
         ? error.rateLimitDuration
         : 60;

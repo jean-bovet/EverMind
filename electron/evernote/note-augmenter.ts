@@ -3,9 +3,16 @@ import { getNoteWithContent, updateNote } from './client.js';
 import { enmlToPlainText, appendToEnml, createAIAnalysisEnml } from './enml-parser.js';
 import { analyzeContent } from '../ai/ai-analyzer.js';
 import { extractFileContent } from '../processing/file-extractor.js';
+import {
+  getCachedNoteAnalysis,
+  saveNoteAnalysisCache,
+  clearNoteAnalysisCache
+} from '../database/queue-db.js';
 import { promises as fs } from 'fs';
 import path from 'path';
 import os from 'os';
+import crypto from 'crypto';
+import { parseEvernoteError } from '../utils/rate-limit-helpers.js';
 
 export interface AugmentationResult {
   success: boolean;
@@ -106,19 +113,48 @@ export async function augmentNote(
       }
     }
 
+    // Step 2.5: Calculate content hash for caching
+    const contentHash = crypto.createHash('md5').update(extractedText).digest('hex');
+
     // Step 3: AI Analysis (30-70%)
     sendProgress({ status: 'analyzing', progress: 30, message: 'Analyzing content with AI...' });
 
-    const aiResult = await analyzeContent(
-      extractedText,
-      note.title || 'Untitled',
-      'note',
-      [], // Don't restrict tags for note augmentation
-      false, // debug
-      null // sourceFilePath
-    );
+    // Check cache first
+    let aiResult;
+    const cached = getCachedNoteAnalysis(noteGuid, contentHash);
 
-    sendProgress({ status: 'analyzing', progress: 70, message: 'AI analysis complete' });
+    if (cached && Date.now() < cached.expires_at) {
+      // Use cached analysis
+      const cacheAge = Date.now() - new Date(cached.analyzed_at).getTime();
+      const minutesAgo = Math.floor(cacheAge / 60000);
+      console.log(`  ✓ Using cached AI analysis (from ${minutesAgo} minute(s) ago)`);
+
+      aiResult = {
+        title: cached.ai_title,
+        description: cached.ai_description,
+        tags: JSON.parse(cached.ai_tags)
+      };
+
+      sendProgress({ status: 'analyzing', progress: 70, message: 'Using cached analysis' });
+    } else {
+      // Run fresh AI analysis
+      console.log('  Running fresh AI analysis...');
+
+      aiResult = await analyzeContent(
+        extractedText,
+        note.title || 'Untitled',
+        'note',
+        [], // Don't restrict tags for note augmentation
+        false, // debug
+        null // sourceFilePath
+      );
+
+      // Save to cache immediately after analysis
+      saveNoteAnalysisCache(noteGuid, aiResult, contentHash);
+      console.log('  ✓ Saved AI analysis to cache');
+
+      sendProgress({ status: 'analyzing', progress: 70, message: 'AI analysis complete' });
+    }
 
     // Step 4: Build Augmented Content (80%)
     sendProgress({ status: 'building', progress: 80, message: 'Building augmented note...' });
@@ -145,6 +181,11 @@ export async function augmentNote(
 
     // Step 6: Complete (100%)
     const noteUrl = `${endpoint}/Home.action#n=${updatedNote.guid}`;
+
+    // Clear cache after successful upload
+    clearNoteAnalysisCache(noteGuid);
+    console.log('  ✓ Cleared analysis cache');
+
     console.log(`  ✓ Note augmented successfully!`);
     console.log(`  Note URL: ${noteUrl}\n`);
 
@@ -167,7 +208,9 @@ export async function augmentNote(
       ? String(error.errorMessage)
       : JSON.stringify(error) || 'Unknown error';
 
-    console.error(`  ✗ Augmentation failed: ${errorMessage}\n`);
+    // Format error for console display (user-friendly if Evernote error)
+    const formattedError = parseEvernoteError(error) || errorMessage;
+    console.error(`  ✗ Augmentation failed: ${formattedError}\n`);
 
     sendProgress({
       status: 'error',

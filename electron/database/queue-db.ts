@@ -5,6 +5,11 @@
 
 import Database from 'better-sqlite3';
 
+// Cache expiry: 24 hours (configurable via env)
+export const NOTE_CACHE_EXPIRY_MS = process.env.NOTE_CACHE_HOURS
+  ? parseInt(process.env.NOTE_CACHE_HOURS) * 60 * 60 * 1000
+  : 24 * 60 * 60 * 1000;
+
 // Inline SQL schema (avoids file loading issues in bundled electron app)
 const schemaSQL = `-- Queue database schema for Evernote AI Importer
 -- Stores file processing queue and metadata
@@ -23,13 +28,29 @@ CREATE TABLE IF NOT EXISTS files (
   retry_after INTEGER,  -- Unix timestamp in milliseconds
   uploaded_at TEXT,
   note_url TEXT,
-  note_guid TEXT  -- Evernote note GUID
+  note_guid TEXT,  -- Evernote note GUID
+  content_hash TEXT  -- MD5 hash of extracted content for change detection
 );
 
 -- Indexes for common queries
 CREATE INDEX IF NOT EXISTS idx_status ON files(status);
 CREATE INDEX IF NOT EXISTS idx_file_path ON files(file_path);
 CREATE INDEX IF NOT EXISTS idx_retry_after ON files(retry_after);
+
+-- Note augmentation cache
+-- Stores AI analysis results for note augmentation with expiry
+CREATE TABLE IF NOT EXISTS note_augmentation_cache (
+  note_guid TEXT PRIMARY KEY,
+  ai_title TEXT NOT NULL,
+  ai_description TEXT NOT NULL,
+  ai_tags TEXT NOT NULL,  -- JSON array stored as string
+  analyzed_at TEXT NOT NULL,  -- ISO timestamp
+  content_hash TEXT NOT NULL,  -- MD5 hash of extracted content
+  expires_at INTEGER NOT NULL  -- Unix timestamp in milliseconds (24 hours)
+);
+
+-- Index for cache cleanup queries
+CREATE INDEX IF NOT EXISTS idx_note_cache_expires ON note_augmentation_cache(expires_at);
 `;
 
 export type FileStatus =
@@ -58,6 +79,17 @@ export interface FileRecord {
   uploaded_at: string | null;
   note_url: string | null;
   note_guid: string | null;
+  content_hash: string | null;  // MD5 hash of extracted content
+}
+
+export interface NoteCacheRecord {
+  note_guid: string;
+  ai_title: string;
+  ai_description: string;
+  ai_tags: string;  // JSON array as string
+  analyzed_at: string;
+  content_hash: string;
+  expires_at: number;  // Unix timestamp in milliseconds
 }
 
 export interface FileData {
@@ -104,13 +136,41 @@ export function initDatabase(dbPath: string, force: boolean = false): Database.D
  * Run database migrations to handle schema changes
  */
 function runMigrations(database: Database.Database): void {
-  // Check if note_guid column exists
   const tableInfo = database.pragma('table_info(files)') as Array<{ name: string }>;
-  const hasNoteGuid = tableInfo.some(col => col.name === 'note_guid');
 
+  // Migration 1: Add note_guid column
+  const hasNoteGuid = tableInfo.some(col => col.name === 'note_guid');
   if (!hasNoteGuid) {
     console.log('  Running migration: Adding note_guid column...');
     database.exec('ALTER TABLE files ADD COLUMN note_guid TEXT');
+    console.log('  ✓ Migration complete');
+  }
+
+  // Migration 2: Add content_hash column
+  const hasContentHash = tableInfo.some(col => col.name === 'content_hash');
+  if (!hasContentHash) {
+    console.log('  Running migration: Adding content_hash column...');
+    database.exec('ALTER TABLE files ADD COLUMN content_hash TEXT');
+    console.log('  ✓ Migration complete');
+  }
+
+  // Migration 3: Add note_augmentation_cache table
+  const tables = database.pragma('table_list') as Array<{ name: string }>;
+  const hasCacheTable = tables.some(t => t.name === 'note_augmentation_cache');
+  if (!hasCacheTable) {
+    console.log('  Running migration: Adding note_augmentation_cache table...');
+    database.exec(`
+      CREATE TABLE IF NOT EXISTS note_augmentation_cache (
+        note_guid TEXT PRIMARY KEY,
+        ai_title TEXT NOT NULL,
+        ai_description TEXT NOT NULL,
+        ai_tags TEXT NOT NULL,
+        analyzed_at TEXT NOT NULL,
+        content_hash TEXT NOT NULL,
+        expires_at INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_note_cache_expires ON note_augmentation_cache(expires_at);
+    `);
     console.log('  ✓ Migration complete');
   }
 }
@@ -189,7 +249,8 @@ export function updateFileAnalysis(
   filePath: string,
   title: string,
   description: string,
-  tags: string[]
+  tags: string[],
+  contentHash?: string
 ): void {
   const database = getDatabase();
 
@@ -197,11 +258,12 @@ export function updateFileAnalysis(
     UPDATE files
     SET title = ?,
         description = ?,
-        tags = ?
+        tags = ?,
+        content_hash = ?
     WHERE file_path = ?
   `);
 
-  stmt.run(title, description, JSON.stringify(tags), filePath);
+  stmt.run(title, description, JSON.stringify(tags), contentHash || null, filePath);
 }
 
 /**
@@ -450,4 +512,82 @@ export function getCompletedFilesWithGuids(): FileRecord[] {
   `);
 
   return stmt.all() as FileRecord[];
+}
+
+/**
+ * Save AI analysis to note augmentation cache
+ * Cache expires after 24 hours (or configured duration)
+ */
+export function saveNoteAnalysisCache(
+  noteGuid: string,
+  aiResult: { title: string; description: string; tags: string[] },
+  contentHash: string
+): void {
+  const database = getDatabase();
+  const expiresAt = Date.now() + NOTE_CACHE_EXPIRY_MS;
+
+  const stmt = database.prepare(`
+    INSERT OR REPLACE INTO note_augmentation_cache
+      (note_guid, ai_title, ai_description, ai_tags, analyzed_at, content_hash, expires_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `);
+
+  stmt.run(
+    noteGuid,
+    aiResult.title,
+    aiResult.description,
+    JSON.stringify(aiResult.tags),
+    new Date().toISOString(),
+    contentHash,
+    expiresAt
+  );
+}
+
+/**
+ * Get cached AI analysis for a note if valid
+ * Returns null if cache miss, content changed, or expired
+ */
+export function getCachedNoteAnalysis(
+  noteGuid: string,
+  contentHash: string
+): NoteCacheRecord | null {
+  const database = getDatabase();
+
+  const stmt = database.prepare(`
+    SELECT * FROM note_augmentation_cache
+    WHERE note_guid = ? AND content_hash = ? AND expires_at > ?
+  `);
+
+  return stmt.get(noteGuid, contentHash, Date.now()) as NoteCacheRecord | null;
+}
+
+/**
+ * Clear specific note's cache entry
+ */
+export function clearNoteAnalysisCache(noteGuid: string): void {
+  const database = getDatabase();
+
+  const stmt = database.prepare(`
+    DELETE FROM note_augmentation_cache
+    WHERE note_guid = ?
+  `);
+
+  stmt.run(noteGuid);
+}
+
+/**
+ * Clear all expired note cache entries
+ * Returns number of entries cleared
+ */
+export function clearExpiredNoteCache(): number {
+  const database = getDatabase();
+  const now = Date.now();
+
+  const stmt = database.prepare(`
+    DELETE FROM note_augmentation_cache
+    WHERE expires_at < ?
+  `);
+
+  const result = stmt.run(now);
+  return result.changes;
 }

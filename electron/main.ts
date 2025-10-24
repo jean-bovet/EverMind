@@ -14,7 +14,7 @@ import {
 import { augmentNote } from './evernote/note-augmenter.js';
 import { UploadWorker } from './processing/upload-worker.js';
 import { initDatabase, closeDatabase, deleteAllFiles, getAllFiles } from './database/queue-db.js';
-import { verifyAndRemoveUploadedNotes } from './database/cleanup-service.js';
+import { verifyAndRemoveUploadedNotes, cleanupAllExpiredCache } from './database/cleanup-service.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -98,6 +98,13 @@ app.whenReady().then(async () => {
     await verifyAndRemoveUploadedNotes();
   } catch (error) {
     console.error('Error during startup cleanup:', error);
+  }
+
+  // Cleanup expired cache entries
+  try {
+    cleanupAllExpiredCache();
+  } catch (error) {
+    console.error('Error during cache cleanup:', error);
   }
 
   createWindow();

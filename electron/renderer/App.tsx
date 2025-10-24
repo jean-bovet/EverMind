@@ -23,7 +23,7 @@ import {
 } from '../utils/unified-item-helpers.js';
 import { transformNoteMetadata } from '../utils/note-helpers.js';
 import type { NoteMetadata } from '../utils/note-helpers.js';
-import { parseRateLimitError } from '../utils/rate-limit-helpers.js';
+import { parseEvernoteError } from '../utils/rate-limit-helpers.js';
 
 // Configuration for concurrent processing
 const CONCURRENT_STAGE1 = 3; // Max concurrent analyses
@@ -94,9 +94,9 @@ function App() {
 
         return transformNoteMetadata(notesMetadata);
       } catch (err) {
-        const rateLimitError = parseRateLimitError(err);
-        if (rateLimitError) {
-          setRateLimitWarning(rateLimitError);
+        const evernoteError = parseEvernoteError(err);
+        if (evernoteError) {
+          setRateLimitWarning(evernoteError);
         }
         throw err;
       }
@@ -197,11 +197,11 @@ function App() {
         });
       }
 
-      // Check for rate limit errors
+      // Check for Evernote errors (rate limit or RTE conflict)
       if (data.status === 'error' && data.error) {
-        const rateLimitError = parseRateLimitError(data.error);
-        if (rateLimitError) {
-          setRateLimitWarning(rateLimitError);
+        const evernoteError = parseEvernoteError(data.error);
+        if (evernoteError) {
+          setRateLimitWarning(evernoteError);
         }
       }
 
@@ -298,9 +298,9 @@ function App() {
   const loading = notebooksLoading || notesLoading;
   const error = notebooksError || notesError;
   const errorMessage = error ? (() => {
-    const rateLimitError = parseRateLimitError(error);
-    if (rateLimitError) {
-      return rateLimitError;
+    const evernoteError = parseEvernoteError(error);
+    if (evernoteError) {
+      return evernoteError;
     }
     return error instanceof Error ? error.message : String(error);
   })() : null;

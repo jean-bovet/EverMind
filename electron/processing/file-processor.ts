@@ -1,6 +1,7 @@
 import { BrowserWindow } from 'electron';
 import path from 'path';
 import { promises as fs } from 'fs';
+import crypto from 'crypto';
 
 // Import existing CLI modules
 import { extractFileContent } from './file-extractor.js';
@@ -97,6 +98,9 @@ export async function analyzeFile(
     // Extract file content
     const { text, fileType, fileName } = await extractFileContent(absolutePath);
 
+    // Calculate content hash for caching
+    const contentHash = crypto.createHash('md5').update(text).digest('hex');
+
     // Send progress update: Analyzing with AI
     mainWindow?.webContents.send('file-progress', {
       filePath: absolutePath,
@@ -131,7 +135,7 @@ export async function analyzeFile(
       title: analysis.title,
       description: analysis.description,
       tags: validTags
-    });
+    }, contentHash);
 
     // Send progress: Ready for upload
     mainWindow?.webContents.send('file-progress', {
@@ -313,6 +317,9 @@ export async function processFile(
     // Extract file content
     const { text, fileType, fileName } = await extractFileContent(absolutePath);
 
+    // Calculate content hash for caching
+    const contentHash = crypto.createHash('md5').update(text).digest('hex');
+
     // Send progress update: Analyzing with AI
     mainWindow?.webContents.send('file-progress', {
       filePath: absolutePath,
@@ -347,7 +354,7 @@ export async function processFile(
       title: analysis.title,
       description: analysis.description,
       tags: validTags
-    });
+    }, contentHash);
 
     // Attempt upload
     const uploadResult = await uploadNoteFromJSON(jsonPath);

@@ -71,16 +71,18 @@ export async function hasExistingJSON(filePath: string): Promise<boolean> {
  * Save note data to database
  * @param filePath - Path to the original file
  * @param noteData - Note data to save
+ * @param contentHash - Optional MD5 hash of content for caching
  */
 export async function saveNoteToJSON(
   filePath: string,
-  noteData: { title: string; description: string; tags: string[] }
+  noteData: { title: string; description: string; tags: string[] },
+  contentHash?: string
 ): Promise<string> {
   // Add file to database if not exists
   addFile(filePath);
 
-  // Update with analysis results
-  updateFileAnalysis(filePath, noteData.title, noteData.description, noteData.tags);
+  // Update with analysis results (including content hash)
+  updateFileAnalysis(filePath, noteData.title, noteData.description, noteData.tags, contentHash);
 
   // Return file path (instead of JSON path) for compatibility
   return filePath;

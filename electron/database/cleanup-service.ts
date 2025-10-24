@@ -1,10 +1,11 @@
 /**
  * Cleanup Service
  * Verifies uploaded notes exist in Evernote and removes them from local database
+ * Also handles cleanup of expired cache entries
  */
 
 import { checkNoteExists } from '../evernote/client.js';
-import { getCompletedFilesWithGuids, deleteFile } from './queue-db.js';
+import { getCompletedFilesWithGuids, deleteFile, clearExpiredNoteCache } from './queue-db.js';
 
 export interface CleanupResult {
   checked: number;
@@ -91,4 +92,30 @@ export async function verifyAndRemoveUploadedNotes(
   console.log(`  Failed: ${result.failed}`);
 
   return result;
+}
+
+/**
+ * Clean up expired note augmentation cache entries
+ * Cache entries expire after 24 hours (or configured duration)
+ * @returns Number of cache entries removed
+ */
+export function cleanupExpiredNoteCache(): number {
+  console.log('Cleaning up expired note cache...');
+  const removed = clearExpiredNoteCache();
+  if (removed > 0) {
+    console.log(`  ✓ Cleared ${removed} expired cache entries`);
+  } else {
+    console.log('  No expired cache entries found');
+  }
+  return removed;
+}
+
+/**
+ * Run all cleanup operations
+ * - Clear expired note augmentation cache
+ * Can be extended to include other cleanup tasks
+ */
+export function cleanupAllExpiredCache(): { notesCleaned: number } {
+  const notesCleaned = cleanupExpiredNoteCache();
+  return { notesCleaned };
 }

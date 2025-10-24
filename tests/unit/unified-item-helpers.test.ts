@@ -137,6 +137,7 @@ describe('unified-item-helpers', () => {
         status: 'analyzing',
         progress: 60,
         message: 'Analyzing content...',
+        created: Date.now(),
       };
 
       const item = fromFileItem(fileItem);
@@ -145,6 +146,23 @@ describe('unified-item-helpers', () => {
       expect(item.status).toBe('processing');
       expect(item.progress).toBe(60);
       expect(item.statusMessage).toBe('Analyzing content...');
+    });
+
+    it('should propagate error field from FileItem to UnifiedItem', () => {
+      const fileItem: FileItem = {
+        path: '/test/locked-note.pdf',
+        name: 'locked-note.pdf',
+        status: 'error',
+        progress: 0,
+        created: Date.now(),
+        error: 'Cannot upload note: it is currently open for editing in another Evernote client. Please close the note in all Evernote apps and try again.',
+      };
+
+      const item = fromFileItem(fileItem);
+
+      expect(item.type).toBe('file');
+      expect(item.status).toBe('error');
+      expect(item.error).toBe('Cannot upload note: it is currently open for editing in another Evernote client. Please close the note in all Evernote apps and try again.');
     });
   });
 
