@@ -139,7 +139,10 @@ This means newly dropped files and files ready to upload immediately appear at t
 
 The title bar provides quick access to common actions:
 
-**Notebook Selector** - Choose which notebook to view notes from
+**Searchable Notebook Selector** - Choose which notebook to view notes from
+- Type to filter notebooks by name
+- Keyboard navigation support (arrow keys, enter, escape)
+- Shows selected notebook with checkmark
 
 **Refresh Button** - Manually refresh the notes list
 - Icon spins during refresh

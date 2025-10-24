@@ -134,7 +134,7 @@ interface NotePreview {
 ```
 
 **Features:**
-- Notebook selector dropdown
+- Searchable notebook selector dropdown with keyboard navigation
 - Scrollable list of note cards
 - Each card shows preview, metadata, augmentation status
 - Individual "Augment with AI" button per note

@@ -1241,3 +1241,167 @@ body {
   font-size: 14px;
   color: #888;
 }
+
+/* Searchable Notebook Selector */
+.searchable-notebook-selector {
+  position: relative;
+}
+
+.notebook-selector-button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 10px;
+  background: #2a2a2a;
+  color: #fff;
+  border: 1px solid #444;
+  border-radius: 5px;
+  font-size: 13px;
+  min-width: 200px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: inherit;
+}
+
+.notebook-selector-button:hover:not(.disabled) {
+  background: #333;
+  border-color: #4a9eff;
+}
+
+.notebook-selector-button:focus {
+  outline: none;
+  border-color: #4a9eff;
+}
+
+.notebook-selector-button.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.notebook-selector-text {
+  flex: 1;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.notebook-selector-icon {
+  flex-shrink: 0;
+  color: #888;
+}
+
+.notebook-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: #2a2a2a;
+  border: 1px solid #444;
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  z-index: 1000;
+  overflow: hidden;
+}
+
+.notebook-search-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-bottom: 1px solid #3a3a3a;
+  background: #252525;
+}
+
+.notebook-search-icon {
+  flex-shrink: 0;
+  color: #888;
+}
+
+.notebook-search-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: #fff;
+  font-size: 13px;
+  outline: none;
+  font-family: inherit;
+}
+
+.notebook-search-input::placeholder {
+  color: #666;
+}
+
+.notebook-list {
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.notebook-list::-webkit-scrollbar {
+  width: 8px;
+}
+
+.notebook-list::-webkit-scrollbar-track {
+  background: #1a1a1a;
+}
+
+.notebook-list::-webkit-scrollbar-thumb {
+  background: #444;
+  border-radius: 4px;
+}
+
+.notebook-list::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
+
+.notebook-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+  font-size: 13px;
+  color: #e0e0e0;
+}
+
+.notebook-item:hover,
+.notebook-item.highlighted {
+  background: #333;
+}
+
+.notebook-item.selected {
+  background: rgba(74, 158, 255, 0.15);
+  color: #4a9eff;
+}
+
+.notebook-item-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.notebook-item-badge {
+  color: #888;
+  font-size: 11px;
+}
+
+.notebook-item.selected .notebook-item-badge {
+  color: #6bb6ff;
+}
+
+.notebook-item-check {
+  flex-shrink: 0;
+  color: #4a9eff;
+  margin-left: 8px;
+}
+
+.notebook-item-empty {
+  padding: 12px;
+  text-align: center;
+  color: #888;
+  font-size: 13px;
+  font-style: italic;
+}

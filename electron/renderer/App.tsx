@@ -5,6 +5,7 @@ import UnifiedList from './components/UnifiedList';
 import Settings from './components/Settings';
 import WelcomeWizard from './components/WelcomeWizard';
 import StatusBar from './components/StatusBar';
+import { SearchableNotebookSelector } from './components/SearchableNotebookSelector';
 import { ProcessingScheduler } from '../utils/processing-scheduler.js';
 import {
   updateFileFromIPCMessage,
@@ -342,24 +343,12 @@ function App() {
       <div className="title-bar">
         <div className="title-bar-controls">
           <label htmlFor="notebook-select" className="notebook-label">Notebook:</label>
-          <select
-            id="notebook-select"
-            className="notebook-select"
-            value={selectedNotebook || ''}
-            onChange={(e) => handleNotebookChange(e.target.value)}
+          <SearchableNotebookSelector
+            notebooks={notebooks}
+            selectedNotebook={selectedNotebook}
+            onNotebookChange={handleNotebookChange}
             disabled={notebooks.length === 0}
-          >
-            {notebooks.length === 0 ? (
-              <option value="">Loading...</option>
-            ) : (
-              notebooks.map((notebook) => (
-                <option key={notebook.guid} value={notebook.guid}>
-                  {notebook.name}
-                  {notebook.defaultNotebook ? ' (Default)' : ''}
-                </option>
-              ))
-            )}
-          </select>
+          />
           <button
             className="refresh-notes-button"
             onClick={() => refetchNotes()}

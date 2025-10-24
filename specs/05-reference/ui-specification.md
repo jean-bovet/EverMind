@@ -26,10 +26,13 @@ The app uses **Lucide React** for all icons throughout the interface.
 - `RotateCw` - Retry actions and refresh button
 - `RefreshCw` - Manual refresh notes list
 - `Trash2` - Clear completed files
-- `Check` - Checkmarks and confirmation
+- `Check` - Checkmarks and confirmation (also used in searchable notebook selector)
 - `AlertTriangle` - Warnings
 - `Settings` - Settings button
 - `FolderOpen` - Drop zones and file operations
+- `Search` - Search input indicator in notebook selector
+- `ChevronDown` - Dropdown closed state
+- `ChevronUp` - Dropdown open state
 
 All icons are React components imported from the `lucide-react` package and rendered as inline SVG elements.
 
@@ -341,15 +344,32 @@ Provides window drag functionality and houses the notebook selector and action b
 - Serves as the draggable area for moving the window
 
 ### Visual Design
+
+#### Closed State
 ```
 ┌────────────────────────────────────────────────────────────────┐
-│          [Notebook: ... ▾] [↻] [Clear 3]                      │
+│          [Notebook: Personal Notes ▾] [↻] [Clear 3]           │
+└────────────────────────────────────────────────────────────────┘
+```
+
+#### Open State (Searchable Dropdown)
+```
+┌────────────────────────────────────────────────────────────────┐
+│          [Notebook: Personal Notes ▲] [↻] [Clear 3]           │
+│                   ┌──────────────────────┐                     │
+│                   │ 🔍 Search notebooks..│                     │
+│                   ├──────────────────────┤                     │
+│                   │ Personal Notes    ✓  │ ← Selected         │
+│                   │ Work Notes           │                     │
+│                   │ Ideas                │                     │
+│                   │ Recipes (Default)    │                     │
+│                   └──────────────────────┘                     │
 └────────────────────────────────────────────────────────────────┘
 ```
 
 **Layout Components:**
 - **Notebook Label**: "Notebook:" text label
-- **Notebook Selector**: Dropdown showing current notebook with available options
+- **Searchable Notebook Selector**: Custom dropdown with search functionality
 - **Refresh Button**: Manual refresh icon (spins while loading)
 - **Clear Completed Button**: Removes completed files from list (only visible when completed files exist)
 
@@ -360,7 +380,9 @@ Provides window drag functionality and houses the notebook selector and action b
 - Controls positioned on the right side in a horizontal group
 - Controls are non-draggable (allow interaction), rest of title bar is draggable
 
-**Notebook Selector Styling:**
+**Searchable Notebook Selector Styling:**
+
+*Button (Closed State):*
 - Padding: 6px 10px
 - Background: Slightly lighter grey (#2a2a2a)
 - Border: 1px solid #444
@@ -368,6 +390,31 @@ Provides window drag functionality and houses the notebook selector and action b
 - Font size: 13px
 - Minimum width: 200px
 - Focus state: Blue border (#4a9eff)
+- Chevron icon: Down arrow (▾) when closed, up arrow (▲) when open
+
+*Dropdown Panel:*
+- Background: #2a2a2a
+- Border: 1px solid #444
+- Border radius: 6px
+- Box shadow: 0 4px 12px rgba(0, 0, 0, 0.4)
+- Max height: 300px (scrollable)
+- Z-index: 1000 (appears above other elements)
+
+*Search Input:*
+- Background: #252525
+- Border: None (bottom border separator only)
+- Padding: 8px 10px
+- Font size: 13px
+- Placeholder: "Search notebooks..."
+- Search icon (🔍) displayed on the left
+
+*Notebook Items:*
+- Padding: 8px 12px
+- Font size: 13px
+- Hover state: Background #333
+- Selected state: Background rgba(74, 158, 255, 0.15), text color #4a9eff
+- Check icon (✓) shown for selected notebook
+- "(Default)" badge shown in grey for default notebook
 
 **Refresh Button Styling:**
 - Padding: 6px 8px (icon only)
@@ -386,11 +433,41 @@ Provides window drag functionality and houses the notebook selector and action b
 - Displays icon + count (e.g., "Clear 3")
 - Hover: Blue border (#4a9eff)
 
-### Behavior
+### Searchable Notebook Selector Behavior
+
+#### Opening/Closing
+- Click the selector button to toggle dropdown open/closed
+- Click outside the dropdown to close
+- Press ESC key to close
+- Chevron icon rotates to indicate state
+
+#### Search Functionality
+- Type in the search field to filter notebooks by name
+- Search is case-insensitive
+- Results update in real-time as you type
+- Shows "No notebooks found" message when filter returns no results
+- Search input automatically focused when dropdown opens
+
+#### Keyboard Navigation
+- **Arrow Down**: Move highlight to next notebook
+- **Arrow Up**: Move highlight to previous notebook
+- **Enter**: Select the highlighted notebook and close dropdown
+- **Escape**: Close dropdown without selecting
+- Highlighted item automatically scrolls into view
+
+#### Selection
+- Click a notebook to select it
+- Selected notebook shown with blue background and checkmark
+- Dropdown closes after selection
+- Notes list updates immediately to show notes from selected notebook
+- Search text clears when dropdown closes
+
+#### Loading State
+- Shows "Loading..." when notebooks are being fetched
+- Selector is disabled (greyed out) until notebooks load
+
+### General Title Bar Behavior
 - Title bar area allows window dragging (macOS/Windows behavior)
-- Notebook selector shows loading state when notebooks are being fetched
-- Dropdown displays all notebooks with "(Default)" label for the default notebook
-- Selecting a notebook updates the notes list immediately
 - Refresh button spins during loading and is disabled while fetching
 - Clear completed button only appears when completed files exist (count > 0)
 - Clicking clear completed removes all completed files from database and refreshes list
