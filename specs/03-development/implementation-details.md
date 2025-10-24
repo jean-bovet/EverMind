@@ -1094,6 +1094,221 @@ async function waitForPendingUploads(directory, maxWaitTime = 600000) {
 
 ---
 
+## Code Architecture & Pure Functions
+
+### Pure Helper Modules
+
+The codebase uses pure function modules for better testability and maintainability. Pure functions have no side effects, making them easy to test and reuse.
+
+#### ENML Helpers (`electron/evernote/enml-helpers.ts`)
+
+**Purpose:** Pure utility functions for Evernote Markup Language (ENML) generation
+
+**Functions:**
+```typescript
+// Generate ENML content with description and file attachment
+createNoteContent(description: string, fileName: string, fileHash: string): string
+
+// Get MIME type from file extension
+getMimeType(fileName: string): string
+
+// Escape XML special characters for ENML
+escapeXml(text: string): string
+
+// Create MD5 hash for file data (Evernote requirement)
+createMD5Hash(data: Buffer): string
+
+// Create Evernote resource object for attachments
+createResource(fileData: Buffer, fileName: string, fileHash: string): Resource
+```
+
+**Benefits:**
+- **100% test coverage** - All functions thoroughly tested
+- **No side effects** - Pure input/output transformations
+- **Reusable** - Can be used across different modules
+- **Type-safe** - Full TypeScript type definitions
+
+#### Progress Helpers (`electron/processing/progress-helpers.ts`)
+
+**Purpose:** Pure functions for file processing progress calculation and formatting
+
+**Functions:**
+```typescript
+// Get progress percentage for a processing stage (0-100)
+getStageProgress(stage: ProcessingStage): number
+
+// Get user-friendly message for a stage
+getStageMessage(stage: ProcessingStage, rateLimitDuration?: number): string
+
+// Create complete progress data object for IPC communication
+createProgressData(filePath: string, stage: ProcessingStage, options?): ProgressData
+
+// Extract error message from unknown error types
+extractErrorMessage(error: unknown): string
+
+// Format rate limit duration (e.g., "2m 30s")
+formatRateLimitDuration(seconds: number): string
+
+// Check if file extension is supported
+isSupportedFileType(filename: string): boolean
+
+// Get list of supported extensions
+getSupportedExtensions(): string[]
+```
+
+**Benefits:**
+- **Centralized logic** - All progress-related calculations in one place
+- **Consistent formatting** - Same messages across the app
+- **Easy testing** - Pure functions with predictable outputs
+- **DRY principle** - No duplicate progress/formatting code
+
+#### File State Reducers (`electron/utils/file-state-reducer.ts`)
+
+**Purpose:** Pure state reducer functions for file processing state management
+
+**Functions:**
+```typescript
+// Update file list based on IPC progress message (immutable)
+updateFileFromIPCMessage(files: FileItem[], message: FileProgressData): FileItem[]
+
+// Add new files to the list (immutable)
+addFiles(files: FileItem[], newFilePaths: string[]): FileItem[]
+
+// Remove completed files from list (immutable)
+removeCompletedFiles(files: FileItem[]): FileItem[]
+
+// Clear all files (returns empty array)
+clearAllFiles(): FileItem[]
+
+// Update specific file's status (immutable)
+updateFileStatus(files: FileItem[], filePath: string, status: FileStatus, error?: string): FileItem[]
+```
+
+**Benefits:**
+- **Immutable updates** - Never mutates original arrays
+- **Predictable** - Same input always produces same output
+- **Testable** - Easy to verify state transformations
+- **Redux-style** - Follows functional programming patterns
+
+---
+
+## React Custom Hooks Architecture
+
+The Electron renderer uses custom React hooks to separate concerns and manage complex state logic.
+
+### File Processing Hook (`useFileProcessing.ts`)
+
+**Purpose:** Manages file upload state, IPC subscriptions, and auto-processing
+
+**Responsibilities:**
+- Load files from database on mount
+- Subscribe to `file-progress` IPC events
+- Auto-process pending files using ProcessingScheduler
+- Handle file analysis and upload queueing
+- Provide retry functionality
+
+**API:**
+```typescript
+const { files, addFiles, retryFile, reloadFiles } = useFileProcessing(onFileComplete?)
+
+// files: FileItem[] - Current file processing state
+// addFiles: (paths: string[]) => void - Add new files to queue
+// retryFile: (path: string) => void - Retry failed file
+// reloadFiles: () => Promise<void> - Reload from database
+// onFileComplete?: () => void - Callback when upload completes
+```
+
+### Notebooks Hook (`useNotebooks.ts`)
+
+**Purpose:** Manages notebook selection and notes fetching with React Query
+
+**Responsibilities:**
+- Fetch notebooks list via React Query
+- Manage selected notebook state
+- Fetch notes for selected notebook
+- Handle rate limit warnings
+- Auto-select default notebook on mount
+
+**API:**
+```typescript
+const {
+  notebooks,
+  selectedNotebook,
+  setSelectedNotebook,
+  notes,
+  notesLoading,
+  notebooksLoading,
+  refetchNotes,
+  rateLimitWarning,
+  setRateLimitWarning
+} = useNotebooks()
+```
+
+### Note Augmentation Hook (`useNoteAugmentation.ts`)
+
+**Purpose:** Manages note augmentation progress and IPC communication
+
+**Responsibilities:**
+- Track augmentation progress for multiple notes
+- Subscribe to `augment-progress` IPC events
+- Handle completion and error callbacks
+- Update progress state in real-time
+- Trigger note list refresh on completion
+
+**API:**
+```typescript
+const { augmentingNotes, augmentNote } = useNoteAugmentation(
+  onComplete?: () => void,
+  onRateLimitError?: (error: string) => void
+)
+
+// augmentingNotes: Map<noteGuid, { progress, message?, error? }>
+// augmentNote: (noteGuid: string) => Promise<void>
+```
+
+### Ollama Status Hook (`useOllamaStatus.ts`)
+
+**Purpose:** Checks Ollama installation and manages welcome wizard
+
+**Responsibilities:**
+- Check Ollama status on mount
+- Manage welcome wizard visibility
+- Provide status refresh functionality
+
+**API:**
+```typescript
+const { ollamaStatus, showWelcome, setShowWelcome, checkOllamaStatus } = useOllamaStatus()
+
+// ollamaStatus: OllamaStatus | null - Installation status
+// showWelcome: boolean - Show welcome wizard
+// setShowWelcome: (show: boolean) => void
+// checkOllamaStatus: () => Promise<void> - Refresh status
+```
+
+### Benefits of Custom Hooks
+
+**1. Separation of Concerns**
+- Each hook handles one specific domain
+- App.tsx reduced from 433 to 191 lines (56% smaller)
+- Easier to understand and modify
+
+**2. Reusability**
+- Hooks can be used in multiple components
+- Logic extracted from components
+- Can be tested independently
+
+**3. Better Testing**
+- Isolated business logic
+- Mock IPC communication easily
+- Test state transformations directly
+
+**4. Maintainability**
+- Changes localized to specific hooks
+- Clear API boundaries
+- TypeScript type safety
+
+---
+
 ## Performance Optimizations
 
 ### Batch Tag Fetching

@@ -11,6 +11,11 @@ import {
   uploadNoteFromJSON,
 } from './upload-queue.js';
 import { addFile, deleteFile } from '../database/queue-db.js';
+import {
+  createProgressData,
+  extractErrorMessage,
+  getSupportedExtensions
+} from './progress-helpers.js';
 
 export interface ProcessFileOptions {
   debug?: boolean;
@@ -69,23 +74,17 @@ export async function analyzeFile(
     }
 
     // Send progress update: Extracting content
-    mainWindow?.webContents.send('file-progress', {
-      filePath: absolutePath,
-      status: 'extracting',
-      progress: 25,
-      message: 'Extracting file content...'
-    });
+    mainWindow?.webContents.send('file-progress',
+      createProgressData(absolutePath, 'extracting')
+    );
 
     // Extract file content
     const { text, fileType, fileName } = await extractFileContent(absolutePath);
 
     // Send progress update: Analyzing with AI
-    mainWindow?.webContents.send('file-progress', {
-      filePath: absolutePath,
-      status: 'analyzing',
-      progress: 50,
-      message: 'Analyzing with AI...'
-    });
+    mainWindow?.webContents.send('file-progress',
+      createProgressData(absolutePath, 'analyzing')
+    );
 
     // Use shared workflow for AI analysis (handles tag fetching, caching, filtering)
     const analysisResult = await contentAnalysisWorkflow.analyze(
@@ -101,12 +100,9 @@ export async function analyzeFile(
     );
 
     // Send progress update: Saving to JSON
-    mainWindow?.webContents.send('file-progress', {
-      filePath: absolutePath,
-      status: 'analyzing',
-      progress: 90,
-      message: 'Saving analysis...'
-    });
+    mainWindow?.webContents.send('file-progress',
+      createProgressData(absolutePath, 'saving')
+    );
 
     // Save to JSON queue
     const jsonPath = await saveNoteToJSON(absolutePath, {
@@ -116,17 +112,15 @@ export async function analyzeFile(
     }, analysisResult.contentHash);
 
     // Send progress: Ready for upload
-    mainWindow?.webContents.send('file-progress', {
-      filePath: absolutePath,
-      status: 'ready-to-upload',
-      progress: 100,
-      message: 'Analysis complete, ready to upload',
-      result: {
-        title: analysisResult.title,
-        description: analysisResult.description,
-        tags: analysisResult.tags
-      }
-    });
+    mainWindow?.webContents.send('file-progress',
+      createProgressData(absolutePath, 'ready-to-upload', {
+        result: {
+          title: analysisResult.title,
+          description: analysisResult.description,
+          tags: analysisResult.tags
+        }
+      })
+    );
 
     return {
       success: true,
@@ -137,14 +131,11 @@ export async function analyzeFile(
     };
 
   } catch (error) {
-    const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+    const errorMsg = extractErrorMessage(error);
 
-    mainWindow?.webContents.send('file-progress', {
-      filePath: absolutePath,
-      status: 'error',
-      progress: 0,
-      error: errorMsg
-    });
+    mainWindow?.webContents.send('file-progress',
+      createProgressData(absolutePath, 'error', { error: errorMsg })
+    );
 
     return {
       success: false,
@@ -165,27 +156,20 @@ export async function uploadFile(
 ): Promise<UploadResult> {
   try {
     // Send progress update: Uploading
-    mainWindow?.webContents.send('file-progress', {
-      filePath: originalFilePath,
-      status: 'uploading',
-      progress: 10,
-      message: 'Uploading to Evernote...'
-    });
+    mainWindow?.webContents.send('file-progress',
+      createProgressData(originalFilePath, 'uploading')
+    );
 
     // Attempt upload
     const uploadResult = await uploadNoteFromJSON(jsonPath);
 
     if (uploadResult.success) {
       // Success
-      mainWindow?.webContents.send('file-progress', {
-        filePath: originalFilePath,
-        status: 'complete',
-        progress: 100,
-        message: 'Uploaded successfully',
-        result: {
-          noteUrl: uploadResult.noteUrl
-        }
-      });
+      mainWindow?.webContents.send('file-progress',
+        createProgressData(originalFilePath, 'complete', {
+          result: { noteUrl: uploadResult.noteUrl }
+        })
+      );
 
       // Remove from database immediately after successful upload
       deleteFile(originalFilePath);
@@ -197,12 +181,11 @@ export async function uploadFile(
 
     } else if (uploadResult.rateLimitDuration) {
       // Rate limited
-      mainWindow?.webContents.send('file-progress', {
-        filePath: originalFilePath,
-        status: 'rate-limited',
-        progress: 10,
-        message: `Rate limited - retry in ${uploadResult.rateLimitDuration}s`
-      });
+      mainWindow?.webContents.send('file-progress',
+        createProgressData(originalFilePath, 'rate-limited', {
+          rateLimitDuration: uploadResult.rateLimitDuration
+        })
+      );
 
       return {
         success: false,
@@ -211,15 +194,11 @@ export async function uploadFile(
 
     } else {
       // Other error
-      const errorMsg = uploadResult.error?.message || 'Upload failed';
+      const errorMsg = extractErrorMessage(uploadResult.error) || 'Upload failed';
 
-      mainWindow?.webContents.send('file-progress', {
-        filePath: originalFilePath,
-        status: 'retrying',
-        progress: 10,
-        message: errorMsg,
-        error: errorMsg
-      });
+      mainWindow?.webContents.send('file-progress',
+        createProgressData(originalFilePath, 'retrying', { error: errorMsg })
+      );
 
       return {
         success: false,
@@ -228,19 +207,15 @@ export async function uploadFile(
     }
 
   } catch (error) {
-    const err = error instanceof Error ? error : new Error('Unknown error');
-    const errorMsg = err.message;
+    const errorMsg = extractErrorMessage(error);
 
-    mainWindow?.webContents.send('file-progress', {
-      filePath: originalFilePath,
-      status: 'error',
-      progress: 0,
-      error: errorMsg
-    });
+    mainWindow?.webContents.send('file-progress',
+      createProgressData(originalFilePath, 'error', { error: errorMsg })
+    );
 
     return {
       success: false,
-      error: err
+      error: error instanceof Error ? error : new Error(errorMsg)
     };
   }
 }
@@ -269,23 +244,17 @@ export async function processFile(
     }
 
     // Send progress update: Extracting content
-    mainWindow?.webContents.send('file-progress', {
-      filePath: absolutePath,
-      status: 'extracting',
-      progress: 25,
-      message: 'Extracting file content...'
-    });
+    mainWindow?.webContents.send('file-progress',
+      createProgressData(absolutePath, 'extracting')
+    );
 
     // Extract file content
     const { text, fileType, fileName } = await extractFileContent(absolutePath);
 
     // Send progress update: Analyzing with AI
-    mainWindow?.webContents.send('file-progress', {
-      filePath: absolutePath,
-      status: 'analyzing',
-      progress: 50,
-      message: 'Analyzing with AI...'
-    });
+    mainWindow?.webContents.send('file-progress',
+      createProgressData(absolutePath, 'analyzing')
+    );
 
     // Use shared workflow for AI analysis (handles tag fetching, caching, filtering)
     const analysisResult = await contentAnalysisWorkflow.analyze(
@@ -382,14 +351,11 @@ export async function processFile(
     }
 
   } catch (error) {
-    const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+    const errorMsg = extractErrorMessage(error);
 
-    mainWindow?.webContents.send('file-progress', {
-      filePath: absolutePath,
-      status: 'error',
-      progress: 0,
-      error: errorMsg
-    });
+    mainWindow?.webContents.send('file-progress',
+      createProgressData(absolutePath, 'error', { error: errorMsg })
+    );
 
     return {
       success: false,
@@ -406,7 +372,7 @@ export async function processBatch(
   options: ProcessFileOptions,
   mainWindow: BrowserWindow | null
 ): Promise<void> {
-  const SUPPORTED_EXTENSIONS = ['.pdf', '.txt', '.md', '.markdown', '.docx', '.png', '.jpg', '.jpeg', '.gif', '.bmp', '.tiff'];
+  const SUPPORTED_EXTENSIONS = getSupportedExtensions();
 
   // Scan folder recursively
   const files: string[] = [];

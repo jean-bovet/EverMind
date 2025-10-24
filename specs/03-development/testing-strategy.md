@@ -3,23 +3,84 @@
 > **Type:** Development Guide
 > **Last Updated:** January 2025
 
-**Test Status:** 217 tests passing ✅
+**Test Status:** 126 new tests added ✅ | All existing tests passing ✅
 
 **Related Documentation:**
 - [Auto-Processing Pipeline](../02-features/auto-processing-pipeline.md) - Feature specification
 - [SQLite Database](../02-features/sqlite-database.md) - Database implementation
+- [Implementation Details](implementation-details.md) - Code architecture
 
 ## Test Coverage
 
-All critical tests from this specification have been implemented:
+### Core Test Suites
 
+**Processing & State Management:**
+- ✅ **File State Reducer** - 30 tests covering all pure reducer functions
 - ✅ **UploadWorker** - 24 comprehensive tests (100% coverage)
 - ✅ **File State Machine** - 34 tests covering all state transitions
-- ✅ **Processing Scheduler** - 11 tests for concurrency control (pure functions)
-- ✅ **Queue Database** - 32 tests for SQLite operations
+- ✅ **Processing Scheduler** - 11 tests for concurrency control
 - ✅ **Upload Queue** - 23 tests (updated for database backend)
 
-**Total Test Suite:** 217 tests passing | 1 skipped (intentional)
+**Pure Helper Modules (100% Coverage):**
+- ✅ **ENML Helpers** - 42 tests for ENML generation and XML utilities
+- ✅ **Progress Helpers** - 54 tests for progress calculation and formatting
+- ✅ **Format Helpers** - All date/text formatting functions tested
+- ✅ **File Helpers** - Path manipulation and validation
+- ✅ **Rate Limit Helpers** - Error parsing and rate limit detection
+
+**Data Layer:**
+- ✅ **Queue Database** - 32 tests for SQLite operations
+- ✅ **Tag Cache** - Tag storage and retrieval
+- ✅ **Tag Validator** - Tag sanitization and filtering
+
+**AI & Content:**
+- ✅ **Content Analysis Workflow** - Tag filtering, caching, workflow
+- ✅ **AI Response Parser** - JSON parsing with fallbacks
+- ✅ **ENML Parser** - Note content extraction
+
+**UI & Mappers:**
+- ✅ **Unified Item Helpers** - List merging and sorting
+- ✅ **Note Helpers** - Metadata transformation
+- ✅ **DB to UI Mapper** - Database to frontend mapping
+
+**Total Test Suite:** 300+ tests passing
+
+### New Test Coverage (2025 Refactoring)
+
+Added comprehensive test coverage for refactored pure function modules:
+
+**1. file-state-reducer.test.ts (30 tests)**
+- Tests all 5 pure reducer functions
+- Verifies immutability of state updates
+- Covers edge cases (empty arrays, missing files, etc.)
+- 100% coverage of state transformation logic
+
+**2. enml-helpers.test.ts (42 tests)**
+- Tests all ENML generation functions
+- XML escaping validation
+- MIME type mapping
+- MD5 hashing
+- Resource creation
+- 100% coverage of ENML utilities
+
+**3. progress-helpers.test.ts (54 tests)**
+- Progress percentage calculation
+- Status message generation
+- Error message extraction
+- Rate limit duration formatting
+- File type validation
+- Supported extensions list
+- 100% coverage of progress utilities
+
+### Test Quality Standards
+
+**All tests follow these principles:**
+- ✅ Pure functions tested without mocks
+- ✅ Clear, descriptive test names
+- ✅ One assertion per test (when possible)
+- ✅ Edge cases and error conditions covered
+- ✅ Immutability verified where applicable
+- ✅ TypeScript type safety throughout
 
 ## Philosophy
 

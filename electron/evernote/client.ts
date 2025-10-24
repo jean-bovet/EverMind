@@ -1,11 +1,15 @@
 import Evernote from 'evernote';
 import { promises as fs } from 'fs';
 import path from 'path';
-import crypto from 'crypto';
 import { getToken } from './oauth-helper.js';
 import { createSpinner, colors, warning } from '../cli/output-formatter.js';
 import { sanitizeTags, validateTagsForAPI } from './tag-validator.js';
 import { mergeNoteAttributes } from '../utils/note-helpers.js';
+import {
+  createNoteContent,
+  createResource,
+  createMD5Hash
+} from './enml-helpers.js';
 
 /**
  * Create a note in Evernote with the file and AI-generated metadata
@@ -61,7 +65,7 @@ export async function createNote(
     }
 
     // Create note with ENML content
-    const noteBody = createNoteContent(description, fileName, fileData, fileHash);
+    const noteBody = createNoteContent(description, fileName, fileHash);
 
     // Create the note object
     const note = new Evernote.Types.Note({
@@ -141,88 +145,6 @@ export async function createNote(
 
     throw new Error(`Failed to create Evernote note: ${errorMessage}`);
   }
-}
-
-/**
- * Create ENML content for the note
- */
-function createNoteContent(description: string, fileName: string, _fileData: Buffer, fileHash: string): string {
-  const mimeType = getMimeType(fileName);
-
-  return `<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE en-note SYSTEM "http://xml.evernote.com/pub/enml2.dtd">
-<en-note>
-  <div><strong>Description:</strong></div>
-  <div>${escapeXml(description)}</div>
-  <br/>
-  <div><strong>Attached File:</strong> ${escapeXml(fileName)}</div>
-  <br/>
-  <en-media type="${mimeType}" hash="${fileHash}"/>
-</en-note>`;
-}
-
-/**
- * Create a resource (attachment) for the note
- */
-function createResource(fileData: Buffer, fileName: string, fileHash: string): Evernote.Types.Resource {
-  const mimeType = getMimeType(fileName);
-
-  const data = new Evernote.Types.Data({
-    size: fileData.length,
-    bodyHash: fileHash,
-    body: fileData,
-  });
-
-  const resource = new Evernote.Types.Resource({
-    mime: mimeType,
-    data: data,
-    attributes: new Evernote.Types.ResourceAttributes({
-      fileName: fileName,
-    }),
-  });
-
-  return resource;
-}
-
-/**
- * Create MD5 hash of file data (Evernote uses MD5 for resource hashing)
- */
-function createMD5Hash(data: Buffer): string {
-  return crypto.createHash('md5').update(data).digest('hex');
-}
-
-/**
- * Get MIME type based on file extension
- */
-function getMimeType(fileName: string): string {
-  const ext = path.extname(fileName).toLowerCase();
-
-  const mimeTypes: Record<string, string> = {
-    '.pdf': 'application/pdf',
-    '.txt': 'text/plain',
-    '.md': 'text/plain',
-    '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    '.png': 'image/png',
-    '.jpg': 'image/jpeg',
-    '.jpeg': 'image/jpeg',
-    '.gif': 'image/gif',
-    '.bmp': 'image/bmp',
-    '.tiff': 'image/tiff',
-  };
-
-  return mimeTypes[ext] || 'application/octet-stream';
-}
-
-/**
- * Escape XML special characters for ENML
- */
-function escapeXml(text: string): string {
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&apos;');
 }
 
 /**
