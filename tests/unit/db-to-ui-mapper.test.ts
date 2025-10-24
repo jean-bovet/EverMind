@@ -77,6 +77,7 @@ describe('db-to-ui-mapper', () => {
         name: 'document.pdf',
         status: 'complete',
         progress: 100,
+        created: 1704067200000,
         result: {
           title: 'Test Document',
           description: 'A test document',
@@ -109,7 +110,8 @@ describe('db-to-ui-mapper', () => {
         path: '/test/pending.pdf',
         name: 'pending.pdf',
         status: 'pending',
-        progress: 0
+        progress: 0,
+        created: 1704067200000
       });
     });
 
@@ -137,6 +139,7 @@ describe('db-to-ui-mapper', () => {
         name: 'error.pdf',
         status: 'error',
         progress: 50,
+        created: 1704067200000,
         error: 'Failed to extract content',
         message: 'Failed to extract content'
       });
@@ -166,6 +169,7 @@ describe('db-to-ui-mapper', () => {
         name: 'partial.pdf',
         status: 'analyzing',
         progress: 75,
+        created: 1704067200000,
         result: {
           title: 'Partial Title',
           description: '',
