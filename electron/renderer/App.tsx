@@ -181,12 +181,20 @@ function App() {
 
         return updated;
       });
+
+      // When a file upload completes, refresh the notes list to show the newly created note
+      if (data.status === 'complete') {
+        setTimeout(() => {
+          // Refresh notes to show the newly uploaded note
+          refetchNotes();
+        }, 1500);
+      }
     });
 
     return () => {
       unsubscribe();
     };
-  }, []);
+  }, [refetchNotes]);
 
   // Subscribe to note augmentation progress
   useEffect(() => {
