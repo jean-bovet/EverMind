@@ -3,719 +3,302 @@
 > **Type:** Development Guide
 > **Last Updated:** January 2025
 
-## Evernote API Integration
+Reference for external API integrations used by the app.
 
-### API Version
-- **Cloud API SDK:** Evernote JavaScript SDK v2.0.5
-- **API Version:** EDAM (Evernote Data Access and Management) Protocol
+## Evernote API
+
+### SDK & Version
+
+- **Library:** `evernote` (JavaScript SDK) v2.0.5
+- **Protocol:** EDAM (Evernote Data Access and Management)
 - **Authentication:** OAuth 1.0a
 
-### API Endpoints
+### Endpoints
 
-#### Production
-- **Base URL:** `https://www.evernote.com`
-- **Service Host:** `www.evernote.com`
-- **OAuth Endpoint:** `https://www.evernote.com/OAuth.action`
+**Production:**
+- Base URL: `https://www.evernote.com`
+- OAuth: `https://www.evernote.com/OAuth.action`
 
-#### Sandbox (Testing)
-- **Base URL:** `https://sandbox.evernote.com`
-- **Service Host:** `sandbox.evernote.com`
-- **OAuth Endpoint:** `https://sandbox.evernote.com/OAuth.action`
+**Sandbox (Testing):**
+- Base URL: `https://sandbox.evernote.com`
+- OAuth: `https://sandbox.evernote.com/OAuth.action`
 
-### Authentication Flow
+**Environment Variable:** `EVERNOTE_ENDPOINT` (defaults to production)
 
-#### 1. Request Token
+### OAuth 1.0a Authentication
 
-**Endpoint:** Handled by Evernote SDK
-```javascript
-client.getRequestToken(callbackUrl, callback)
-```
+**Flow Overview:**
+1. Request temporary token
+2. User authorizes in browser
+3. Exchange verifier for access token
+4. Store token for future use
 
-**Parameters:**
-- `callbackUrl`: `http://localhost` (required but unused for desktop apps)
+**Implementation:** `electron/evernote/oauth-helper.ts`
 
-**Response:**
-```javascript
-{
-  oauthToken: string,        // Temporary request token
-  oauthTokenSecret: string,  // Secret for token exchange
-  results: object            // Additional metadata
-}
-```
+**Key Steps:**
 
-**Example:**
-```
-oauthToken: "notelytics-3327.199FD4E4E24.687474703A2F2F6C6F63616C686F7374.B417DE12220D5C42C07798CBF04929F2"
-```
+1. **Request Token:**
+   ```typescript
+   client.getRequestToken(callbackUrl, callback)
+   // Returns: oauthToken, oauthTokenSecret
+   ```
 
-#### 2. User Authorization
+2. **User Authorization:**
+   - App opens browser to: `{endpoint}/OAuth.action?oauth_token={token}`
+   - User authorizes and receives verifier code
+   - User copies verifier back to app
 
-**Authorization URL Format:**
-```
-https://www.evernote.com/OAuth.action?oauth_token={oauthToken}
-```
+3. **Access Token Exchange:**
+   ```typescript
+   client.getAccessToken(oauthToken, oauthTokenSecret, verifier, callback)
+   // Returns: oauthAccessToken (long-lived)
+   ```
 
-**User Actions:**
-1. Visit authorization URL in browser
-2. Sign in to Evernote (if not already)
-3. Review permissions requested by application
-4. Click "Authorize"
-5. Receive verification code (oauth_verifier)
+4. **Token Storage:**
+   - Saved to `.evernote-token` file (git-ignored)
+   - Plain text storage (user-only permissions)
+   - Token format: `S=s1:U=xxx:E=xxx:C=xxx:P=xxx:A=xxx:V=2:H=xxx`
 
-**Redirect URL:**
-```
-http://localhost/?oauth_token={token}&oauth_verifier={verifier}&sandbox_lnb=false
-```
+### API Operations
 
-**Example:**
-```
-oauth_verifier: "112F17B9AE9C8134A3E0B49E74C188E0"
-```
+**Notes:**
+- `noteStore.createNote(note)` - Create new note with content and attachments
+- `noteStore.getNote(guid)` - Fetch note content and metadata
+- `noteStore.updateNote(note)` - Update existing note
 
-#### 3. Access Token Exchange
+**Notebooks:**
+- `noteStore.listNotebooks()` - Get all notebooks
 
-**Endpoint:** Handled by Evernote SDK
-```javascript
-client.getAccessToken(oauthToken, oauthTokenSecret, verifier, callback)
-```
+**Tags:**
+- `noteStore.listTags()` - Get all tags (used for AI filtering)
 
-**Parameters:**
-- `oauthToken`: From step 1
-- `oauthTokenSecret`: From step 1
-- `verifier`: From step 2 (user-provided)
+**Search:**
+- `noteStore.findNotesMetadata(filter, offset, maxNotes, resultSpec)` - Search/list notes
 
-**Response:**
-```javascript
-{
-  oauthAccessToken: string,  // Long-lived access token
-  oauthAccessTokenSecret: string,
-  results: object
-}
-```
+### Rate Limiting
 
-**Access Token Format:**
-```
-S=s1:U=xxxxx:E=xxxxxxx:C=xxxxxxx:P=xxx:A=xxxxxxx:V=2:H=xxxxxxxxxxxxxxxxxxxxxxxx
-```
+**Error Code 19:** Rate limit exceeded
 
-**Token Characteristics:**
-- Long-lived (typically years)
-- Grants full access to user's account
-- Can be revoked by user via Evernote settings
+**Response includes:**
+- `rateLimitDuration` - Seconds to wait before retry
+- `parameter` - Which operation was limited (e.g., "Note.create")
 
-### API Methods Used
+**Handling:**
+- Store retry time in database
+- Automatic retry after duration expires
+- User-visible wait time countdown
 
-#### getNoteStore()
-
-**Purpose:** Get NoteStore client for note operations
-
-```javascript
-const client = new Evernote.Client({
-  token: accessToken,
-  sandbox: false,
-  serviceHost: 'www.evernote.com'
-});
-
-const noteStore = client.getNoteStore();
-```
-
-**Returns:** NoteStore instance
-
-#### listTags()
-
-**Purpose:** Fetch all tags for authenticated user
-
-```javascript
-const tags = await noteStore.listTags();
-```
-
-**Request:**
-- No parameters
-- Requires valid access token
-
-**Response:**
-```javascript
-[
-  {
-    guid: string,           // Unique tag identifier
-    name: string,           // Tag name (user-visible)
-    parentGuid: string,     // Parent tag GUID (for hierarchies)
-    updateSequenceNum: number
-  },
-  // ... more tags
-]
-```
-
-**Example Response:**
-```javascript
-[
-  { guid: "abc-123", name: "work", parentGuid: null },
-  { guid: "def-456", name: "personal", parentGuid: null },
-  { guid: "ghi-789", name: "taxes", parentGuid: "abc-123" }
-]
-```
-
-**Usage in Application:**
-```javascript
-const tagNames = tags.map(tag => tag.name);
-// ["work", "personal", "taxes"]
-```
-
-#### createNote()
-
-**Purpose:** Create new note with content and attachments
-
-```javascript
-const note = new Evernote.Types.Note({
-  title: string,
-  content: string,      // ENML format
-  tagNames: string[],
-  resources: Resource[]
-});
-
-const createdNote = await noteStore.createNote(note);
-```
-
-**Request:**
-
-**Note Object:**
-```javascript
-{
-  title: "document.pdf",
-  content: "<en-note>...</en-note>",  // ENML
-  tagNames: ["invoice", "business", "2024"],
-  resources: [resourceObject]
-}
-```
-
-**Resource Object:**
-```javascript
-{
-  mime: "application/pdf",
-  data: {
-    size: 123456,
-    bodyHash: "a1b2c3d4...",  // MD5 hash
-    body: Buffer              // File bytes
-  },
-  attributes: {
-    fileName: "document.pdf"
-  }
-}
-```
-
-**Response:**
-```javascript
-{
-  guid: string,              // Unique note identifier
-  title: string,
-  contentLength: number,
-  created: timestamp,
-  updated: timestamp,
-  // ... other metadata
-}
-```
-
-**Example:**
-```javascript
-{
-  guid: "47f1bdbc-877d-4c15-a29e-8ab3b3b9f3f4",
-  title: "MDC-Payment-Proof.pdf",
-  contentLength: 542,
-  created: 1697825400000,
-  updated: 1697825400000
-}
-```
-
-**Note URL Construction:**
-```javascript
-const noteUrl = `https://www.evernote.com/Home.action#n=${createdNote.guid}`;
-```
+**Implementation:** `electron/utils/rate-limit-helpers.ts`
 
 ### ENML (Evernote Markup Language)
 
-**Specification:** XML-based markup language
+XML-based format for note content. Requirements:
 
-**Required Structure:**
-```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE en-note SYSTEM "http://xml.evernote.com/pub/enml2.dtd">
-<en-note>
-  <!-- Content here -->
-</en-note>
+- **DOCTYPE:** `<!DOCTYPE en-note SYSTEM "http://xml.evernote.com/pub/enml2.dtd">`
+- **Root element:** `<en-note>`
+- **XML escaping:** All text must escape `& < > " '`
+- **Media:** Referenced by MD5 hash via `<en-media type="..." hash="..."/>`
+
+**Helpers:** `electron/evernote/enml-helpers.ts` (pure functions for generation)
+
+### Resource Attachments
+
+**Structure:**
+```typescript
+const resource = new Evernote.Types.Resource({
+  mime: mimeType,
+  data: new Evernote.Types.Data({
+    size: fileData.length,
+    bodyHash: md5Hash,  // Required
+    body: fileData      // Raw bytes
+  }),
+  attributes: new Evernote.Types.ResourceAttributes({
+    fileName: fileName
+  })
+});
 ```
 
-**Allowed Elements:**
-- Basic formatting: `<div>`, `<span>`, `<br/>`, `<strong>`, `<em>`
-- Lists: `<ul>`, `<ol>`, `<li>`
-- Tables: `<table>`, `<tr>`, `<td>`, `<th>`
-- Links: `<a href="...">`
-- Media: `<en-media type="..." hash="..."/>`
-
-**Disallowed Elements:**
-- Scripts: `<script>`
-- Styles: `<style>` (inline CSS allowed)
-- Forms: `<form>`, `<input>`
-- External resources: `<img src="http://...">`
-
-**Character Escaping:**
-Required for XML compliance:
-- `&` → `&amp;`
-- `<` → `&lt;`
-- `>` → `&gt;`
-- `"` → `&quot;`
-- `'` → `&apos;`
-
-**Media References:**
-```xml
-<en-media type="application/pdf" hash="a1b2c3d4e5f6..."/>
-```
-
-**Hash:** MD5 hash of resource body (hex-encoded)
-
-### Rate Limits
-
-**Production:**
-- API calls: 10,000 per hour
-- Note uploads: 250 per day (free), unlimited (premium)
-- Resource size: 25 MB per note (free), 200 MB (premium)
-
-**Sandbox:**
-- More relaxed limits for testing
-- Data reset periodically
-
-**Handling:**
-- Application makes minimal API calls (2-3 per import)
-- No batch operations currently implemented
-- Unlikely to hit rate limits in normal use
+**MIME Types:** See `electron/evernote/enml-helpers.ts` for mapping
 
 ### Error Handling
 
 **Common Errors:**
+- `EDAMUserException` - User/permission issues
+- `EDAMSystemException` - Server errors
+- `EDAMNotFoundException` - Note/notebook not found
+- Error code 19 - Rate limit (special handling)
 
-**EDAMUserException (Authentication):**
-```javascript
-{
-  errorCode: 2,  // BAD_DATA_FORMAT
-  parameter: 'authenticationToken'
-}
-```
-**Cause:** Invalid or expired access token
-**Resolution:** Re-authenticate using `--auth`
+**Strategy:** Catch, extract error details, display user-friendly message, store for retry if applicable.
 
-**EDAMUserException (Invalid Tag):**
-```javascript
-{
-  errorCode: 2,  // BAD_DATA_FORMAT
-  parameter: 'Tag.name'
-}
-```
-**Cause:** Tag name violates Evernote's tag naming requirements
-**Resolution:** Validate tags before sending to API (see Tag Requirements below)
+## Ollama API
 
-**EDAMSystemException:**
-```javascript
-{
-  errorCode: 19,  // RATE_LIMIT_REACHED
-  rateLimitDuration: 3600
-}
-```
-**Cause:** Too many API requests
-**Resolution:** Wait specified duration, retry
+### SDK & Version
 
-**EDAMNotFoundException:**
-```javascript
-{
-  identifier: 'Note.guid',
-  key: 'abc-123'
-}
-```
-**Cause:** Referenced resource doesn't exist
-**Resolution:** Verify GUIDs, refresh data
-
-**Application Error Handling:**
-```javascript
-try {
-  const result = await noteStore.createNote(note);
-  return result;
-} catch (error) {
-  const errorMessage = error.message ||
-                       error.errorMessage ||
-                       JSON.stringify(error) ||
-                       'Unknown error';
-
-  throw new Error(`Failed to create Evernote note: ${errorMessage}`);
-}
-```
-
-### Tag Requirements and Validation
-
-**Evernote Tag Naming Rules:**
-
-Tags must comply with strict naming requirements to be accepted by the API:
-
-**Length Requirements:**
-- Minimum: 1 character
-- Maximum: 100 characters
-- Constant: `EDAM_TAG_NAME_LEN_MIN = 1`, `EDAM_TAG_NAME_LEN_MAX = 100`
-
-**Character Restrictions:**
-- **Cannot** contain commas (`,`)
-- **Cannot** contain control characters (`\p{Cc}`)
-- **Cannot** contain line separators (`\p{Zl}`)
-- **Cannot** contain paragraph separators (`\p{Zp}`)
-- **Cannot** begin with whitespace
-- **Cannot** end with whitespace
-
-**Pattern Requirements:**
-```regex
-^[^,\p{Cc}\p{Z}]([^,\p{Cc}\p{Zl}\p{Zp}]{0,98}[^,\p{Cc}\p{Z}])?$
-```
-
-**Case Sensitivity:**
-- Tags are case-preserving but case-insensitive for comparisons
-- Account can only have one tag with a given name via case-insensitive comparison
-- Example: Cannot have both "Finance" and "finance" tags
-
-**Application Validation Strategy:**
-
-1. **Sanitization** - Remove invalid characters:
-   ```javascript
-   function sanitizeTag(tag) {
-     let sanitized = tag.replace(/[\p{Cc}\p{Zl}\p{Zp}]/gu, ''); // Remove control chars
-     sanitized = sanitized.replace(/,/g, '');  // Remove commas
-     sanitized = sanitized.trim();             // Remove leading/trailing whitespace
-     return sanitized;
-   }
-   ```
-
-2. **Validation** - Check against requirements:
-   ```javascript
-   function isValidTagName(tag) {
-     if (!tag || tag.length < 1 || tag.length > 100) return false;
-     if (tag !== tag.trim()) return false;
-     if (tag.includes(',')) return false;
-     if (/[\p{Cc}\p{Zl}\p{Zp}]/u.test(tag)) return false;
-     return true;
-   }
-   ```
-
-3. **Filtering** - Match against existing tags only:
-   ```javascript
-   function filterExistingTags(aiTags, existingTags) {
-     // Case-insensitive lookup
-     const lookup = new Map(
-       existingTags.map(t => [t.toLowerCase(), t])
-     );
-
-     return aiTags
-       .map(tag => sanitizeTag(tag))
-       .filter(tag => tag && lookup.has(tag.toLowerCase()))
-       .map(tag => lookup.get(tag.toLowerCase()));  // Return exact case
-   }
-   ```
-
-**Error Prevention:**
-- Tags fetched from Evernote are sanitized before use
-- AI-generated tags are validated and filtered before upload
-- Final validation performed immediately before API call
-- Only existing tags are used (no new tag creation)
-
-**Example Valid Tags:**
-- `Finance`
-- `Work Project 2024`
-- `tax-documents`
-- `🏠 Home` (Unicode characters allowed)
-
-**Example Invalid Tags:**
-- ` Finance ` (leading/trailing whitespace)
-- `Work, Personal` (contains comma)
-- `Tag\nWith\nNewlines` (contains control characters)
-- `` (empty string)
-- `a`.repeat(101) (too long)
-
----
-
-## Ollama API Integration
-
-### API Version
-- **Library:** ollama npm package v0.6.0
+- **Library:** `ollama` v0.6.0
 - **Protocol:** HTTP REST API
-- **Default Endpoint:** `http://localhost:11434`
+- **Default Host:** `http://localhost:11434`
 
-### API Endpoints
+**Environment Variable:** `OLLAMA_HOST` (defaults to localhost)
 
-#### List Models
+### Key Operations
 
-**Endpoint:** `GET /api/tags`
-
-```javascript
-const ollama = new Ollama({ host: 'http://localhost:11434' });
-const response = await ollama.list();
+**List Models:**
+```typescript
+const ollama = new Ollama({ host });
+const models = await ollama.list();
+// Returns: { models: [{ name: string, size: number, ... }] }
 ```
 
-**Response:**
-```javascript
-{
-  models: [
-    {
-      name: "llama2:latest",
-      modified_at: "2024-01-15T10:30:00Z",
-      size: 3825819519,
-      digest: "sha256:abc123...",
-      details: {
-        format: "gguf",
-        family: "llama",
-        parameter_size: "7B",
-        quantization_level: "Q4_0"
-      }
-    },
-    // ... more models
-  ]
-}
-```
-
-#### Pull Model (Download)
-
-**Endpoint:** `POST /api/pull`
-
-```javascript
-const stream = await ollama.pull({ model: 'llama2', stream: true });
-
+**Pull Model (Download):**
+```typescript
+const stream = await ollama.pull({ model, stream: true });
 for await (const chunk of stream) {
-  console.log(chunk.status);  // "downloading", "verifying", "success"
+  console.log(chunk.status, chunk.completed, chunk.total);
 }
 ```
 
-**Request:**
-```javascript
-{
-  name: "llama2",
-  stream: true
-}
-```
-
-**Response (Streaming):**
-```javascript
-{
-  status: "downloading digestname",
-  digest: "sha256:...",
-  total: 3825819519,
-  completed: 1234567
-}
-```
-
-**Final Chunk:**
-```javascript
-{
-  status: "success"
-}
-```
-
-#### Generate Response
-
-**Endpoint:** `POST /api/generate`
-
-```javascript
+**Generate (AI Analysis):**
+```typescript
 const response = await ollama.generate({
-  model: 'llama2',
-  prompt: 'Your prompt here',
+  model: 'mistral',
+  prompt: '...',
   stream: false
 });
+// Returns: { response: string, ... }
 ```
 
-**Request:**
-```javascript
-{
-  model: "llama2",
-  prompt: "Analyze this content...",
-  stream: false,
-  options: {
-    temperature: 0.7,    // Optional: creativity (0-1)
-    top_p: 0.9,         // Optional: nucleus sampling
-    top_k: 40           // Optional: top-k sampling
-  }
-}
-```
+### Model Configuration
 
-**Response:**
-```javascript
-{
-  model: "llama2",
-  created_at: "2024-01-15T12:34:56.789Z",
-  response: "{\n  \"description\": \"...\",\n  \"tags\": [...]\n}",
-  done: true,
-  context: [...],      // Token context
-  total_duration: 5234567890,
-  load_duration: 123456789,
-  prompt_eval_count: 45,
-  prompt_eval_duration: 234567890,
-  eval_count: 89,
-  eval_duration: 4567890123
-}
-```
+**Default Model:** `mistral` (multilingual support)
 
-**Key Fields:**
-- `response`: Generated text (contains JSON in our case)
-- `done`: true when generation complete
-- `total_duration`: Nanoseconds taken
+**Alternative Models:**
+- `llama3.1:8b` - Latest Llama 3.1
+- `llama2` - Original Llama 2
+- `codellama` - Code-specialized
 
-### Service Health Check
+**Environment Variable:** `OLLAMA_MODEL`
 
-**Endpoint:** `GET /api/tags`
+### Service Management
 
-**Purpose:** Verify Ollama is running and responsive
+**Detection:**
+1. HTTP request to `/api/tags` endpoint
+2. If fails, check CLI with `which ollama`
+3. Search common install paths
 
-```javascript
-async function isOllamaRunning(host) {
-  try {
-    const response = await fetch(`${host}/api/tags`, {
-      signal: AbortSignal.timeout(2000)
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-}
-```
+**Auto-Start:**
+- `spawn('ollama', ['serve'], { detached: true })`
+- Polls for 30 seconds until service responds
+- Tracked via `startedByUs` flag
 
-**Success Response:** 200 OK
-**Failure:** Connection refused, timeout
+**Auto-Stop:**
+- Only if started by app
+- Send SIGTERM on app shutdown
 
-### Model Management
-
-**Model Naming:**
-- `mistral` → Recommended (multilingual French/English support)
-- `llama2` → Latest version (llama2:latest), English-biased
-- `llama2:7b` → Specific size variant
-- `llama2:13b` → Larger variant
-- `codellama` → Specialized for code
-
-**Model Selection Rationale:**
-
-The application defaults to **Mistral** for the following reasons:
-
-1. **Multilingual Capability**: Mistral AI (France-based) provides native French language support
-2. **Language Preservation**: Maintains source document language in generated descriptions
-3. **No English Bias**: Unlike llama2, Mistral doesn't default to English for non-English content
-4. **Proven Performance**: Successfully tested with French documents, correctly extracting:
-   - Amounts (CHF 540,00)
-   - Dates (05.09.2024)
-   - Names (Audrey Bovet, Jean Bovet)
-   - Organizations (Académie MDC, Banque Cantonale Neuchâteloise)
-   - All in original French language
-
-**Testing Results:**
-- **llama2**: Generated English descriptions for French documents (language bias issue)
-- **mistral**: Generated French descriptions for French documents (correct behavior)
-
-**Model Storage:**
-- Location: `~/.ollama/models/`
-- Format: GGUF (GPT-Generated Unified Format)
-- Sizes: 2-7 GB typical
-
-**Application Configuration:**
-```javascript
-const model = process.env.OLLAMA_MODEL || 'mistral';  // Changed from llama2
-```
-
-### Performance Characteristics
-
-**Model Loading:**
-- First request: ~5-10 seconds (load model to RAM)
-- Subsequent requests: Immediate (model cached)
-
-**Inference Time:**
-- Depends on prompt length and model size
-- Typical: 5-15 seconds for 4000 character analysis
-- CPU-bound operation
-
-**Resource Usage:**
-- RAM: 4-8 GB (model size dependent)
-- CPU: High utilization during inference
-- Disk: Model storage only
+**Implementation:** `electron/ai/ollama-manager.ts`
 
 ### Error Handling
 
-**Connection Errors:**
-```javascript
-Error: connect ECONNREFUSED 127.0.0.1:11434
-```
-**Cause:** Ollama not running
-**Resolution:** Start Ollama via `ollama serve` or auto-start
+**Common Issues:**
+- Model not found → Auto-download
+- Service not running → Auto-start
+- Connection timeout → Check installation
+- Out of memory → Suggest smaller model
 
-**Model Not Found:**
-```javascript
-{
-  error: "model 'llama2' not found"
-}
-```
-**Cause:** Model not downloaded
-**Resolution:** Pull model via `ollama pull llama2` or auto-download
+## Environment Variables
 
-**Context Length Exceeded:**
-```javascript
-{
-  error: "context length exceeded"
-}
-```
-**Cause:** Prompt too long
-**Resolution:** Truncate input (we limit to 4000 chars)
+Complete reference in [Configuration](../00-overview/configuration.md).
 
-### Local vs Remote
+**Evernote:**
+- `EVERNOTE_CONSUMER_KEY` - OAuth consumer key (required)
+- `EVERNOTE_CONSUMER_SECRET` - OAuth consumer secret (required)
+- `EVERNOTE_ENDPOINT` - API endpoint (default: production)
 
-**Local (Default):**
-```
-OLLAMA_HOST=http://localhost:11434
-```
-- Runs on user's machine
-- Complete privacy
-- No network dependency (except model download)
-- Free
+**Ollama:**
+- `OLLAMA_MODEL` - AI model name (default: mistral)
+- `OLLAMA_HOST` - API host (default: http://localhost:11434)
 
-**Remote (Possible):**
-```
-OLLAMA_HOST=http://remote-server:11434
-```
-- Runs on different machine/server
-- Requires network connection
-- Faster if remote has better hardware
-- Privacy depends on server trust
+**Caching:**
+- `NOTE_CACHE_HOURS` - AI analysis cache TTL (default: 24)
 
-**Application Design:**
-- Defaults to local
-- Supports remote via configuration
-- No cloud service dependency
+## Security Considerations
 
----
+**Token Storage:**
+- `.evernote-token` file is git-ignored
+- Plain text (no encryption)
+- User-only read permissions (chmod 600)
+- Never logged or transmitted except to Evernote
 
-## API Security Considerations
+**API Keys:**
+- Consumer key/secret in `.env` file
+- Git-ignored, must be manually configured
+- Never committed to repository
 
-### Evernote
-- **Access Token:** Stored locally, never logged
-- **Transmission:** HTTPS only
-- **Scope:** Full account access (read/write)
-- **Revocation:** User can revoke via Evernote settings
+**Local AI:**
+- All AI processing via local Ollama
+- No file content sent to external services
+- Complete privacy for document processing
 
-### Ollama
-- **Network:** Local-only by default (127.0.0.1)
-- **Authentication:** None (localhost trusted)
-- **Data Privacy:** All processing local
-- **No telemetry:** No data sent to external services
+## Testing with APIs
 
-### Best Practices
+**Evernote Sandbox:**
+- Use `EVERNOTE_ENDPOINT=https://sandbox.evernote.com`
+- Separate account from production
+- Safe for testing without affecting real notes
 
-**Credential Storage:**
-- Environment variables for API keys
-- Separate token file for OAuth token
-- Git-ignored sensitive files
-- No hardcoded credentials
+**Ollama Local:**
+- Always runs locally
+- No special test configuration needed
+- Can use different models for testing
 
-**Data Minimization:**
-- Only send final notes to Evernote
-- All file analysis happens locally
-- No unnecessary API calls
+**Mocking:**
+- Unit tests mock Evernote SDK
+- Integration tests use sandbox
+- See [Testing Strategy](testing-strategy.md)
 
-**Error Logging:**
-- Never log credentials or tokens
-- Sanitize error messages before display
-- Avoid exposing system paths in errors
+## API Limits & Quotas
+
+**Evernote Free Tier:**
+- Rate limits enforced (error code 19)
+- 60 MB monthly upload
+- Max note size: 25 MB
+
+**Evernote Premium:**
+- Higher rate limits
+- 10 GB monthly upload
+- Max note size: 200 MB
+
+**Ollama:**
+- No quotas (runs locally)
+- Limited by system resources (RAM, CPU)
+- Model size affects performance
+
+## Troubleshooting
+
+**Evernote Issues:**
+- "EDAM_USER_EXCEPTION" → Check token validity
+- Rate limit errors → Wait specified duration
+- Network errors → Check internet connection
+- Authentication errors → Re-authenticate
+
+**Ollama Issues:**
+- Service not found → Install Ollama
+- Model not available → Auto-downloads
+- Out of memory → Use smaller model
+- Slow performance → Close other apps
+
+## Source Code Reference
+
+**Evernote Integration:**
+- `electron/evernote/oauth-helper.ts` - OAuth flow
+- `electron/evernote/client.ts` - Note operations
+- `electron/evernote/enml-helpers.ts` - ENML generation
+- `electron/evernote/tag-validator.ts` - Tag sanitization
+
+**Ollama Integration:**
+- `electron/ai/ollama-manager.ts` - Service management
+- `electron/ai/ai-analyzer.ts` - AI analysis
+- `electron/utils/ai-response-parser.ts` - Response parsing
+
+**Error Handling:**
+- `electron/utils/rate-limit-helpers.ts` - Rate limit utilities
+- Various modules implement error handling patterns
