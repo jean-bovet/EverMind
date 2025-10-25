@@ -1,5 +1,5 @@
 {
-  "filePath": "/Users/bovet/GitHub/evernote-ai-importer/tests/fixtures/pdf-with-text.pdf",
+  "filePath": "tests/fixtures/pdf-with-text.pdf",
   "title": "AllergoTest®: Détection des Allergies en Suisse",
   "description": "Ce document contient des informations sur le test d'allergie AllergoTest® proposé par les pharmacies plus en Suisse. Il y a des détails sur la prestation, son coût, les pharmacies participantes et leur localisation. Le test permet de dépister les 5 allergies les plus courantes.",
   "tags": [
@@ -10,5 +10,5 @@
   "lastAttempt": "2025-10-22T05:20:39.319Z",
   "retryAfter": null,
   "uploadedAt": "2025-10-22T05:20:39.319Z",
-  "noteUrl": "https://www.evernote.com/Home.action#n=ef022157-5960-414b-91be-82adc2f799e8"
+  "noteUrl": "https://www.evernote.com/Home.action#n=12345678-1234-1234-1234-123456789abc"
 }

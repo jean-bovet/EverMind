@@ -32,8 +32,8 @@ Complete reference for application configuration via environment variables.
 
 **Example `.env`:**
 ```bash
-EVERNOTE_CONSUMER_KEY=notelytics-3327
-EVERNOTE_CONSUMER_SECRET=511c92235c7d8c25ae6ac7736337985947fe7302c5cf6423baad1034
+EVERNOTE_CONSUMER_KEY=your-app-name-1234
+EVERNOTE_CONSUMER_SECRET=your_consumer_secret_here_64_character_hex_string_from_evernote_api
 EVERNOTE_ENDPOINT=https://www.evernote.com  # Optional, defaults to production
 ```
 

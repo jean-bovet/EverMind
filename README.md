@@ -29,7 +29,7 @@ A Node.js CLI application that analyzes files using local AI (Ollama) and import
 
 1. Clone or download this project:
    ```bash
-   cd /Users/bovet/GitHub/evernote-ai-importer
+   cd evernote-ai-importer
    ```
 
 2. Install dependencies:

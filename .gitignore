@@ -7,6 +7,11 @@ node_modules/
 # OAuth tokens
 .evernote-token
 
+# SQLite databases
+*.db
+*.sqlite
+*.sqlite3
+
 # Logs
 logs
 *.log

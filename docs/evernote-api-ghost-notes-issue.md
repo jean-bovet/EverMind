@@ -1,31 +1,26 @@
 # Evernote API Ghost Notes Investigation
 
 ## Problem Statement
-The Evernote API returns **6 notes** for the Documents notebook when only **4 notes** are actually visible in the Evernote UI.
+The Evernote API sometimes returns more notes for a notebook than are actually visible in the Evernote UI. This investigation documents the behavior and explores potential causes.
 
 ---
 
-## Console Log Data
+## Observed Behavior
 
-**Notebook GUID:** `66232af5-49df-4c11-b611-310a1db4c66d`
-**Total notes returned by API:** 6
+**Symptom:** API returns N notes for a notebook, but only N-2 notes are visible in Evernote UI.
 
-### 4 CORRECT Notes (visible in Evernote UI)
-1. "Cancer Screening Follow-up..." - Created Oct 22, 2025 | Updated Oct 24, 2025
-2. "Bordereau d'Impôt Cantonal..." - Created Oct 22, 2025 | Updated Oct 24, 2025
-3. "Nouvelle Debit Mastercard..." - Created Oct 22, 2025 | Updated Oct 24, 2025
-4. "Invoice for iPhone Battery..." - Created Oct 23, 2025 | Updated Oct 24, 2025
+### Visible Notes (Correctly Returned)
+- Recent notes with regular update patterns
+- Created and updated in recent timeframe
+- Fully accessible in Evernote UI
 
-### 2 EXTRA Notes (NOT visible in Evernote UI)
-5. "Scannable Document"
-   - Created: Sept 28, 2024 | Updated: Sept 28, 2024 (never updated since creation)
-   - Source: `mobile.ios` / `scannable.ios`
-   - `noteTitleQuality: 0`
-
-6. "09282024_؛İst ofServİces Avatlable 247"
-   - Created: Sept 28, 2024 | Updated: Sept 28, 2024 (never updated since creation)
-   - Garbled characters in title
-   - `noteTitleQuality: null`
+### "Ghost" Notes (Extra API Results)
+- Much older notes (several months old)
+- Never updated since creation date
+- NOT visible in Evernote UI
+- Created from mobile apps (e.g., `mobile.ios`, `scannable.ios`)
+- May have quality indicators like `noteTitleQuality: 0` or `null`
+- May contain garbled characters in titles
 
 ---
 
@@ -42,7 +37,7 @@ const filter = new Evernote.NoteStore.NoteFilter({
 });
 ```
 
-**Observation:** All 6 notes returned have `Active: undefined` in the console logs, indicating this field is not being populated by the API.
+**Observation:** The `Active` field is not populated by the API (returns `undefined`), making it difficult to filter these notes programmatically.
 
 ---
 
@@ -57,15 +52,15 @@ const filter = new Evernote.NoteStore.NoteFilter({
 
 **Expected behavior:** Setting `inactive: false` should return only active (non-trashed) notes.
 
-**Actual behavior:** The filter does not exclude the 2 old notes from September 2024.
+**Actual behavior:** The filter does not exclude these older "ghost" notes.
 
 ---
 
 ## Web Research Findings
 
 ### Ghost Notes Phenomenon
-Multiple user forum discussions found:
-- Users report "ghost notes" that appear in API results but behave oddly in UI
+Multiple user forum discussions report:
+- "Ghost notes" that appear in API results but behave oddly in UI
 - Notes that show as "Loading..." or "Note unavailable" in clients
 - Often cannot be deleted, moved, or properly viewed
 - Reported as sync issues or database inconsistencies
@@ -79,35 +74,43 @@ Multiple user forum discussions found:
 
 ## Analysis
 
-The 2 extra notes share these characteristics:
-- Both created on same day (Sept 28, 2024)
-- Neither has been updated since creation (4 months ago)
-- One originates from `scannable.ios` app
-- Both are NOT visible in Evernote UI
-- Both ARE returned by `findNotesMetadata` API call
-- The `inactive: false` filter does not exclude them
+The ghost notes typically share these characteristics:
+- Created several months ago
+- Never updated since creation
+- Originated from mobile apps (especially Scannable)
+- NOT visible in Evernote UI
+- Returned by `findNotesMetadata` API call
+- Not filtered by `inactive: false` parameter
 
 **Hypothesis:** These are "ghost notes" or orphaned notes that:
-- Exist in Evernote's backend database with `notebookGuid` association
+- Exist in Evernote's backend database with notebook associations
 - Are filtered out by Evernote's client applications (web/desktop/mobile)
 - Are NOT technically "in trash" (so `inactive: false` doesn't filter them)
-- Represent incomplete sync or partially deleted notes from the Scannable app
+- Represent incomplete sync or partially deleted notes from mobile apps
 
 ---
 
 ## Conclusion
 
-The Evernote API's `inactive` parameter does not filter out these orphaned/ghost notes as expected. The official documentation states that inactive notes (trash) should be excluded when `inactive: false`, but these 2 notes do not appear to be classified as inactive by Evernote's backend, despite being invisible in the UI.
+The Evernote API's `inactive` parameter does not filter out these orphaned/ghost notes as expected. The official documentation states that inactive notes (trash) should be excluded when `inactive: false`, but these notes do not appear to be classified as inactive by Evernote's backend, despite being invisible in the UI.
 
 This appears to be a limitation or bug in Evernote's API where certain orphaned notes remain associated with notebooks in the database but are not properly exposed to client applications.
 
 ---
 
-## Status
+## Workarounds
 
-**Date:** January 2025
-**Status:** Documented, no fix implemented
-**Impact:** Users may see extra notes in the app that aren't visible in Evernote UI
+Potential approaches to handle ghost notes:
+1. **Filter by update date**: Exclude notes that haven't been updated in X months
+2. **Filter by source app**: Exclude notes from certain source applications
+3. **Filter by quality indicators**: Exclude notes with `noteTitleQuality: 0`
+4. **User notification**: Inform users that some API results may not match UI
+
+---
+
+## Impact
+
+Users may see extra notes in the app that aren't visible in the Evernote UI. This is a known limitation of the Evernote API and affects all applications using the NoteStore API.
 
 ## Related Files
 - `electron/evernote/client.ts` (lines 297, 314-331) - Filter and debug logging
