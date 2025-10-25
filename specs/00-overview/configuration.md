@@ -3,642 +3,268 @@
 > **Type:** Reference
 > **Last Updated:** January 2025
 
-## Environment Variables
+Complete reference for application configuration via environment variables.
 
-All configuration is managed through environment variables stored in the `.env` file.
+## Configuration File
 
-### Configuration File
+**Location:** `.env` file in project root
 
-**Location:** `/Users/bovet/GitHub/evernote-ai-importer/.env`
-
-**Template:** `.env.example` (committed to repository)
+**Template:** `.env.example` (committed to repository as template)
 
 **Security:** `.env` file is git-ignored to protect credentials
 
-### Variable Reference
+**Loading:** Automatically loaded via `dotenv` package on app start
 
-#### EVERNOTE_CONSUMER_KEY
+## Environment Variables
 
-**Purpose:** OAuth consumer key for Evernote API authentication
+### Evernote API Configuration
 
-**Type:** String
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `EVERNOTE_CONSUMER_KEY` | **Yes** | None | OAuth consumer key (format: `appname-1234`) |
+| `EVERNOTE_CONSUMER_SECRET` | **Yes** | None | OAuth consumer secret (64-char hex string) |
+| `EVERNOTE_ENDPOINT` | No | Production | API endpoint URL (production or sandbox) |
 
-**Required:** Yes
-
-**Format:** Application name followed by numeric ID
-```
-notelytics-3327
-```
-
-**How to Obtain:**
+**Obtaining API Credentials:**
 1. Visit https://dev.evernote.com/support/
-2. Request API access
-3. Receive consumer key via email
+2. Request API access for your application
+3. Receive consumer key and secret via email
 
-**Example:**
+**Example `.env`:**
 ```bash
 EVERNOTE_CONSUMER_KEY=notelytics-3327
-```
-
----
-
-#### EVERNOTE_CONSUMER_SECRET
-
-**Purpose:** OAuth consumer secret for Evernote API authentication
-
-**Type:** String
-
-**Required:** Yes
-
-**Format:** Hexadecimal string (64 characters)
-```
-511c92235c7d8c25ae6ac7736337985947fe7302c5cf6423baad1034
-```
-
-**How to Obtain:**
-1. Provided together with consumer key via email
-2. Keep secret - acts as password for your application
-
-**Example:**
-```bash
 EVERNOTE_CONSUMER_SECRET=511c92235c7d8c25ae6ac7736337985947fe7302c5cf6423baad1034
+EVERNOTE_ENDPOINT=https://www.evernote.com  # Optional, defaults to production
 ```
 
-**Security Notes:**
-- Never commit to version control
-- Never share publicly
-- Treat as application password
+**Endpoints:**
+- **Production:** `https://www.evernote.com` (default)
+- **Sandbox:** `https://sandbox.evernote.com` (testing only)
 
----
+### Ollama Configuration
 
-#### EVERNOTE_ENDPOINT
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `OLLAMA_MODEL` | No | `mistral` | AI model name to use for analysis |
+| `OLLAMA_HOST` | No | `http://localhost:11434` | Ollama API endpoint |
 
-**Purpose:** Evernote API endpoint (production or sandbox)
-
-**Type:** URL
-
-**Required:** No (defaults to production)
-
-**Default:** `https://www.evernote.com`
-
-**Valid Values:**
+**Example `.env`:**
 ```bash
-https://www.evernote.com           # Production
-https://sandbox.evernote.com       # Testing/Sandbox
-```
-
-**When to Use Sandbox:**
-- Testing during development
-- Experimenting without affecting real data
-- Separate credentials required for sandbox
-
-**Example:**
-```bash
-# Production (default)
-EVERNOTE_ENDPOINT=https://www.evernote.com
-
-# Sandbox for testing
-EVERNOTE_ENDPOINT=https://sandbox.evernote.com
-```
-
----
-
-#### OLLAMA_MODEL
-
-**Purpose:** AI model to use for content analysis
-
-**Type:** String
-
-**Required:** No (defaults to mistral)
-
-**Default:** `mistral`
-
-**Recommended:** Use `mistral` for best multilingual support (French/English)
-
-**Valid Values:**
-```bash
-mistral          # Best for French/English multilingual documents (recommended)
-llama2           # 7B parameter model, English-biased
-llama2:13b       # 13B parameter model, more accurate but slower, English-biased
-codellama        # Specialized for code analysis
-phi              # Smaller, faster model
-```
-
-**Model Characteristics:**
-
-| Model | Size | Speed | Accuracy | Languages | Use Case |
-|-------|------|-------|----------|-----------|----------|
-| mistral | ~4GB | Fast | Excellent | French/English native | Multilingual documents (recommended) |
-| llama2 | ~4GB | Medium | Good | English-biased | English-only documents |
-| llama2:13b | ~7GB | Slow | Excellent | English-biased | High-quality English analysis |
-| codellama | ~4GB | Medium | Good | Code/English | Code files |
-| phi | ~2GB | Very Fast | Fair | English | Resource-constrained |
-
-**Why Mistral?**
-
-Mistral was chosen as the default model because:
-1. **Native French support**: Mistral is developed by Mistral AI (France) and has native French language capabilities
-2. **Strong multilingual performance**: Handles both French and English documents without language bias
-3. **Language preservation**: Generates descriptions in the same language as the source document
-4. **Tested and verified**: Successfully extracts French content while preserving language and details
-
-In testing, llama2 exhibited strong English bias, generating English descriptions even for French documents. Mistral correctly maintains the source document language.
-
-**Example:**
-```bash
-# Recommended default (multilingual French/English)
-OLLAMA_MODEL=mistral
-
-# English-only documents
-OLLAMA_MODEL=llama2
-
-# Best quality (English-biased)
-OLLAMA_MODEL=llama2:13b
-```
-
-**Automatic Download:**
-- Models auto-download on first use
-- Download size varies (2-7 GB)
-- One-time download, persists across sessions
-
----
-
-#### OLLAMA_HOST
-
-**Purpose:** Ollama API endpoint URL
-
-**Type:** URL
-
-**Required:** No (defaults to localhost)
-
-**Default:** `http://localhost:11434`
-
-**Valid Values:**
-```bash
-http://localhost:11434              # Local Ollama (default)
-http://192.168.1.100:11434         # Remote Ollama on LAN
-http://remote-server.com:11434     # Remote Ollama server
-```
-
-**Local vs Remote:**
-
-**Local (Default):**
-- Runs on your machine
-- Complete privacy
-- No network dependency
-- Free
-- Slower on low-end hardware
-
-**Remote:**
-- Runs on server/different machine
-- Network dependency
-- Potentially faster (if better hardware)
-- Privacy depends on server trust
-- Requires Ollama running on remote host
-
-**Example:**
-```bash
-# Local (default)
+OLLAMA_MODEL=llama3.1:8b
 OLLAMA_HOST=http://localhost:11434
-
-# Remote server
-OLLAMA_HOST=http://192.168.1.50:11434
 ```
 
----
+**Available Models:**
+- `mistral` - Multilingual support (French/English), recommended
+- `llama3.1:8b` - Latest Llama 3.1 (8 billion parameters)
+- `llama2` - Original Llama 2
+- `codellama` - Code-specialized model
 
-## Runtime Configuration Files
+### Cache Configuration
 
-### .evernote-token
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `NOTE_CACHE_HOURS` | No | `24` | Hours to cache AI analysis results |
 
-**Purpose:** Stores OAuth access token after successful authentication
-
-**Location:** `/Users/bovet/GitHub/evernote-ai-importer/.evernote-token`
-
-**Format:** Plain text, single line
-
-**Created By:** `node index.js --auth` command
-
-**Example Content:**
-```
-S=s1:U=12345:E=17abc:C=18def:P=1:A=notelytics-3327:V=2:H=a1b2c3d4e5f6
+**Example `.env`:**
+```bash
+NOTE_CACHE_HOURS=48  # Cache for 2 days
 ```
 
-**Token Structure:**
-- `S=s1` - Schema version
-- `U=` - User ID
-- `E=` - Expiration timestamp
-- `C=` - Timestamp (created)
-- `P=` - Privilege level
-- `A=` - Application identifier
-- `V=2` - Version
-- `H=` - Authentication hash
+**How it works:**
+- AI analysis results cached in SQLite database by content hash
+- Cache valid for specified hours
+- Reduces re-analysis time for unchanged notes
+- Set to `0` to disable caching (not recommended)
+
+## Runtime Configuration
+
+These settings are stored via `electron-store` and configured through the Settings UI (not in `.env`):
+
+**Ollama Settings:**
+- Model selection (default: from `OLLAMA_MODEL` env var)
+- Host URL (default: from `OLLAMA_HOST` env var)
+
+**Evernote Settings:**
+- Authentication state (token stored in `.evernote-token` file)
+
+**Location:** Platform-specific app data directory
+- macOS: `~/Library/Application Support/evernote-ai-importer/`
+- Linux: `~/.config/evernote-ai-importer/`
+- Windows: `%APPDATA%/evernote-ai-importer/`
+
+## File Storage
+
+### Token File
+
+**Location:** `.evernote-token` (project root)
+
+**Format:** Plain text OAuth access token
 
 **Security:**
-- Git-ignored (in `.gitignore`)
-- Should have user-only permissions (600)
-- Never share or commit this file
-- Equivalent to your Evernote password
+- Git-ignored
+- User-only read permissions (chmod 600)
+- Never logged or transmitted except to Evernote API
 
-**Management:**
-```bash
-# Create/refresh token
-node index.js --auth
-
-# Remove token (logout)
-node index.js --logout
-
-# Verify token exists
-ls -la .evernote-token
+**Token Format:**
+```
+S=s1:U=xxxxx:E=xxxxxxx:C=xxxxxxx:P=xxx:A=xxxxxxx:V=2:H=xxxxxxxxxxxxxxxxxxxxxxxx
 ```
 
----
+### Database File
 
-## Command-Line Options
+**Location:** Platform-specific app data directory + `queue.db`
 
-### File Import
+**Purpose:** SQLite database for file queue and note cache
+
+**Contents:**
+- File processing queue
+- AI analysis cache
+- Augmented notes tracking
+
+**Backup:** No automatic backup (local-only storage)
+
+## Security Best Practices
+
+### API Credentials
+
+**DO:**
+- ✅ Keep `.env` file git-ignored
+- ✅ Use `.env.example` as template (without real values)
+- ✅ Treat consumer key/secret as passwords
+- ✅ Use sandbox endpoint for testing
+- ✅ Regenerate credentials if compromised
+
+**DON'T:**
+- ❌ Commit `.env` to version control
+- ❌ Share credentials publicly
+- ❌ Hardcode credentials in source code
+- ❌ Use production credentials for testing
+- ❌ Email credentials unencrypted
+
+### Token Storage
+
+**Current:** Plain text file (`.evernote-token`)
+
+**Justification:**
+- Simple implementation
+- User-only permissions
+- Never transmitted except to Evernote
+- Matches common OAuth patterns
+
+**Future Enhancement:** Encrypt tokens using OS keychain (macOS Keychain, Windows Credential Manager, Linux Secret Service)
+
+## Configuration Examples
+
+### Development Setup
 
 ```bash
-node index.js <file-path> [options]
+# .env
+EVERNOTE_CONSUMER_KEY=myapp-dev-1234
+EVERNOTE_CONSUMER_SECRET=abc123...
+EVERNOTE_ENDPOINT=https://sandbox.evernote.com  # Use sandbox for dev
+OLLAMA_MODEL=mistral
+OLLAMA_HOST=http://localhost:11434
+NOTE_CACHE_HOURS=1  # Short cache for testing
 ```
 
-**Arguments:**
-- `<file-path>` - Path to file to import (required)
+### Production Setup
 
-**Options:**
+```bash
+# .env
+EVERNOTE_CONSUMER_KEY=myapp-prod-5678
+EVERNOTE_CONSUMER_SECRET=def456...
+EVERNOTE_ENDPOINT=https://www.evernote.com  # Production (or omit, same default)
+OLLAMA_MODEL=mistral
+OLLAMA_HOST=http://localhost:11434
+NOTE_CACHE_HOURS=24  # 24-hour cache
+```
 
-#### -v, --verbose
+### Custom Ollama Server
 
-**Purpose:** Enable detailed output during processing
+```bash
+# .env
+EVERNOTE_CONSUMER_KEY=myapp-1234
+EVERNOTE_CONSUMER_SECRET=abc123...
+OLLAMA_MODEL=llama3.1:8b  # Different model
+OLLAMA_HOST=http://192.168.1.100:11434  # Remote Ollama server
+NOTE_CACHE_HOURS=48  # Longer cache
+```
 
-**Default:** Off (minimal output)
+## Troubleshooting
+
+### "Missing API Credentials" Error
+
+**Cause:** `EVERNOTE_CONSUMER_KEY` or `EVERNOTE_CONSUMER_SECRET` not set
+
+**Solution:**
+1. Create `.env` file in project root
+2. Copy from `.env.example`
+3. Fill in your API credentials
+4. Restart app
+
+### "Ollama Not Found" Error
+
+**Cause:** Ollama not installed or `OLLAMA_HOST` incorrect
+
+**Solution:**
+1. Install Ollama from https://ollama.ai
+2. Verify service running: `curl http://localhost:11434/api/tags`
+3. Check `OLLAMA_HOST` matches Ollama location
+4. Restart app
+
+### "Invalid Token" Error
+
+**Cause:** Stored token expired or invalid
+
+**Solution:**
+1. Delete `.evernote-token` file
+2. Re-authenticate via Settings → Connect Evernote
+3. Complete OAuth flow
+
+### "Sandbox vs Production" Issues
+
+**Cause:** Authenticated with wrong endpoint
+
+**Solution:**
+- Sandbox and production are separate accounts
+- Use different tokens for each
+- Delete `.evernote-token` when switching endpoints
+- Re-authenticate after endpoint change
+
+## Environment Variable Loading Order
+
+1. **Process environment** (system environment variables)
+2. **`.env` file** (overrides system vars)
+3. **App defaults** (used if not set anywhere)
 
 **Example:**
 ```bash
-node index.js document.pdf --verbose
+# System env: OLLAMA_MODEL=llama2
+# .env file: OLLAMA_MODEL=mistral
+# Result: Uses "mistral" from .env file
 ```
 
-**Output Difference:**
+## Validation
 
-**Normal:**
-```
-📄 Processing file: document.pdf
+**On App Start:**
+- Checks for required variables (`EVERNOTE_CONSUMER_KEY`, `EVERNOTE_CONSUMER_SECRET`)
+- Validates URL formats
+- Displays helpful errors if missing
 
-Analyzing content with Ollama (llama2)...
+**Runtime:**
+- Ollama status checked when needed
+- Token validated on first API call
+- Cache expiry checked on access
 
-📝 AI Analysis Results:
-   Description: A business proposal...
-   Tags: business, proposal
+## Source Code
 
-✅ Successfully imported to Evernote!
-```
+**Environment Loading:** `electron/main.ts` (loads dotenv)
 
-**Verbose:**
-```
-📄 Processing file: document.pdf
+**Configuration Access:**
+- `process.env['VARIABLE_NAME']` - Read environment variable
+- `electron-store` - Runtime settings storage
 
-Step 1: Fetching existing tags from Evernote...
-  - Found 103 existing tags
+**Token Management:** `electron/evernote/oauth-helper.ts`
 
-Step 2: Extracting file content...
-  - File type: pdf
-  - Content length: 2847 characters
-  - Preview: Introduction This document...
-
-Step 3: Analyzing content with AI...
-Analyzing content with Ollama (llama2)...
-AI analysis completed successfully.
-
-📝 AI Analysis Results:
-   Description: A business proposal...
-   Tags: business, proposal
-
-Step 4: Creating Evernote note...
-Creating note in Evernote...
-Note created successfully!
-
-✅ Successfully imported to Evernote!
-```
-
----
-
-#### --keep-ollama
-
-**Purpose:** Keep Ollama running after import completes
-
-**Default:** Auto-stop if we started it
-
-**Behavior:**
-- Without flag: Ollama stopped if app started it
-- With flag: Ollama kept running
-
-**Use Cases:**
-- Importing multiple files in sequence
-- Using Ollama for other tasks after
-- Avoiding startup overhead
-
-**Example:**
-```bash
-# Import and keep Ollama running
-node index.js document.pdf --keep-ollama
-
-# Then import another file (Ollama already running)
-node index.js report.pdf
-```
-
----
-
-### Authentication Commands
-
-#### --auth
-
-**Purpose:** Authenticate with Evernote (first-time setup)
-
-**Usage:**
-```bash
-node index.js --auth
-```
-
-**Process:**
-1. Generates OAuth request token
-2. Displays authorization URL
-3. Waits for user to provide verification code
-4. Exchanges code for access token
-5. Saves token to `.evernote-token`
-
-**When to Use:**
-- First time using the application
-- After logout
-- Token expired or invalid
-
----
-
-#### --logout
-
-**Purpose:** Remove stored OAuth token
-
-**Usage:**
-```bash
-node index.js --logout
-```
-
-**Effect:**
-- Deletes `.evernote-token` file
-- Requires re-authentication before next import
-
-**When to Use:**
-- Switching Evernote accounts
-- Security cleanup
-- Troubleshooting auth issues
-
----
-
-### Utility Commands
-
-#### --list-tags
-
-**Purpose:** Display all existing tags from Evernote account
-
-**Usage:**
-```bash
-node index.js --list-tags
-```
-
-**Output:**
-```
-📋 Fetching tags from Evernote...
-
-Found 103 tags:
-
-  1. 1st grade
-  2. 2013
-  3. 2014
-  ...
-  102. woodworking
-  103. work
-```
-
-**Use Cases:**
-- Review available tags before importing
-- Verify tag vocabulary
-- Check tag count
-- Debugging tag selection
-
----
-
-## Configuration Best Practices
-
-### Initial Setup
-
-1. **Copy template:**
-   ```bash
-   cp .env.example .env
-   ```
-
-2. **Edit .env:**
-   ```bash
-   nano .env
-   # or
-   vim .env
-   ```
-
-3. **Set required variables:**
-   ```bash
-   EVERNOTE_CONSUMER_KEY=your_key_here
-   EVERNOTE_CONSUMER_SECRET=your_secret_here
-   ```
-
-4. **Authenticate:**
-   ```bash
-   node index.js --auth
-   ```
-
-### Security Checklist
-
-- [ ] `.env` file is git-ignored
-- [ ] `.evernote-token` file is git-ignored
-- [ ] Never commit credentials to version control
-- [ ] Never share consumer secret publicly
-- [ ] Use sandbox for testing
-- [ ] Regularly rotate credentials if needed
-
-### Performance Tuning
-
-**For French/English Documents (Recommended):**
-```bash
-OLLAMA_MODEL=mistral
-```
-
-**For English-Only Documents:**
-```bash
-OLLAMA_MODEL=llama2
-```
-
-**For Best Quality (English-biased):**
-```bash
-OLLAMA_MODEL=llama2:13b
-```
-
-**For Low RAM:**
-```bash
-OLLAMA_MODEL=phi
-```
-
-**For Code Files:**
-```bash
-OLLAMA_MODEL=codellama
-```
-
-### Troubleshooting Configuration
-
-**Authentication Errors:**
-```bash
-# Check credentials
-cat .env | grep EVERNOTE
-
-# Verify token exists
-ls -la .evernote-token
-
-# Re-authenticate
-node index.js --logout
-node index.js --auth
-```
-
-**Ollama Connection Errors:**
-```bash
-# Verify Ollama host
-echo $OLLAMA_HOST
-
-# Check Ollama is running
-curl http://localhost:11434/api/tags
-
-# Test with different model
-OLLAMA_MODEL=llama2 node index.js file.pdf
-```
-
-**Endpoint Issues:**
-```bash
-# Verify endpoint
-cat .env | grep EVERNOTE_ENDPOINT
-
-# Switch to sandbox for testing
-# Edit .env:
-EVERNOTE_ENDPOINT=https://sandbox.evernote.com
-```
-
----
-
-## Configuration Precedence
-
-Configuration loaded in this order (later overrides earlier):
-
-1. **Hardcoded defaults** in code
-   ```javascript
-   const model = process.env.OLLAMA_MODEL || 'mistral';
-   ```
-
-2. **Environment variables** from `.env` file
-   ```bash
-   OLLAMA_MODEL=mistral
-   ```
-
-3. **System environment variables** (if set)
-   ```bash
-   export OLLAMA_MODEL=codellama
-   ```
-
-**Example:**
-```javascript
-// Code default (updated to mistral for multilingual support)
-const model = process.env.OLLAMA_MODEL || 'mistral';
-
-// .env file can override
-OLLAMA_MODEL=llama2
-
-// System environment overrides all
-$ export OLLAMA_MODEL=codellama
-$ node index.js file.pdf  # Uses codellama
-```
-
----
-
-## Configuration Validation
-
-**On Startup:**
-
-The application validates configuration:
-
-1. **OAuth Credentials:**
-   - Checks if `EVERNOTE_CONSUMER_KEY` is set
-   - Checks if `EVERNOTE_CONSUMER_SECRET` is set
-   - Error if missing
-
-2. **OAuth Token:**
-   - Checks if `.evernote-token` file exists
-   - Prompts to run `--auth` if missing
-
-3. **Ollama:**
-   - Checks if Ollama is installed
-   - Checks if specified model is available
-   - Auto-downloads model if missing
-
-**Error Messages:**
-
-```bash
-# Missing credentials
-Error: EVERNOTE_CONSUMER_KEY and EVERNOTE_CONSUMER_SECRET must be set in .env file
-
-# Not authenticated
-Error: Not authenticated. Please run: node index.js --auth
-
-# Ollama not installed
-Error: Ollama is not installed. Download from https://ollama.ai
-```
-
----
-
-## Example Configurations
-
-### Basic Setup (Default)
-
-```bash
-# .env
-EVERNOTE_CONSUMER_KEY=notelytics-3327
-EVERNOTE_CONSUMER_SECRET=511c92235c7d8c25ae6ac7736337985947fe7302c5cf6423baad1034
-EVERNOTE_ENDPOINT=https://www.evernote.com
-OLLAMA_MODEL=mistral
-OLLAMA_HOST=http://localhost:11434
-```
-
-### Sandbox Testing
-
-```bash
-# .env
-EVERNOTE_CONSUMER_KEY=sandbox-app-1234
-EVERNOTE_CONSUMER_SECRET=abcdef123456789...
-EVERNOTE_ENDPOINT=https://sandbox.evernote.com
-OLLAMA_MODEL=mistral
-OLLAMA_HOST=http://localhost:11434
-```
-
-### High Performance Setup
-
-```bash
-# .env
-EVERNOTE_CONSUMER_KEY=notelytics-3327
-EVERNOTE_CONSUMER_SECRET=511c92235c7d8c25ae6ac7736337985947fe7302c5cf6423baad1034
-EVERNOTE_ENDPOINT=https://www.evernote.com
-OLLAMA_MODEL=mistral
-OLLAMA_HOST=http://gpu-server:11434
-```
-
-### Maximum Quality Setup
-
-```bash
-# .env
-EVERNOTE_CONSUMER_KEY=notelytics-3327
-EVERNOTE_CONSUMER_SECRET=511c92235c7d8c25ae6ac7736337985947fe7302c5cf6423baad1034
-EVERNOTE_ENDPOINT=https://www.evernote.com
-OLLAMA_MODEL=llama2:13b
-OLLAMA_HOST=http://localhost:11434
-```
+**Database:** `electron/database/queue-db.ts`

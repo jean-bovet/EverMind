@@ -1,731 +1,339 @@
 # UI Components Reference
 
 > **Type:** Reference
-> **Last Updated:** October 2025
+> **Last Updated:** January 2025
 
-## Overview
-
-This document describes the user interface components and their behavior for the Electron app.
+Reference for UI components, design system, and layout patterns.
 
 ## Icon System
 
-The app uses **Lucide React** for all icons throughout the interface.
+**Library:** Lucide React (professional SVG icons)
 
-**Benefits:**
-- **Professional appearance** - Consistent, clean design language
-- **SVG-based** - Crisp and sharp at any size, scalable without pixelation
-- **Customizable** - Easy to adjust size, color, and stroke width
-- **Accessible** - Better screen reader support than emoji
-- **Animated** - Supports animations (e.g., spinning loader)
-
-**Key Icons Used:**
+**Key Icons:**
 - `FileText` - Documents and notes
-- `Loader` - Processing states (animated spin)
-- `CheckCircle2` - Success and completion
+- `Loader` - Processing (animated spin)
+- `CheckCircle2` - Success
 - `XCircle` - Errors
-- `RotateCw` - Retry actions and refresh button
-- `RefreshCw` - Manual refresh notes list
-- `Trash2` - Clear completed files
-- `Check` - Checkmarks and confirmation (also used in searchable notebook selector)
+- `RotateCw` - Retry/refresh
+- `Trash2` - Delete/clear
 - `AlertTriangle` - Warnings
-- `Settings` - Settings button
-- `FolderOpen` - Drop zones and file operations
-- `Search` - Search input indicator in notebook selector
-- `ChevronDown` - Dropdown closed state
-- `ChevronUp` - Dropdown open state
+- `Settings` - Settings
+- `FolderOpen` - File operations
+- `Search`, `ChevronDown`, `ChevronUp` - UI controls
 
-All icons are React components imported from the `lucide-react` package and rendered as inline SVG elements.
-
----
+**Benefits:** Consistent design, scalable SVG, customizable, accessible
 
 ## Layout Structure
 
-### Overview
-The app uses a vertical flex layout with three main structural components at the root level:
+### App Structure
 
-```
-┌─────────────────────────────────────────────────────┐
-│ Title Bar (52px fixed height)                      │ ← Top level
-├─────────────────────────────────────────────────────┤
-│                                                     │
-│  Main Content Area (flexible, scrollable)          │ ← Middle level
-│                                                     │
-│  - Rate limit warnings (conditional)               │
-│  - Unified list of notes/files                     │
-│                                                     │
-├─────────────────────────────────────────────────────┤
-│ Status Bar (fixed height)                          │ ← Bottom level
-└─────────────────────────────────────────────────────┘
-```
-
-### Structural Benefits
-- **Full-width header and footer**: Title bar and status bar span the entire window width, creating clear visual boundaries
-- **Maximized content area**: Main content has 20px padding on all sides, with the list taking all available vertical space
-- **Space optimization**: By moving controls to the title bar and status bar, more vertical space is available for content
-- **Clear hierarchy**: Three-tier structure (header/content/footer) provides intuitive visual organization
-
-### Technical Implementation
-```
-.app (height: 100vh, flex column)
-├── .title-bar (flex-shrink: 0, no padding around it)
-├── .main-content (flex: 1, padding: 20px, gap: 20px)
-│   ├── .rate-limit-warning (conditional)
-│   └── .unified-list (flex: 1, scrollable)
-└── .status-bar (flex-shrink: 0, no padding around it)
-```
-
----
-
-## Drop Zone Component
-
-### Purpose
-The drop zone is the primary entry point for users to add files to the import queue. It accepts files via drag-and-drop interaction.
-
-### Location
-- Positioned in the center of the main app screen
-- Visible when the app is in "Ready" state (Ollama installed and running)
-- Hidden when the Welcome Wizard is displayed
-
-### Visual Design
-
-#### Default State
 ```
 ┌─────────────────────────────────────┐
-│                                     │
-│              📁                     │
-│                                     │
-│    Drop files or folders here       │
-│                                     │
-│  Drag and drop your files to get    │
-│           started                   │
-│                                     │
-└─────────────────────────────────────┘
-```
-
-**Styling:**
-- Background: Light grey (#f5f5f5 in light mode, #2a2a2a in dark mode)
-- Border: 2px dashed grey (#cccccc)
-- Border radius: 8px
-- Padding: 60px
-- Text alignment: Center
-- Icon: 📁 (large, centered)
-- Title: "Drop files or folders here" (24px, bold)
-- Subtitle: "Drag and drop your files to get started" (16px, regular)
-
-#### Drag Over State (Active)
-```
-┌═════════════════════════════════════┐
-║                                     ║
-║              📁                     ║
-║                                     ║
-║    Drop files or folders here       ║
-║                                     ║
-║  Drag and drop your files to get    ║
-║           started                   ║
-║                                     ║
-└═════════════════════════════════════┘
-```
-
-**Styling Changes:**
-- Background: Light blue (#e3f2fd)
-- Border: 2px solid blue (#2196f3)
-- Border becomes solid (not dashed)
-- Slight scale transform (1.02) for visual feedback
-
-#### Disabled State
-When files are being processed (`isProcessing === true`):
-- Opacity: 0.6
-- Cursor: not-allowed
-- No hover or drag effects
-- All interactions disabled
-
-### Behavior
-
-#### Accepted File Types
-The drop zone accepts all file types but the app processes:
-- **Documents**: PDF, TXT, MD, Markdown, DOCX
-- **Images**: PNG, JPG, JPEG, GIF, BMP, TIFF
-
-#### Drag-and-Drop Interaction
-
-1. **Drag Enter**
-   - User drags file(s) from Finder/Explorer over the app window
-   - Drop zone transitions to "Drag Over" state
-   - Visual feedback appears immediately
-
-2. **Drag Over**
-   - While hovering with dragged files
-   - Drop zone remains highlighted
-   - Cursor shows "copy" indication
-
-3. **Drag Leave**
-   - User drags files away from the drop zone
-   - Drop zone returns to default state
-   - Highlight removed
-
-4. **Drop**
-   - User releases the mouse button to drop files
-   - Drop zone returns to default state
-   - Files are extracted and added to the queue
-   - File paths are logged to console for debugging
-   - If no valid file paths extracted, a warning is logged
-
-#### File Path Extraction
-- Uses Electron's `webUtils.getPathForFile()` API
-- Handles both single and multiple file drops
-- Filters out empty or invalid paths
-- Supports both files and folders (folder support may process all files within)
-
-#### Error Handling
-- If file path extraction fails: Log error to console
-- If no valid files dropped: Display warning "No file paths extracted from dropped files"
-- Invalid file types: Currently accepted, will fail during processing with appropriate error message
-
-### Technical Implementation
-
-#### Component: `DropZone.tsx`
-Located at: `electron/renderer/components/DropZone.tsx`
-
-**Props:**
-```typescript
-interface DropZoneProps {
-  onFilesAdded: (filePaths: string[]) => void;
-  disabled?: boolean;
-}
-```
-
-**State:**
-```typescript
-const [isDragOver, setIsDragOver] = useState(false);
-```
-
-**Event Handlers:**
-- `handleDragOver`: Prevents default, sets drag over state
-- `handleDragLeave`: Removes drag over state
-- `handleDrop`: Extracts file paths and calls `onFilesAdded` callback
-
-**CSS Classes:**
-- `.drop-zone`: Base styling
-- `.drop-zone.drag-over`: Applied during drag over
-- `.drop-zone.disabled`: Applied when disabled
-
-### User Feedback
-
-#### Success Indicators
-- Files appear immediately in the file queue below the drop zone
-- No success message (presence in queue is confirmation)
-
-#### Error Indicators
-- Console warnings for debugging (not shown to user)
-- Future: Toast notification for invalid file types
-
-### Accessibility
-
-#### Keyboard Support
-- Future enhancement: Allow keyboard shortcut to trigger file picker
-- Current: Drag-and-drop only (mouse/trackpad required)
-
-#### Screen Reader
-- ARIA label: "Drop zone for file import"
-- Role: "region"
-- Aria-label describes current state (default/active/disabled)
-
-#### Visual
-- High contrast border for visibility
-- Clear text labels (not icon-only)
-- Size is large enough for easy targeting (minimum 300x200px)
-
----
-
-## File Queue Component
-
-### Purpose
-Displays all files that have been added for processing, showing their current status and results.
-
-### Location
-- Appears below the drop zone
-- Only visible when files are present (`files.length > 0`)
-- Scrollable if queue exceeds viewport height
-
-### Visual Design
-
-#### Queue Header
-```
-┌─────────────────────────────────────┐
-│  1 file in queue                    │
-│                                     │
-│  [Process 1 file]  [Clear All]      │
-└─────────────────────────────────────┘
-```
-
-#### File Item States
-
-**Pending**
-```
-┌─────────────────────────────────────┐
-│ 📄 report.pdf                       │
-│ ⏳ Pending                          │
-└─────────────────────────────────────┘
-```
-
-**Processing**
-```
-┌─────────────────────────────────────┐
-│ 📄 report.pdf                       │
-│ ⚙️ Processing                       │
-│ [████████████░░░░░░] 60%            │
-└─────────────────────────────────────┘
-```
-
-**Complete**
-```
-┌─────────────────────────────────────┐
-│ 📄 report.pdf                       │
-│ ✅ Complete                         │
-│                                     │
-│ Q3 2024 Financial Report            │
-│ Comprehensive financial analysis    │
-│ for Q3 2024...                      │
-│                                     │
-│ 🏷️ finance | reports | 2024        │
-│                                     │
-│ [View in Evernote →]                │
-└─────────────────────────────────────┘
-```
-
-**Error**
-```
-┌─────────────────────────────────────┐
-│ 📄 report.pdf                       │
-│ ❌ Error                            │
-│                                     │
-│ Failed to process file: Connection  │
-│ to Ollama lost                      │
-│                                     │
-│ [Retry]                             │
-└─────────────────────────────────────┘
-```
-
-### Behavior
-
-#### File Addition
-- Files appear at the bottom of the queue
-- Queue scrolls to show newly added files
-- Counter updates to show total file count
-
-#### Processing
-- Files process sequentially (one at a time)
-- Progress bar updates in real-time
-- Status messages update during processing phases:
-  - "Extracting text..."
-  - "Analyzing with AI..."
-  - "Creating note..."
-
-#### Completion
-- File remains in queue with results visible
-- "Clear Completed" button becomes available
-- Result can be clicked to view in Evernote
-
-#### Queue Management
-- **Process Button**: Starts processing all pending files
-- **Clear Completed**: Removes only files with "Complete" status
-- **Clear All**: Removes all files from queue
-
----
-
-## Title Bar
-
-### Purpose
-Provides window drag functionality and houses the notebook selector and action buttons.
-
-### Location
-- Fixed at the top of the app window
-- Spans the full width of the window
-- Serves as the draggable area for moving the window
-
-### Visual Design
-
-#### Closed State
-```
-┌────────────────────────────────────────────────────────────────┐
-│          [Notebook: Personal Notes ▾] [↻] [Clear 3]           │
-└────────────────────────────────────────────────────────────────┘
-```
-
-#### Open State (Searchable Dropdown)
-```
-┌────────────────────────────────────────────────────────────────┐
-│          [Notebook: Personal Notes ▲] [↻] [Clear 3]           │
-│                   ┌──────────────────────┐                     │
-│                   │ 🔍 Search notebooks..│                     │
-│                   ├──────────────────────┤                     │
-│                   │ Personal Notes    ✓  │ ← Selected         │
-│                   │ Work Notes           │                     │
-│                   │ Ideas                │                     │
-│                   │ Recipes (Default)    │                     │
-│                   └──────────────────────┘                     │
-└────────────────────────────────────────────────────────────────┘
-```
-
-**Layout Components:**
-- **Notebook Label**: "Notebook:" text label
-- **Searchable Notebook Selector**: Custom dropdown with search functionality
-- **Refresh Button**: Manual refresh icon (spins while loading)
-- **Clear Completed Button**: Removes completed files from list (only visible when completed files exist)
-
-### Styling
-- Height: 52px
-- Background: Dark grey (#252525)
-- Padding: 0 20px
-- Controls positioned on the right side in a horizontal group
-- Controls are non-draggable (allow interaction), rest of title bar is draggable
-
-**Searchable Notebook Selector Styling:**
-
-*Button (Closed State):*
-- Padding: 6px 10px
-- Background: Slightly lighter grey (#2a2a2a)
-- Border: 1px solid #444
-- Border radius: 5px
-- Font size: 13px
-- Minimum width: 200px
-- Focus state: Blue border (#4a9eff)
-- Chevron icon: Down arrow (▾) when closed, up arrow (▲) when open
-
-*Dropdown Panel:*
-- Background: #2a2a2a
-- Border: 1px solid #444
-- Border radius: 6px
-- Box shadow: 0 4px 12px rgba(0, 0, 0, 0.4)
-- Max height: 300px (scrollable)
-- Z-index: 1000 (appears above other elements)
-
-*Search Input:*
-- Background: #252525
-- Border: None (bottom border separator only)
-- Padding: 8px 10px
-- Font size: 13px
-- Placeholder: "Search notebooks..."
-- Search icon (🔍) displayed on the left
-
-*Notebook Items:*
-- Padding: 8px 12px
-- Font size: 13px
-- Hover state: Background #333
-- Selected state: Background rgba(74, 158, 255, 0.15), text color #4a9eff
-- Check icon (✓) shown for selected notebook
-- "(Default)" badge shown in grey for default notebook
-
-**Refresh Button Styling:**
-- Padding: 6px 8px (icon only)
-- Background: #2a2a2a
-- Border: 1px solid #444
-- Border radius: 5px
-- Hover: Blue border (#4a9eff)
-- Disabled state: 50% opacity
-
-**Clear Completed Button Styling:**
-- Padding: 6px 12px
-- Background: #2a2a2a
-- Border: 1px solid #444
-- Border radius: 5px
-- Font size: 12px
-- Displays icon + count (e.g., "Clear 3")
-- Hover: Blue border (#4a9eff)
-
-### Searchable Notebook Selector Behavior
-
-#### Opening/Closing
-- Click the selector button to toggle dropdown open/closed
-- Click outside the dropdown to close
-- Press ESC key to close
-- Chevron icon rotates to indicate state
-
-#### Search Functionality
-- Type in the search field to filter notebooks by name
-- Search is case-insensitive
-- Results update in real-time as you type
-- Shows "No notebooks found" message when filter returns no results
-- Search input automatically focused when dropdown opens
-
-#### Keyboard Navigation
-- **Arrow Down**: Move highlight to next notebook
-- **Arrow Up**: Move highlight to previous notebook
-- **Enter**: Select the highlighted notebook and close dropdown
-- **Escape**: Close dropdown without selecting
-- Highlighted item automatically scrolls into view
-
-#### Selection
-- Click a notebook to select it
-- Selected notebook shown with blue background and checkmark
-- Dropdown closes after selection
-- Notes list updates immediately to show notes from selected notebook
-- Search text clears when dropdown closes
-
-#### Loading State
-- Shows "Loading..." when notebooks are being fetched
-- Selector is disabled (greyed out) until notebooks load
-
-### General Title Bar Behavior
-- Title bar area allows window dragging (macOS/Windows behavior)
-- Refresh button spins during loading and is disabled while fetching
-- Clear completed button only appears when completed files exist (count > 0)
-- Clicking clear completed removes all completed files from database and refreshes list
-
----
-
-## Settings Modal
-
-### Purpose
-Configure Ollama model selection, view Evernote connection status, and check system status.
-
-### Trigger
-- Click the ⚙️ (Settings) button in the status bar at the bottom of the screen
-
-### Visual Design
-```
-┌─────────────────────────────────────┐
-│ Settings                       [×]   │
+│ Title Bar (52px fixed)              │
 ├─────────────────────────────────────┤
 │                                     │
-│ Ollama Model                        │
-│ ┌─────────────────────────────────┐ │
-│ │ Mistral (Recommended)        ▼  │ │
-│ └─────────────────────────────────┘ │
-│ Make sure the model is downloaded   │
-│ before using it                     │
+│ Main Content Area (flex, scroll)   │
+│   - Rate limit warnings             │
+│   - Unified list (files & notes)   │
 │                                     │
-│                                     │
-│ Evernote Account                    │
-│ ┌─────────────────────────────────┐ │
-│ │ ✅ Connected to Evernote        │ │
-│ └─────────────────────────────────┘ │
-│ [Logout]                            │
-│                                     │
-│                                     │
-│ Ollama Status                       │
-│ [Refresh Status]                    │
-│                                     │
+├─────────────────────────────────────┤
+│ Status Bar (fixed)                  │
 └─────────────────────────────────────┘
 ```
 
-### Behavior
+**Technical:**
+- `.app` - 100vh, flex column
+- `.title-bar` - Fixed height, no shrink
+- `.main-content` - Flex: 1, 20px padding
+- `.status-bar` - Fixed height, no shrink
 
-#### Model Selection
-- Dropdown shows available/downloadable models
-- If model not downloaded: Prompt to download
-- Model switch: Immediate (no restart required)
+**Benefits:**
+- Full-width header/footer for clear boundaries
+- Maximized content area with proper scrolling
+- Clear visual hierarchy
 
-#### Evernote Connection
-- Shows connection status
-- Logout button available when connected
-- Connect button when disconnected
+## Key Components
 
-#### Status Refresh
-- Re-checks Ollama installation and running status
-- Updates model list
-- Shows success/error feedback
+### Title Bar
 
----
+**Purpose:** App-level navigation and controls
 
-## Status Bar
+**Elements:**
+- Tab navigation: "Import Files" | "Augment Notes"
+- Settings button (right-aligned)
+- Selected tab highlighted with accent color
 
-### Purpose
-Displays real-time status of Ollama and provides quick access to settings at the bottom of the app.
+**File:** `electron/renderer/App.tsx`
 
-### Location
-- Fixed at the bottom of the app window, at the same structural level as the title bar
-- Spans the full width of the window with no margins
-- Always visible (except in Welcome Wizard)
-- Separated from main content area by a top border
+### Drop Zone
 
-### Visual Design
-```
-┌─────────────────────────────────────────────────────┐
-│ ● Ollama: Running  │  3 models available  │  [⚙]  │
-└─────────────────────────────────────────────────────┘
-```
+**Purpose:** Primary entry point for file imports
 
-**Layout Components:**
-- **Status Indicator**: Colored dot + "Ollama: [status]" text
-- **Models Count**: Number of available models (when models exist)
-- **Version Display**: Ollama version (grayed out, when available)
-- **Spacer**: Flexible space to push settings button to the right
-- **Settings Button**: Gear icon button to open settings modal
+**States:**
+- **Default:** Dashed border, "Drop files or folders here" message
+- **Drag Over:** Solid border, accent color, "Drop to add files" message
+- **Disabled:** Grayed out when Ollama not ready
 
-**Status Indicator States:**
-- 🟢 **Running**: Ollama detected and responding (green dot)
-- 🟡 **Stopped**: Ollama not running or not found (orange dot)
+**Interactions:**
+- Drag & drop files/folders
+- Click "Select Files" button
+- Click "Select Folder" button
 
-### Styling
-- Background: Dark grey (#252525)
-- Border: 1px solid #333 (top only)
-- Padding: 12px 20px
-- Font size: 12px
-- Gap between elements: 16px
-- Settings button: Transparent background with border, hover effect
+**File:** `electron/renderer/components/DropZone.tsx`
 
-### Behavior
-- Updates automatically when Ollama status changes
-- Settings button opens the Settings modal when clicked
-- Full-width footer design provides visual grounding to the interface
+### Unified List (Files & Notes)
 
----
+**Purpose:** Shows all items (imported files and augmented notes)
 
-## Welcome Wizard
+**Features:**
+- Combined view of files and notes
+- Status-based filtering/sorting
+- Search functionality
+- "Clear Completed" button (removes successful uploads)
+- "Refresh Notes" button (syncs augmented notes from Evernote)
 
-### Purpose
-Guide first-time users through setup (Ollama installation and model download).
+**Item Card Displays:**
+- Title and description
+- Tags (inline, separated by •)
+- Status badge (pending, analyzing, complete, error, augmented)
+- Progress bar (0-100%)
+- Action buttons (Retry, Augment, View Note)
+- Timestamp (created/augmented date)
 
-### Visual Design
+**Files:**
+- `electron/renderer/components/UnifiedList.tsx`
+- `electron/renderer/components/UnifiedItemCard.tsx`
 
-#### Step 1: Ollama Installation
-```
-┌─────────────────────────────────────┐
-│                                     │
-│  Welcome to Evernote AI Importer    │
-│                                     │
-│  This app uses Ollama to analyze    │
-│  your files locally with AI.        │
-│                                     │
-│  1. Install Ollama ← YOU ARE HERE   │
-│  2. Download AI Model               │
-│  3. Connect Evernote                │
-│                                     │
-│  [Install Ollama]  [Skip Setup]     │
-│                                     │
-└─────────────────────────────────────┘
-```
+### Searchable Notebook Selector
 
-#### Step 2: Model Download
-```
-┌─────────────────────────────────────┐
-│                                     │
-│  📥 Download AI Model               │
-│                                     │
-│  Ollama is ready! Now let's         │
-│  download the Mistral model (~4GB). │
-│                                     │
-│  Mistral (Recommended)              │
-│  Fast and efficient, great for      │
-│  document analysis.                 │
-│                                     │
-│  [Download Mistral]  [Skip]         │
-│                                     │
-└─────────────────────────────────────┘
-```
+**Purpose:** Dropdown for selecting Evernote notebook
 
-### Behavior
-- Shows only on first launch if Ollama not detected
-- Can be dismissed with "Skip Setup"
-- Progress through steps automatically
-- Closes when Ollama is running and model available
+**Features:**
+- Search/filter notebooks by name
+- Keyboard navigation (arrow keys, enter, escape)
+- Auto-focus on open
+- Shows selected notebook name
+- Chevron icon indicates open/closed state
 
----
+**File:** `electron/renderer/components/SearchableNotebookSelector.tsx`
 
-## Design Tokens
+### Settings Modal
+
+**Purpose:** Configure app settings
+
+**Settings:**
+- Ollama Model (text input, default: mistral)
+- Ollama Host (text input, default: http://localhost:11434)
+- Evernote Authentication (Connect/Logout button)
+
+**Actions:**
+- Save button (stores settings via electron-store)
+- Cancel button (closes without saving)
+- Escape key closes modal
+
+**File:** `electron/renderer/components/Settings.tsx`
+
+### Status Bar
+
+**Purpose:** Show Ollama status and connection state
+
+**Displays:**
+- Ollama status: "Running", "Not Installed", "Stopped"
+- Connection indicator (green dot for connected)
+- Error messages when applicable
+
+**File:** `electron/renderer/components/StatusBar.tsx`
+
+### Welcome Wizard
+
+**Purpose:** First-time setup guide for Ollama
+
+**Screens:**
+1. **Ollama Check:** Detect installation status
+2. **Install Guide:** Instructions + download button
+3. **Verification:** Confirm installation successful
+
+**Flow:**
+- Shown when Ollama not detected
+- User downloads/installs Ollama
+- User clicks "I've Installed Ollama"
+- App verifies installation
+- Wizard closes, main UI appears
+
+**File:** `electron/renderer/components/WelcomeWizard.tsx`
+
+## Design System
 
 ### Colors
-```css
-/* Light Mode */
---background: #ffffff
---surface: #f5f5f5
---border: #cccccc
---text-primary: #000000
---text-secondary: #666666
---accent: #2196f3
---success: #4caf50
---warning: #ff9800
---error: #f44336
 
-/* Dark Mode */
---background: #1e1e1e
---surface: #2a2a2a
---border: #444444
---text-primary: #ffffff
---text-secondary: #aaaaaa
---accent: #2196f3
---success: #66bb6a
---warning: #ffa726
---error: #ef5350
-```
+**Brand/Accent:** `#007aff` (Blue)
+
+**Status Colors:**
+- Success: `#28a745` (Green)
+- Error: `#dc3545` (Red)
+- Warning: `#ffc107` (Yellow)
+- Info: `#17a2b8` (Cyan)
+
+**Neutrals:**
+- Background: `#ffffff` (White)
+- Text Primary: `#1a1a1a` (Near Black)
+- Text Secondary: `#6c757d` (Gray)
+- Border: `#dee2e6` (Light Gray)
+
+**Dark Mode:** Not currently implemented (future enhancement)
 
 ### Typography
-```css
---font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif
---font-size-title: 24px
---font-size-body: 16px
---font-size-small: 14px
---font-weight-bold: 600
---font-weight-regular: 400
-```
+
+**Font Family:** System fonts (-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, etc.)
+
+**Sizes:**
+- Headings: 18-24px
+- Body: 14-16px
+- Small: 12-13px
+- Tiny: 11px (timestamps, badges)
+
+**Weights:**
+- Regular: 400
+- Medium: 500
+- Semibold: 600
+- Bold: 700
 
 ### Spacing
-```css
---spacing-xs: 4px
---spacing-sm: 8px
---spacing-md: 16px
---spacing-lg: 24px
---spacing-xl: 32px
---spacing-xxl: 48px
-```
 
-### Borders
-```css
---border-radius-sm: 4px
---border-radius-md: 8px
---border-radius-lg: 12px
---border-width: 2px
-```
+**Scale:** 4px base unit
 
----
+Common values: 4px, 8px, 12px, 16px, 20px, 24px, 32px
+
+**Padding:**
+- Containers: 20px
+- Cards: 16px
+- Buttons: 8px 16px
+- Inline elements: 4px 8px
+
+**Gaps:**
+- Card lists: 12px
+- Form fields: 12px
+- Icon + text: 8px
+
+### Border Radius
+
+- Small: 4px (buttons, badges)
+- Medium: 8px (cards, inputs)
+- Large: 12px (modals, drop zones)
+- Circle: 50% (status indicators)
+
+### Shadows
+
+**Subtle:** `0 1px 3px rgba(0,0,0,0.1)` (cards)
+**Medium:** `0 4px 6px rgba(0,0,0,0.1)` (modals)
+**Strong:** `0 10px 20px rgba(0,0,0,0.15)` (dropdowns)
+
+## Component States
+
+### Interactive States
+
+**Buttons:**
+- Default: Base color
+- Hover: Slightly darker
+- Active: Even darker
+- Disabled: 50% opacity, no pointer
+
+**Inputs:**
+- Default: Border `#dee2e6`
+- Focus: Border accent color, blue outline
+- Error: Border `#dc3545`, red outline
+- Disabled: Gray background, no pointer
+
+**Cards:**
+- Default: White background, subtle shadow
+- Hover: Slight shadow increase
+- Selected: Accent border
+
+### Loading States
+
+**Spinners:**
+- Animated rotation (Lucide `Loader` icon)
+- Used for: Ollama status, note fetching, processing
+
+**Progress Bars:**
+- Linear progress (0-100%)
+- Accent color fill
+- Used for: File processing, uploads
+
+**Skeleton Loaders:**
+- Gray placeholder rectangles
+- Subtle pulse animation
+- Used for: Loading notes list, notebooks
 
 ## Responsive Behavior
 
-### Minimum Window Size
-- Width: 800px
-- Height: 600px
+**Window Size:** Minimum 800x600, optimized for 1200x800
 
-### Layout Adaptation
-- Drop zone: Shrinks proportionally but maintains minimum height of 200px
-- File queue: Becomes scrollable when exceeds available height
-- Settings modal: Remains centered, scrollable on small screens
+**Scrolling:**
+- Title bar and status bar fixed
+- Main content area scrollable
+- Unified list scrolls independently
 
----
+**Overflow:**
+- Long titles: Truncated with ellipsis
+- Many tags: Wrapped to multiple lines
+- Large lists: Virtual scrolling (future enhancement)
 
-## Animation & Transitions
+## Animations
 
-### Drop Zone
-- Drag over transition: 150ms ease-in-out
-- Scale transform: 1.0 → 1.02
+**Transitions:**
+- Hover effects: 150ms ease
+- Modal open/close: 200ms ease-in-out
+- Tab switch: 200ms ease
+- Progress bars: Smooth interpolation
 
-### File Queue
-- File addition: Slide in from bottom (200ms)
-- Status change: Fade transition (300ms)
-- Progress bar: Smooth fill animation
+**Micro-interactions:**
+- Button press: Scale 0.98
+- Success pulse: Scale 1.05 → 1.0
+- Spinner rotation: Continuous 1s linear
 
-### Modals
-- Open: Fade in + scale up (200ms)
-- Close: Fade out + scale down (150ms)
+**Performance:** CSS transitions preferred over JavaScript animations
 
----
+## Accessibility
+
+**Keyboard Navigation:**
+- Tab: Move focus between elements
+- Enter/Space: Activate buttons
+- Escape: Close modals
+- Arrow keys: Notebook selector navigation
+
+**Screen Readers:**
+- Semantic HTML (button, input, label)
+- ARIA labels for icons
+- Focus indicators visible
+- Error messages announced
+
+**Contrast:**
+- All text meets WCAG AA standards
+- 4.5:1 minimum contrast ratio
+- Focus outlines clearly visible
 
 ## Future Enhancements
 
-### Drop Zone
-- [ ] Visual preview of file icons (PDF, DOCX, etc.)
-- [ ] File type filtering with clear error messages
-- [ ] Paste from clipboard support
-- [ ] Keyboard shortcut to open file picker (Cmd+O)
+- **Dark mode** - System theme detection + manual toggle
+- **Virtual scrolling** - For large lists (1000+ items)
+- **Drag reordering** - Rearrange files in queue
+- **Multi-select** - Batch operations on files/notes
+- **Keyboard shortcuts** - Power user commands
+- **Custom themes** - User-configurable color schemes
 
-### File Queue
-- [ ] Drag to reorder files
-- [ ] Search/filter queue
-- [ ] Export queue results to CSV
-- [ ] Batch edit tags before processing
+## Source Files
 
-### General UI
-- [ ] Dark mode toggle in settings
-- [ ] Customizable color themes
-- [ ] Menu bar quick access
-- [ ] Notification badges for completed files
+**Styles:** `electron/renderer/styles.css` (global styles)
+
+**Components:**
+- `electron/renderer/App.tsx` - Main app structure
+- `electron/renderer/components/DropZone.tsx`
+- `electron/renderer/components/UnifiedList.tsx`
+- `electron/renderer/components/UnifiedItemCard.tsx`
+- `electron/renderer/components/SearchableNotebookSelector.tsx`
+- `electron/renderer/components/Settings.tsx`
+- `electron/renderer/components/StatusBar.tsx`
+- `electron/renderer/components/WelcomeWizard.tsx`
+
+**Hooks:** `electron/renderer/hooks/` (custom React hooks)
