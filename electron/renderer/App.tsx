@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { AlertTriangle, Trash2, RefreshCw } from 'lucide-react';
+import { AlertTriangle } from 'lucide-react';
 import UnifiedList from './components/UnifiedList';
 import Settings from './components/Settings';
 import WelcomeWizard from './components/WelcomeWizard';
@@ -118,24 +118,6 @@ function App() {
             onNotebookChange={handleNotebookChange}
             disabled={notebooks.length === 0}
           />
-          <button
-            className="refresh-notes-button"
-            onClick={() => refetchNotes()}
-            disabled={notesLoading}
-            title="Refresh notes list"
-          >
-            <RefreshCw size={16} className={notesLoading ? 'animate-spin' : ''} />
-          </button>
-          {completedCount > 0 && (
-            <button
-              className="clear-completed-button"
-              onClick={handleClearCompleted}
-              title={`Clear ${completedCount} completed file${completedCount > 1 ? 's' : ''}`}
-            >
-              <Trash2 size={16} />
-              <span>Clear {completedCount}</span>
-            </button>
-          )}
         </div>
       </div>
 
@@ -175,6 +157,10 @@ function App() {
         <StatusBar
           ollamaStatus={ollamaStatus}
           onSettingsClick={() => setShowSettings(true)}
+          onRefreshNotes={refetchNotes}
+          notesLoading={notesLoading}
+          completedCount={completedCount}
+          onClearCompleted={handleClearCompleted}
         />
       )}
 
