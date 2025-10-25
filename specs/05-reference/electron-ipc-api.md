@@ -182,6 +182,20 @@ Listen to model download progress. Returns cleanup function.
 ### `onAugmentProgress(callback: (data: AugmentProgressData) => void): () => void`
 Listen to note augmentation progress. Returns cleanup function.
 
+### `onFileRemovedFromQueue(callback: (data: { filePath: string }) => void): () => void`
+Listen to file removal from upload queue. Emitted when a file is successfully uploaded and removed from the database. Returns cleanup function.
+
+**Usage:**
+```typescript
+const cleanup = window.electronAPI.onFileRemovedFromQueue((data) => {
+  console.log(`File removed from queue: ${data.filePath}`);
+  // Update UI to remove the file from the displayed list
+});
+// Later: cleanup();
+```
+
+**When Emitted:** After successful upload to Evernote and database removal. This signals the UI to remove the file from the displayed queue, as it's no longer tracked in the database.
+
 ## Implementation Notes
 
 **Context Isolation:** All IPC communication uses `contextBridge.exposeInMainWorld()` for security.

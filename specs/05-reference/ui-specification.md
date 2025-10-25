@@ -56,14 +56,15 @@ Reference for UI components, design system, and layout patterns.
 
 ### Title Bar
 
-**Purpose:** App-level navigation and controls
+**Purpose:** Notebook selection and context
 
 **Elements:**
-- Tab navigation: "Import Files" | "Augment Notes"
-- Settings button (right-aligned)
-- Selected tab highlighted with accent color
+- Notebook selector (searchable dropdown)
+- "Notebook:" label
 
 **File:** `electron/renderer/App.tsx`
+
+**Note:** Action buttons (refresh, clear) were moved to the status bar for better organization.
 
 ### Drop Zone
 
@@ -135,14 +136,21 @@ Reference for UI components, design system, and layout patterns.
 
 ### Status Bar
 
-**Purpose:** Show Ollama status and connection state
+**Purpose:** Show Ollama status and provide action buttons
 
 **Displays:**
-- Ollama status: "Running", "Not Installed", "Stopped"
-- Connection indicator (green dot for connected)
-- Error messages when applicable
+- Ollama status indicator (dot + text): "Running", "Not Installed", "Stopped"
+- Ollama version (e.g., "v0.1.23")
+- Action buttons (right-aligned):
+  - **Refresh button** - Refresh notes list from Evernote (RefreshCw icon, spins when loading)
+  - **Clear button** - Clear completed files from queue (Trash2 icon + count, only shown when completed files exist)
+  - **Settings button** - Open settings modal (Settings icon)
+
+**Button Order:** Status indicator → Version → Spacer → Refresh → Clear (conditional) → Settings
 
 **File:** `electron/renderer/components/StatusBar.tsx`
+
+**Note:** Refresh and clear buttons were moved here from the title bar for better organization and consistency.
 
 ### Welcome Wizard
 

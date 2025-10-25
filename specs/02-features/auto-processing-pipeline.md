@@ -240,6 +240,19 @@ while (pendingFiles.length > 0 && activeProcessing < MAX_CONCURRENT) {
 
 **Frequency:** Emitted on every state change or progress update
 
+**Event:** `file-removed-from-queue`
+
+**Data:**
+```typescript
+{
+  filePath: string;
+}
+```
+
+**When Emitted:** After a file is successfully uploaded to Evernote and removed from the database. This event signals the UI to remove the file from the displayed queue.
+
+**Purpose:** Provides immediate UI feedback when completed files are cleaned up from the database, ensuring the UI stays synchronized with the database state.
+
 ## Database Integration
 
 **Files Table:**
