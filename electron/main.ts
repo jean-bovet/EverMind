@@ -16,6 +16,7 @@ import { UploadWorker } from './processing/upload-worker.js';
 import { initDatabase, closeDatabase, deleteAllFiles, deleteCompletedFiles, getAllFiles } from './database/queue-db.js';
 import { verifyAndRemoveUploadedNotes, cleanupAllExpiredCache } from './database/cleanup-service.js';
 import { tagCache } from './evernote/tag-cache.js';
+import { IPCProgressReporter } from './core/progress-reporter.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -31,8 +32,9 @@ const store = new Store({
 
 let mainWindow: BrowserWindow | null = null;
 
-// Initialize upload worker
-const uploadWorker = new UploadWorker(null);
+// Initialize progress reporter and upload worker
+const progressReporter = new IPCProgressReporter(null);
+const uploadWorker = new UploadWorker(progressReporter);
 
 // Determine if we're in development mode
 const isDev = process.env['NODE_ENV'] === 'development' || !app.isPackaged;
@@ -71,8 +73,8 @@ function createWindow() {
     mainWindow?.show();
   });
 
-  // Update upload worker with new window reference
-  uploadWorker.setMainWindow(mainWindow);
+  // Update progress reporter with new window reference
+  progressReporter.setMainWindow(mainWindow);
 
   // Save window bounds on resize/move
   mainWindow.on('resize', () => {
@@ -257,21 +259,21 @@ ipcMain.handle('get-note-content', async (_event, noteGuid: string) => {
 });
 
 ipcMain.handle('augment-note', async (_event, noteGuid: string) => {
-  return await augmentNote(noteGuid, mainWindow);
+  return await augmentNote(noteGuid, progressReporter);
 });
 
 // File processing IPC handlers
 ipcMain.handle('process-file', async (_event, filePath: string, options: any) => {
-  return await processFile(filePath, options, mainWindow);
+  return await processFile(filePath, options, progressReporter);
 });
 
 ipcMain.handle('process-batch', async (_event, folderPath: string, options: any) => {
-  return await processBatch(folderPath, options, mainWindow);
+  return await processBatch(folderPath, options, progressReporter);
 });
 
 // Stage 1: Analyze file (extract + AI)
 ipcMain.handle('analyze-file', async (_event, filePath: string, options: any) => {
-  return await analyzeFile(filePath, options, mainWindow);
+  return await analyzeFile(filePath, options, progressReporter);
 });
 
 // Add file to upload queue

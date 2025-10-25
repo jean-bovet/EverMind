@@ -1,4 +1,3 @@
-import { BrowserWindow } from 'electron';
 import { getNoteWithContent, updateNote } from './client.js';
 import { enmlToPlainText, prependToEnml, appendToEnml, createAIAnalysisEnml } from './enml-parser.js';
 import { contentAnalysisWorkflow } from '../ai/content-analysis-workflow.js';
@@ -8,6 +7,7 @@ import { promises as fs } from 'fs';
 import path from 'path';
 import os from 'os';
 import { parseEvernoteError } from '../utils/rate-limit-helpers.js';
+import type { ProgressReporter } from '../core/progress-reporter.js';
 
 export interface AugmentationResult {
   success: boolean;
@@ -27,22 +27,24 @@ export interface AugmentProgressData {
 /**
  * Augment an existing Evernote note with AI analysis
  * @param noteGuid - GUID of the note to augment
- * @param mainWindow - Electron main window for progress updates
+ * @param reporter - Progress reporter for status updates
  * @returns Augmentation result
  */
 export async function augmentNote(
   noteGuid: string,
-  mainWindow: BrowserWindow | null
+  reporter: ProgressReporter
 ): Promise<AugmentationResult> {
   const endpoint = process.env['EVERNOTE_ENDPOINT'] || 'https://www.evernote.com';
 
   const sendProgress = (data: Partial<AugmentProgressData>) => {
-    if (mainWindow) {
-      mainWindow.webContents.send('augment-progress', {
-        noteGuid,
-        ...data
-      });
-    }
+    reporter.reportAugmentProgress({
+      noteGuid,
+      status: data.status || 'fetching',
+      progress: data.progress || 0,
+      message: data.message,
+      error: data.error,
+      noteUrl: data.noteUrl
+    });
   };
 
   try {

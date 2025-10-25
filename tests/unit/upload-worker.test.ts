@@ -2,12 +2,12 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { UploadWorker } from '../../electron/processing/upload-worker.js';
 import type { UploadResult } from '../../electron/processing/file-processor.js';
 import {
-  createMockWindow,
   createMockUploadResult,
   createRateLimitResult,
   createFailedUploadResult
 } from '../utils/mock-factories.js';
 import { waitForQueueEmpty, sleep, waitForCalls } from '../utils/test-helpers.js';
+import { MockProgressReporter } from '../../electron/core/progress-reporter.js';
 
 // Mock the database module to return empty array (no files ready to upload from DB)
 vi.mock('../../electron/database/queue-db.js', () => ({
@@ -18,12 +18,12 @@ vi.mock('../../electron/database/queue-db.js', () => ({
 
 describe('UploadWorker', () => {
   let worker: UploadWorker;
-  let mockWindow: any;
+  let mockReporter: MockProgressReporter;
   let mockUploadFn: any;
 
   beforeEach(() => {
     vi.useFakeTimers();
-    mockWindow = createMockWindow();
+    mockReporter = new MockProgressReporter();
     mockUploadFn = vi.fn();
   });
 
@@ -38,7 +38,7 @@ describe('UploadWorker', () => {
 
   describe('Queue Management', () => {
     it('should add files to queue', () => {
-      worker = new UploadWorker(mockWindow, mockUploadFn);
+      worker = new UploadWorker(mockReporter, mockUploadFn);
 
       worker.addToQueue('/path/file1.json', '/path/file1.pdf');
       worker.addToQueue('/path/file2.json', '/path/file2.pdf');
@@ -47,7 +47,7 @@ describe('UploadWorker', () => {
     });
 
     it('should not add duplicate files to queue', () => {
-      worker = new UploadWorker(mockWindow, mockUploadFn);
+      worker = new UploadWorker(mockReporter, mockUploadFn);
 
       worker.addToQueue('/path/file1.json', '/path/file1.pdf');
       worker.addToQueue('/path/file1.json', '/path/file1.pdf');
@@ -57,7 +57,7 @@ describe('UploadWorker', () => {
 
     it('should remove files after successful upload', async () => {
       mockUploadFn.mockResolvedValue(createMockUploadResult());
-      worker = new UploadWorker(mockWindow, mockUploadFn);
+      worker = new UploadWorker(mockReporter, mockUploadFn);
 
       worker.addToQueue('/path/file1.json', '/path/file1.pdf');
       worker.start();
@@ -76,7 +76,7 @@ describe('UploadWorker', () => {
         return createMockUploadResult();
       });
 
-      worker = new UploadWorker(mockWindow, mockUploadFn);
+      worker = new UploadWorker(mockReporter, mockUploadFn);
 
       worker.addToQueue('/path/file1.json', '/path/file1.pdf');
       worker.addToQueue('/path/file2.json', '/path/file2.pdf');
@@ -94,7 +94,7 @@ describe('UploadWorker', () => {
     });
 
     it('should handle empty queue gracefully', async () => {
-      worker = new UploadWorker(mockWindow, mockUploadFn);
+      worker = new UploadWorker(mockReporter, mockUploadFn);
       worker.start();
 
       // Advance timers - worker should just wait
@@ -108,7 +108,7 @@ describe('UploadWorker', () => {
   describe('Processing Loop', () => {
     it('should start processing when queue has items', async () => {
       mockUploadFn.mockResolvedValue(createMockUploadResult());
-      worker = new UploadWorker(mockWindow, mockUploadFn);
+      worker = new UploadWorker(mockReporter, mockUploadFn);
 
       worker.addToQueue('/path/file1.json', '/path/file1.pdf');
       worker.start();
@@ -121,7 +121,7 @@ describe('UploadWorker', () => {
     it('should stop when stop() is called', async () => {
       mockUploadFn.mockResolvedValue(createMockUploadResult());
 
-      worker = new UploadWorker(mockWindow, mockUploadFn);
+      worker = new UploadWorker(mockReporter, mockUploadFn);
 
       worker.addToQueue('/path/file1.json', '/path/file1.pdf');
 
@@ -136,7 +136,7 @@ describe('UploadWorker', () => {
     });
 
     it('should wait when queue is empty', async () => {
-      worker = new UploadWorker(mockWindow, mockUploadFn);
+      worker = new UploadWorker(mockReporter, mockUploadFn);
       worker.start();
 
       // Advance by poll interval
@@ -156,7 +156,7 @@ describe('UploadWorker', () => {
         return createMockUploadResult();
       });
 
-      worker = new UploadWorker(mockWindow, mockUploadFn);
+      worker = new UploadWorker(mockReporter, mockUploadFn);
 
       worker.addToQueue('/path/file1.json', '/path/file1.pdf');
       worker.addToQueue('/path/file2.json', '/path/file2.pdf');
@@ -174,7 +174,7 @@ describe('UploadWorker', () => {
         .mockRejectedValueOnce(new Error('Critical error'))
         .mockResolvedValueOnce(createMockUploadResult());
 
-      worker = new UploadWorker(mockWindow, mockUploadFn);
+      worker = new UploadWorker(mockReporter, mockUploadFn);
 
       worker.addToQueue('/path/file1.json', '/path/file1.pdf');
       worker.addToQueue('/path/file2.json', '/path/file2.pdf');
@@ -194,7 +194,7 @@ describe('UploadWorker', () => {
         .mockResolvedValueOnce(createRateLimitResult(5)) // 5 seconds
         .mockResolvedValueOnce(createMockUploadResult());
 
-      worker = new UploadWorker(mockWindow, mockUploadFn);
+      worker = new UploadWorker(mockReporter, mockUploadFn);
 
       worker.addToQueue('/path/file1.json', '/path/file1.pdf');
       worker.start();
@@ -220,7 +220,7 @@ describe('UploadWorker', () => {
         .mockResolvedValueOnce(createRateLimitResult(2))
         .mockResolvedValueOnce(createMockUploadResult());
 
-      worker = new UploadWorker(mockWindow, mockUploadFn);
+      worker = new UploadWorker(mockReporter, mockUploadFn);
 
       worker.addToQueue('/path/file1.json', '/path/file1.pdf');
       worker.start();
@@ -235,7 +235,7 @@ describe('UploadWorker', () => {
     it('should keep file in queue during rate limit', async () => {
       mockUploadFn.mockResolvedValue(createRateLimitResult(5));
 
-      worker = new UploadWorker(mockWindow, mockUploadFn);
+      worker = new UploadWorker(mockReporter, mockUploadFn);
 
       worker.addToQueue('/path/file1.json', '/path/file1.pdf');
       worker.start();
@@ -252,7 +252,7 @@ describe('UploadWorker', () => {
         .mockResolvedValueOnce(createRateLimitResult(5))
         .mockResolvedValueOnce(createMockUploadResult());
 
-      worker = new UploadWorker(mockWindow, mockUploadFn);
+      worker = new UploadWorker(mockReporter, mockUploadFn);
 
       worker.addToQueue('/path/file1.json', '/path/file1.pdf');
       worker.start();
@@ -273,21 +273,18 @@ describe('UploadWorker', () => {
     it('should send rate-limited status via IPC', async () => {
       mockUploadFn.mockResolvedValue(createRateLimitResult(60));
 
-      worker = new UploadWorker(mockWindow, mockUploadFn);
+      worker = new UploadWorker(mockReporter, mockUploadFn);
 
       worker.addToQueue('/path/file1.json', '/path/file1.pdf');
       worker.start();
 
       await vi.advanceTimersByTimeAsync(1000);
 
-      expect(mockWindow.webContents.send).toHaveBeenCalledWith(
-        'file-progress',
-        expect.objectContaining({
-          filePath: '/path/file1.pdf',
-          status: 'rate-limited',
-          message: expect.stringContaining('60')
-        })
+      const rateLimitReport = mockReporter.fileProgressReports.find(
+        r => r.filePath === '/path/file1.pdf' && r.status === 'rate-limited'
       );
+      expect(rateLimitReport).toBeDefined();
+      expect(rateLimitReport?.message).toContain('60');
     });
   });
 
@@ -297,7 +294,7 @@ describe('UploadWorker', () => {
         .mockResolvedValueOnce(createFailedUploadResult('Network error'))
         .mockResolvedValueOnce(createMockUploadResult());
 
-      worker = new UploadWorker(mockWindow, mockUploadFn);
+      worker = new UploadWorker(mockReporter, mockUploadFn);
 
       worker.addToQueue('/path/file1.json', '/path/file1.pdf');
       worker.start();
@@ -315,7 +312,7 @@ describe('UploadWorker', () => {
         .mockResolvedValueOnce(createFailedUploadResult())
         .mockResolvedValueOnce(createMockUploadResult());
 
-      worker = new UploadWorker(mockWindow, mockUploadFn);
+      worker = new UploadWorker(mockReporter, mockUploadFn);
 
       worker.addToQueue('/path/file1.json', '/path/file1.pdf');
       worker.start();
@@ -336,7 +333,7 @@ describe('UploadWorker', () => {
     it('should give up after max retries', async () => {
       mockUploadFn.mockResolvedValue(createFailedUploadResult());
 
-      worker = new UploadWorker(mockWindow, mockUploadFn);
+      worker = new UploadWorker(mockReporter, mockUploadFn);
 
       worker.addToQueue('/path/file1.json', '/path/file1.pdf');
       worker.start();
@@ -357,21 +354,18 @@ describe('UploadWorker', () => {
         .mockResolvedValueOnce(createFailedUploadResult('Connection timeout'))
         .mockResolvedValueOnce(createMockUploadResult());
 
-      worker = new UploadWorker(mockWindow, mockUploadFn);
+      worker = new UploadWorker(mockReporter, mockUploadFn);
 
       worker.addToQueue('/path/file1.json', '/path/file1.pdf');
       worker.start();
 
       await vi.advanceTimersByTimeAsync(1000);
 
-      expect(mockWindow.webContents.send).toHaveBeenCalledWith(
-        'file-progress',
-        expect.objectContaining({
-          filePath: '/path/file1.pdf',
-          status: 'retrying',
-          error: 'Connection timeout'
-        })
+      const retryReport = mockReporter.fileProgressReports.find(
+        r => r.filePath === '/path/file1.pdf' && r.status === 'retrying'
       );
+      expect(retryReport).toBeDefined();
+      expect(retryReport?.error).toBe('Connection timeout');
     });
   });
 
@@ -379,27 +373,24 @@ describe('UploadWorker', () => {
     it('should mark file as error on critical failure', async () => {
       mockUploadFn.mockRejectedValue(new Error('Critical error'));
 
-      worker = new UploadWorker(mockWindow, mockUploadFn);
+      worker = new UploadWorker(mockReporter, mockUploadFn);
 
       worker.addToQueue('/path/file1.json', '/path/file1.pdf');
       worker.start();
 
       await vi.advanceTimersByTimeAsync(2000);
 
-      expect(mockWindow.webContents.send).toHaveBeenCalledWith(
-        'file-progress',
-        expect.objectContaining({
-          filePath: '/path/file1.pdf',
-          status: 'error',
-          error: 'Critical error'
-        })
+      const errorReport = mockReporter.fileProgressReports.find(
+        r => r.filePath === '/path/file1.pdf' && r.status === 'error'
       );
+      expect(errorReport).toBeDefined();
+      expect(errorReport?.error).toContain('Critical error');
     });
 
     it('should remove file from queue on critical error', async () => {
       mockUploadFn.mockRejectedValue(new Error('Critical error'));
 
-      worker = new UploadWorker(mockWindow, mockUploadFn);
+      worker = new UploadWorker(mockReporter, mockUploadFn);
 
       worker.addToQueue('/path/file1.json', '/path/file1.pdf');
       worker.start();
@@ -414,7 +405,7 @@ describe('UploadWorker', () => {
         .mockRejectedValueOnce(new Error('Critical error'))
         .mockResolvedValueOnce(createMockUploadResult());
 
-      worker = new UploadWorker(mockWindow, mockUploadFn);
+      worker = new UploadWorker(mockReporter, mockUploadFn);
 
       worker.addToQueue('/path/file1.json', '/path/file1.pdf');
       worker.addToQueue('/path/file2.json', '/path/file2.pdf');
@@ -429,39 +420,33 @@ describe('UploadWorker', () => {
     it('should send error status via IPC', async () => {
       mockUploadFn.mockRejectedValue(new Error('File not found'));
 
-      worker = new UploadWorker(mockWindow, mockUploadFn);
+      worker = new UploadWorker(mockReporter, mockUploadFn);
 
       worker.addToQueue('/path/file1.json', '/path/file1.pdf');
       worker.start();
 
       await vi.advanceTimersByTimeAsync(2000);
 
-      expect(mockWindow.webContents.send).toHaveBeenCalledWith(
-        'file-progress',
-        expect.objectContaining({
-          status: 'error',
-          error: 'File not found'
-        })
+      const fileNotFoundReport = mockReporter.fileProgressReports.find(
+        r => r.status === 'error' && r.error?.includes('File not found')
       );
+      expect(fileNotFoundReport).toBeDefined();
     });
 
     it('should handle max retries with proper error message', async () => {
       mockUploadFn.mockResolvedValue(createFailedUploadResult('Upload failed'));
 
-      worker = new UploadWorker(mockWindow, mockUploadFn);
+      worker = new UploadWorker(mockReporter, mockUploadFn);
 
       worker.addToQueue('/path/file1.json', '/path/file1.pdf');
       worker.start();
 
       await vi.advanceTimersByTimeAsync(30000);
 
-      expect(mockWindow.webContents.send).toHaveBeenCalledWith(
-        'file-progress',
-        expect.objectContaining({
-          status: 'error',
-          error: expect.stringMatching(/after.*retries/i)
-        })
+      const maxRetriesReport = mockReporter.fileProgressReports.find(
+        r => r.status === 'error' && /after.*retries/i.test(r.error || '')
       );
+      expect(maxRetriesReport).toBeDefined();
     });
   });
 });

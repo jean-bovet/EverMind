@@ -1,4 +1,3 @@
-import { BrowserWindow } from 'electron';
 import path from 'path';
 import { promises as fs } from 'fs';
 
@@ -16,6 +15,7 @@ import {
   extractErrorMessage,
   getSupportedExtensions
 } from './progress-helpers.js';
+import type { ProgressReporter } from '../core/progress-reporter.js';
 
 export interface ProcessFileOptions {
   debug?: boolean;
@@ -54,7 +54,7 @@ export interface UploadResult {
 export async function analyzeFile(
   filePath: string,
   options: ProcessFileOptions,
-  mainWindow: BrowserWindow | null
+  reporter: ProgressReporter
 ): Promise<AnalysisResult> {
   const absolutePath = path.resolve(filePath);
 
@@ -74,7 +74,7 @@ export async function analyzeFile(
     }
 
     // Send progress update: Extracting content
-    mainWindow?.webContents.send('file-progress',
+    reporter.reportFileProgress(
       createProgressData(absolutePath, 'extracting')
     );
 
@@ -82,7 +82,7 @@ export async function analyzeFile(
     const { text, fileType: _fileType, fileName } = await extractFileContent(absolutePath);
 
     // Send progress update: Analyzing with AI
-    mainWindow?.webContents.send('file-progress',
+    reporter.reportFileProgress(
       createProgressData(absolutePath, 'analyzing')
     );
 
@@ -100,7 +100,7 @@ export async function analyzeFile(
     );
 
     // Send progress update: Saving to JSON
-    mainWindow?.webContents.send('file-progress',
+    reporter.reportFileProgress(
       createProgressData(absolutePath, 'saving')
     );
 
@@ -112,7 +112,7 @@ export async function analyzeFile(
     }, analysisResult.contentHash);
 
     // Send progress: Ready for upload
-    mainWindow?.webContents.send('file-progress',
+    reporter.reportFileProgress(
       createProgressData(absolutePath, 'ready-to-upload', {
         result: {
           title: analysisResult.title,
@@ -133,7 +133,7 @@ export async function analyzeFile(
   } catch (error) {
     const errorMsg = extractErrorMessage(error);
 
-    mainWindow?.webContents.send('file-progress',
+    reporter.reportFileProgress(
       createProgressData(absolutePath, 'error', { error: errorMsg })
     );
 
@@ -152,11 +152,11 @@ export async function analyzeFile(
 export async function uploadFile(
   jsonPath: string,
   originalFilePath: string,
-  mainWindow: BrowserWindow | null
+  reporter: ProgressReporter
 ): Promise<UploadResult> {
   try {
     // Send progress update: Uploading
-    mainWindow?.webContents.send('file-progress',
+    reporter.reportFileProgress(
       createProgressData(originalFilePath, 'uploading')
     );
 
@@ -165,7 +165,7 @@ export async function uploadFile(
 
     if (uploadResult.success) {
       // Success
-      mainWindow?.webContents.send('file-progress',
+      reporter.reportFileProgress(
         createProgressData(originalFilePath, 'complete', {
           result: { noteUrl: uploadResult.noteUrl }
         })
@@ -174,6 +174,9 @@ export async function uploadFile(
       // Remove from database immediately after successful upload
       deleteFile(originalFilePath);
 
+      // Notify UI that file was removed from queue
+      reporter.reportFileRemoved(originalFilePath);
+
       return {
         success: true,
         noteUrl: uploadResult.noteUrl
@@ -181,7 +184,7 @@ export async function uploadFile(
 
     } else if (uploadResult.rateLimitDuration) {
       // Rate limited
-      mainWindow?.webContents.send('file-progress',
+      reporter.reportFileProgress(
         createProgressData(originalFilePath, 'rate-limited', {
           rateLimitDuration: uploadResult.rateLimitDuration
         })
@@ -196,7 +199,7 @@ export async function uploadFile(
       // Other error
       const errorMsg = extractErrorMessage(uploadResult.error) || 'Upload failed';
 
-      mainWindow?.webContents.send('file-progress',
+      reporter.reportFileProgress(
         createProgressData(originalFilePath, 'retrying', { error: errorMsg })
       );
 
@@ -209,7 +212,7 @@ export async function uploadFile(
   } catch (error) {
     const errorMsg = extractErrorMessage(error);
 
-    mainWindow?.webContents.send('file-progress',
+    reporter.reportFileProgress(
       createProgressData(originalFilePath, 'error', { error: errorMsg })
     );
 
@@ -227,7 +230,7 @@ export async function uploadFile(
 export async function processFile(
   filePath: string,
   options: ProcessFileOptions,
-  mainWindow: BrowserWindow | null
+  reporter: ProgressReporter
 ): Promise<ProcessResult> {
   const absolutePath = path.resolve(filePath);
 
@@ -244,7 +247,7 @@ export async function processFile(
     }
 
     // Send progress update: Extracting content
-    mainWindow?.webContents.send('file-progress',
+    reporter.reportFileProgress(
       createProgressData(absolutePath, 'extracting')
     );
 
@@ -252,7 +255,7 @@ export async function processFile(
     const { text, fileType: _fileType, fileName } = await extractFileContent(absolutePath);
 
     // Send progress update: Analyzing with AI
-    mainWindow?.webContents.send('file-progress',
+    reporter.reportFileProgress(
       createProgressData(absolutePath, 'analyzing')
     );
 
@@ -270,7 +273,7 @@ export async function processFile(
     );
 
     // Send progress update: Saving and uploading
-    mainWindow?.webContents.send('file-progress', {
+    reporter.reportFileProgress({
       filePath: absolutePath,
       status: 'uploading',
       progress: 75,
@@ -289,7 +292,7 @@ export async function processFile(
 
     if (uploadResult.success) {
       // Send completion
-      mainWindow?.webContents.send('file-progress', {
+      reporter.reportFileProgress({
         filePath: absolutePath,
         status: 'complete',
         progress: 100,
@@ -305,6 +308,9 @@ export async function processFile(
       // Remove from database immediately after successful upload
       deleteFile(absolutePath);
 
+      // Notify UI that file was removed from queue
+      reporter.reportFileRemoved(absolutePath);
+
       return {
         success: true,
         title: analysisResult.title,
@@ -314,7 +320,7 @@ export async function processFile(
       };
     } else if (uploadResult.rateLimitDuration) {
       // Rate limited - queued for retry
-      mainWindow?.webContents.send('file-progress', {
+      reporter.reportFileProgress({
         filePath: absolutePath,
         status: 'complete',
         progress: 100,
@@ -336,7 +342,7 @@ export async function processFile(
       // Upload failed - queued for retry
       const errorMsg = uploadResult.error?.message || 'Upload failed';
 
-      mainWindow?.webContents.send('file-progress', {
+      reporter.reportFileProgress({
         filePath: absolutePath,
         status: 'error',
         progress: 100,
@@ -353,7 +359,7 @@ export async function processFile(
   } catch (error) {
     const errorMsg = extractErrorMessage(error);
 
-    mainWindow?.webContents.send('file-progress',
+    reporter.reportFileProgress(
       createProgressData(absolutePath, 'error', { error: errorMsg })
     );
 
@@ -370,7 +376,7 @@ export async function processFile(
 export async function processBatch(
   folderPath: string,
   options: ProcessFileOptions,
-  mainWindow: BrowserWindow | null
+  reporter: ProgressReporter
 ): Promise<void> {
   const SUPPORTED_EXTENSIONS = getSupportedExtensions();
 
@@ -397,7 +403,7 @@ export async function processBatch(
   await scan(folderPath);
 
   // Send batch progress
-  mainWindow?.webContents.send('batch-progress', {
+  reporter.reportBatchProgress({
     totalFiles: files.length,
     processed: 0,
     status: 'scanning'
@@ -408,7 +414,7 @@ export async function processBatch(
     const file = files[i];
     if (!file) continue;
 
-    mainWindow?.webContents.send('batch-progress', {
+    reporter.reportBatchProgress({
       totalFiles: files.length,
       processed: i,
       currentFile: file,
@@ -416,7 +422,7 @@ export async function processBatch(
     });
 
     try {
-      await processFile(file, options, mainWindow);
+      await processFile(file, options, reporter);
     } catch (error) {
       console.error(`Error processing ${file}:`, error);
       // Continue with next file
@@ -424,7 +430,7 @@ export async function processBatch(
   }
 
   // Complete
-  mainWindow?.webContents.send('batch-progress', {
+  reporter.reportBatchProgress({
     totalFiles: files.length,
     processed: files.length,
     status: 'complete'

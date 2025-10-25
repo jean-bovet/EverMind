@@ -69,7 +69,7 @@ type FileStatus =
 - Monitors database for files in 'pending' status
 - Spawns concurrent processing tasks (max 2-3)
 - Limits concurrency to prevent overwhelming system
-- Emits progress events via IPC
+- Calls `analyzeFile()` which uses injected `ProgressReporter`
 
 **Lifecycle:**
 ```typescript
@@ -78,26 +78,49 @@ scheduler.start();  // Auto-processes pending files
 scheduler.stop();   // Stops processing
 ```
 
+**Progress Reporting:**
+- Receives `ProgressReporter` instance (usually `IPCProgressReporter`)
+- Business logic reports progress through interface
+- `IPCProgressReporter` translates to `file-progress` events
+- UI subscribes to events via `electronAPI.onFileProgress()`
+
 **Started automatically** when main window opens.
 
 ### UploadWorker
 
 **Purpose:** Manages Stage 2 uploads (Evernote API)
 
-**File:** `electron/processing/upload-worker.ts` (conceptual - functionality in queue-db.ts)
+**File:** `electron/processing/upload-worker.ts`
 
 **Responsibilities:**
 - Monitors for files in 'ready-to-upload' status
 - Uploads one file at a time (sequential)
 - Handles rate limits (waits specified duration)
 - Retries on transient errors
-- Updates database with results
+- Calls `uploadFile()` which uses injected `ProgressReporter`
+
+**Constructor:**
+```typescript
+constructor(reporter: ProgressReporter, uploadFileFn?: UploadFunction)
+```
+
+**Progress Reporting:**
+- Receives `ProgressReporter` instance at construction
+- Calls `uploadFile(json, path, reporter)` for each file
+- Reports progress, rate limits, retries, errors through interface
+- No direct dependency on `BrowserWindow` or Electron IPC
 
 **Rate Limit Handling:**
 - Evernote returns error code 19 with `rateLimitDuration`
-- Worker stores `retry_after` timestamp in database
-- Waits until timestamp before retrying
-- User sees countdown in UI
+- `uploadFile()` reports 'rate-limited' status via ProgressReporter
+- Worker waits specified duration before retry
+- User sees countdown in UI via IPC events
+
+**Database Updates:**
+- `uploadFile()` calls `deleteFile()` after successful upload
+- Then calls `reporter.reportFileRemoved(filePath)`
+- Ensures database and UI stay in sync
+- `file-removed-from-queue` event triggers UI to remove completed file
 
 ## UI Integration
 

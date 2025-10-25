@@ -58,6 +58,195 @@ This document provides technical implementation notes for key systems. For compl
 
 **Model Downloads:** Automatic on first use (models 2-7GB)
 
+## Core Abstractions
+
+### Overview
+
+The application uses dependency injection and interface-based design to decouple business logic from Electron IPC. This enables:
+- **Testability:** Business logic testable without Electron
+- **Flexibility:** Can swap IPC with WebSockets, HTTP, CLI, etc.
+- **Type Safety:** Full TypeScript interfaces
+- **Maintainability:** Clear separation of concerns
+
+**Source:** `electron/core/` directory
+
+### ProgressReporter Interface
+
+**Purpose:** Abstract progress reporting from Electron IPC
+
+**Interface:**
+```typescript
+interface ProgressReporter {
+  reportFileProgress(data: FileProgressData): void;
+  reportFileRemoved(filePath: string): void;
+  reportAugmentProgress(data: AugmentProgressData): void;
+  reportBatchProgress(data: BatchProgressData): void;
+}
+```
+
+**Implementations:**
+1. **IPCProgressReporter** - Production (sends via Electron IPC)
+2. **MockProgressReporter** - Testing (captures events for verification)
+3. **NullProgressReporter** - No-op (CLI or batch mode)
+
+**Usage Pattern:**
+```typescript
+// Before: Tight coupling
+export async function analyzeFile(
+  filePath: string,
+  options: ProcessFileOptions,
+  mainWindow: BrowserWindow | null  // ❌ Electron dependency
+): Promise<AnalysisResult>
+
+// After: Decoupled
+export async function analyzeFile(
+  filePath: string,
+  options: ProcessFileOptions,
+  reporter: ProgressReporter  // ✅ Interface dependency
+): Promise<AnalysisResult>
+```
+
+**Benefits:**
+- Can test `analyzeFile()` without Electron
+- Can use same logic in CLI, web server, etc.
+- Mock reporter captures all events for verification
+
+**Source:** `electron/core/progress-reporter.ts`
+
+### EventBus
+
+**Purpose:** Centralized, type-safe event management for in-process communication
+
+**Features:**
+- Type-safe events (TypeScript enforces correct payload types)
+- Event logging for debugging
+- Error handling in listeners
+- Subscribe/unsubscribe with cleanup functions
+- One-time subscriptions (`once`)
+
+**Event Types:**
+```typescript
+type AppEvent =
+  | FileProgressEvent
+  | FileRemovedEvent
+  | AugmentProgressEvent
+  | BatchProgressEvent
+  | StateUpdatedEvent;
+```
+
+**Usage:**
+```typescript
+// Subscribe
+const unsubscribe = eventBus.on('file-progress', (event) => {
+  console.log(`Progress: ${event.payload.progress}%`);
+});
+
+// Emit
+eventBus.emit({
+  type: 'file-progress',
+  payload: { filePath, status, progress }
+});
+
+// Unsubscribe
+unsubscribe();
+```
+
+**Debugging:**
+```typescript
+// Get recent events
+const recent = eventBus.getRecentEvents(10);
+
+// Get events by type
+const progressEvents = eventBus.getEventsByType('file-progress');
+
+// Check listener count
+const count = eventBus.getListenerCount('file-progress');
+```
+
+**Source:** `electron/core/event-bus.ts`
+
+### StateManager
+
+**Purpose:** Atomic database updates + event emission to ensure UI and database always in sync
+
+**Problem It Solves:**
+
+Previously, database updates and event emissions were separate:
+```typescript
+// ❌ Old: Can get out of sync
+updateFileStatus(filePath, 'analyzing');  // Database
+mainWindow?.webContents.send('file-progress', {...});  // IPC
+// If IPC fails, UI is out of sync with database!
+```
+
+**Solution:**
+
+StateManager combines both atomically:
+```typescript
+// ✅ New: Always in sync
+stateManager.updateStatus({
+  filePath,
+  status: 'analyzing',
+  progress: 50,
+  message: 'Analyzing content...'
+});
+// Database updated AND event emitted in single operation
+```
+
+**API:**
+```typescript
+class FileStateManager {
+  addFile(filePath: string): void;
+  updateStatus(update: FileStatusUpdate): void;
+  updateProgress(filePath: string, progress: number, message?: string): void;
+  updateResult(update: FileResultUpdate): void;
+  setError(filePath: string, errorMessage: string): void;
+  deleteFile(filePath: string): void;
+}
+```
+
+**Benefits:**
+- Single source of truth for state
+- No orphaned state
+- Transactional consistency
+- All state changes go through one path
+
+**Source:** `electron/core/state-manager.ts`
+
+### Dependency Injection
+
+**Main Process Setup:**
+```typescript
+// Initialize abstractions
+const progressReporter = new IPCProgressReporter(mainWindow);
+const uploadWorker = new UploadWorker(progressReporter);
+
+// Inject into IPC handlers
+ipcMain.handle('analyze-file', async (_, filePath, options) => {
+  return await analyzeFile(filePath, options, progressReporter);
+});
+
+ipcMain.handle('augment-note', async (_, noteGuid) => {
+  return await augmentNote(noteGuid, progressReporter);
+});
+```
+
+**Testing Setup:**
+```typescript
+// Use mock implementation
+const reporter = new MockProgressReporter();
+await analyzeFile(filePath, options, reporter);
+
+// Verify events
+expect(reporter.fileProgressReports).toHaveLength(3);
+expect(reporter.getLastFileProgress()?.status).toBe('complete');
+```
+
+**Migration Notes:**
+- All `BrowserWindow` parameters replaced with `ProgressReporter`
+- 658 tests passing (including 23 new tests for abstractions)
+- Zero breaking changes to UI or functionality
+
 ## Evernote Integration
 
 ### ENML (Evernote Markup Language)
@@ -188,8 +377,46 @@ try {
 See [Testing Strategy](testing-strategy.md) for comprehensive test coverage details.
 
 **Key modules with high coverage:**
+- Core abstractions: 100% (23 tests)
+  - ProgressReporter (9 tests)
+  - EventBus (14 tests)
 - ENML helpers: 100%
 - Tag validator: 100%
 - Progress helpers: 100%
 - File state reducer: 100%
 - Queue database: 90%+
+
+**Architecture Testing Benefits:**
+
+With the new abstractions, business logic can be tested without Electron:
+
+```typescript
+// Before: Hard to test
+describe('analyzeFile', () => {
+  it('should analyze file', async () => {
+    const mockWindow = createComplexElectronMock(); // ❌ Complex
+    await analyzeFile(filePath, options, mockWindow);
+    // Can't easily verify IPC events were sent
+  });
+});
+
+// After: Easy to test
+describe('analyzeFile', () => {
+  it('should analyze file', async () => {
+    const reporter = new MockProgressReporter(); // ✅ Simple
+    await analyzeFile(filePath, options, reporter);
+
+    // Easy verification
+    expect(reporter.fileProgressReports).toHaveLength(3);
+    expect(reporter.fileProgressReports[0].status).toBe('extracting');
+    expect(reporter.fileProgressReports[1].status).toBe('analyzing');
+    expect(reporter.fileProgressReports[2].status).toBe('ready-to-upload');
+  });
+});
+```
+
+**Test Suite Results:**
+- 26 test files
+- 658 tests passing
+- 1 test skipped
+- 0 failures

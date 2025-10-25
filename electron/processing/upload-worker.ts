@@ -1,6 +1,7 @@
 import { BrowserWindow } from 'electron';
 import { uploadFile as defaultUploadFile, UploadResult } from './file-processor.js';
-import { getReadyToUploadFiles, deleteFile } from '../database/queue-db.js';
+import { getReadyToUploadFiles } from '../database/queue-db.js';
+import type { ProgressReporter } from '../core/progress-reporter.js';
 
 // Configuration
 const UPLOAD_RETRY_DELAY = 5000;        // 5s between retries
@@ -17,7 +18,7 @@ interface QueueItem {
 type UploadFunction = (
   jsonPath: string,
   originalFilePath: string,
-  mainWindow: BrowserWindow | null
+  reporter: ProgressReporter
 ) => Promise<UploadResult>;
 
 /**
@@ -27,14 +28,14 @@ type UploadFunction = (
 export class UploadWorker {
   private isRunning = false;
   private queue: QueueItem[] = [];
-  private mainWindow: BrowserWindow | null = null;
+  private reporter: ProgressReporter;
   private uploadFileFn: UploadFunction;
 
   constructor(
-    mainWindow: BrowserWindow | null,
+    reporter: ProgressReporter,
     uploadFileFn: UploadFunction = defaultUploadFile
   ) {
-    this.mainWindow = mainWindow;
+    this.reporter = reporter;
     this.uploadFileFn = uploadFileFn;
   }
 
@@ -98,10 +99,10 @@ export class UploadWorker {
   }
 
   /**
-   * Update the main window reference
+   * Update the progress reporter (useful for hot reloading)
    */
-  setMainWindow(mainWindow: BrowserWindow | null) {
-    this.mainWindow = mainWindow;
+  setProgressReporter(reporter: ProgressReporter) {
+    this.reporter = reporter;
   }
 
   /**
@@ -136,7 +137,7 @@ export class UploadWorker {
         const result = await this.uploadFileFn(
           item.jsonPath,
           item.originalFilePath,
-          this.mainWindow
+          this.reporter
         );
 
         if (result.success) {
@@ -146,26 +147,11 @@ export class UploadWorker {
           }
           console.log(`Upload successful: ${item.originalFilePath}`);
 
-          // Update file with complete status (including noteUrl)
-          // Database is updated via uploadFile function
-          this.mainWindow?.webContents.send('file-progress', {
-            filePath: item.originalFilePath,
-            status: 'complete',
-            progress: 100,
-            message: 'Uploaded successfully',
-            result: {
-              noteUrl: result.noteUrl
-            }
-          });
-
-          // Remove from database immediately after successful upload
-          deleteFile(item.originalFilePath);
-          console.log(`  Removed from database: ${item.originalFilePath}`);
-
-          // Notify UI that file was removed from queue
-          this.mainWindow?.webContents.send('file-removed-from-queue', {
-            filePath: item.originalFilePath
-          });
+          // Note: uploadFile function already handles:
+          // - Sending file-progress event with 'complete' status
+          // - Deleting file from database
+          // - Sending file-removed-from-queue event
+          // So we don't need to duplicate those here
 
         } else if (result.rateLimitDuration) {
           // Rate limited - wait and retry
@@ -174,7 +160,7 @@ export class UploadWorker {
             `Rate limited: ${item.originalFilePath}, waiting ${result.rateLimitDuration}s`
           );
 
-          this.mainWindow?.webContents.send('file-progress', {
+          this.reporter.reportFileProgress({
             filePath: item.originalFilePath,
             status: 'rate-limited',
             progress: 10,
@@ -196,7 +182,7 @@ export class UploadWorker {
               `Max retries reached for ${item.originalFilePath}: ${result.error?.message}`
             );
 
-            this.mainWindow?.webContents.send('file-progress', {
+            this.reporter.reportFileProgress({
               filePath: item.originalFilePath,
               status: 'error',
               progress: 0,
@@ -210,7 +196,7 @@ export class UploadWorker {
               `Upload failed for ${item.originalFilePath}, retrying in ${retryDelay}ms (attempt ${item.retryCount}/${MAX_UPLOAD_RETRIES})`
             );
 
-            this.mainWindow?.webContents.send('file-progress', {
+            this.reporter.reportFileProgress({
               filePath: item.originalFilePath,
               status: 'retrying',
               progress: 10,
@@ -230,7 +216,7 @@ export class UploadWorker {
         const errorMsg = error instanceof Error ? error.message : 'Unknown error';
         console.error(`Critical error uploading ${item.originalFilePath}:`, error);
 
-        this.mainWindow?.webContents.send('file-progress', {
+        this.reporter.reportFileProgress({
           filePath: item.originalFilePath,
           status: 'error',
           progress: 0,

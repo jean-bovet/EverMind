@@ -10,12 +10,62 @@ This document describes the architecture of the Evernote AI Importer Electron ap
 ## Design Principles
 
 1. **Modular Architecture**: Clean separation between UI, business logic, and data layers
-2. **Security**: Use Electron's context isolation and IPC for secure communication
-3. **User Transparency**: No silent installations; guide users through setup
-4. **Privacy First**: All AI processing happens locally via Ollama
-5. **Platform Native**: macOS-first design with native UI conventions
+2. **Dependency Injection**: Interface-based design for testability and flexibility
+3. **Security**: Use Electron's context isolation and IPC for secure communication
+4. **User Transparency**: No silent installations; guide users through setup
+5. **Privacy First**: All AI processing happens locally via Ollama
+6. **Platform Native**: macOS-first design with native UI conventions
+7. **Type Safety**: Full TypeScript coverage with strict mode
 
 ## Architecture Layers
+
+### 0. Core Abstractions (`electron/core/`)
+
+**Purpose:** Decouple business logic from Electron IPC using dependency injection
+
+**Components:**
+
+**ProgressReporter Interface**
+- Abstracts progress reporting from Electron IPC
+- Implementations: IPCProgressReporter (production), MockProgressReporter (testing), NullProgressReporter (CLI)
+- Injected into all business logic functions
+- **Source:** `electron/core/progress-reporter.ts`
+
+**EventBus**
+- Centralized, type-safe event management
+- Event logging for debugging
+- Subscribe/unsubscribe with cleanup functions
+- **Source:** `electron/core/event-bus.ts`
+
+**FileStateManager**
+- Atomic database updates + event emission
+- Ensures UI and database always in sync
+- Single source of truth for state changes
+- **Source:** `electron/core/state-manager.ts`
+
+**Architecture Benefits:**
+- Business logic testable without Electron (658 tests passing)
+- Can swap IPC with WebSockets, HTTP, CLI, etc.
+- Clear separation of concerns
+- Type-safe interfaces
+
+**Dependency Injection Flow:**
+```
+Main Process
+  ├── Create IPCProgressReporter(mainWindow)
+  ├── Create UploadWorker(progressReporter)
+  └── Inject progressReporter into IPC handlers
+        ├── analyzeFile(path, options, progressReporter)
+        ├── uploadFile(json, path, progressReporter)
+        └── augmentNote(guid, progressReporter)
+
+Tests
+  ├── Create MockProgressReporter()
+  └── Inject into business logic
+        └── Verify events captured by mock
+```
+
+See [Implementation Details](../03-development/implementation-details.md#core-abstractions) for complete documentation.
 
 ### 1. Main Process (`electron/main.ts`)
 
@@ -177,24 +227,43 @@ The codebase uses pure function modules for better testability and maintainabili
 ### Communication Pattern
 
 ```
-               IPC                    Import
-  Renderer  -------> Main Process  -------->  Core Modules
- (React UI) <-------   (Node.js)   <--------   (electron/)
-              Events                 Results
+                IPC                      Inject
+  Renderer  -------> Main Process  ----------------> Core Modules
+ (React UI) <-------   (Node.js)   <----------------  (electron/)
+              Events     │                Results
+                         │
+                         └── ProgressReporter Interface
+                              └── IPCProgressReporter
+                                    └── Sends events to Renderer
 ```
+
+**Architecture:**
+- Main process creates `IPCProgressReporter(mainWindow)`
+- Business logic depends on `ProgressReporter` interface (not `BrowserWindow`)
+- `IPCProgressReporter` translates interface calls to Electron IPC
+- Renderer subscribes to IPC events via `electronAPI`
 
 **IPC Events:**
 - `file-progress` - File processing progress updates
+- `file-removed-from-queue` - File removed from database after upload
 - `augment-progress` - Note augmentation progress
 - `batch-progress` - Batch processing status
 - `download-progress` - Model download status
 
 **IPC Handlers:**
-- `processFile()` - Process single file
-- `processFolder()` - Process folder recursively
+- `analyze-file` - Stage 1: Extract and analyze (injects `ProgressReporter`)
+- `processFile()` - Process single file (injects `ProgressReporter`)
+- `processBatch()` - Process folder (injects `ProgressReporter`)
+- `augment-note` - Augment existing note (injects `ProgressReporter`)
 - `authenticateEvernote()` - OAuth flow
 - `checkOllamaStatus()` - Ollama installation check
 - `getAllItems()` - Get files and notes from database
+
+**Abstraction Benefits:**
+- Business logic never directly accesses `BrowserWindow`
+- Can test without Electron (use `MockProgressReporter`)
+- Can replace IPC with other transports (WebSockets, HTTP, etc.)
+- Type-safe event payloads
 
 See [IPC API Reference](../05-reference/electron-ipc-api.md) for complete API.
 

@@ -4,6 +4,7 @@ import {
   extractAugmentationStatus,
   augmentNote
 } from '../../electron/evernote/note-augmenter.js';
+import { MockProgressReporter } from '../../electron/core/progress-reporter.js';
 
 // Mock dependencies
 vi.mock('../../electron/evernote/client.js', () => ({
@@ -164,6 +165,7 @@ describe('note-augmenter', () => {
     let mockUpdateNote: any;
     let mockAnalyzeContent: any;
     let mockExtractFileContent: any;
+    let mockReporter: MockProgressReporter;
 
     beforeEach(async () => {
       // Get mocked functions
@@ -178,6 +180,9 @@ describe('note-augmenter', () => {
 
       // Reset all mocks
       vi.clearAllMocks();
+
+      // Create mock progress reporter
+      mockReporter = new MockProgressReporter();
     });
 
     it('should complete full augmentation flow', async () => {
@@ -202,7 +207,7 @@ describe('note-augmenter', () => {
         title: 'Original Title'
       } as any);
 
-      const result = await augmentNote('n1', null);
+      const result = await augmentNote('n1', mockReporter);
 
       expect(result.success).toBe(true);
       expect(result.noteUrl).toBeDefined();
@@ -224,7 +229,7 @@ describe('note-augmenter', () => {
 
       mockUpdateNote.mockResolvedValueOnce({ guid: 'n1' } as any);
 
-      await augmentNote('n1', null);
+      await augmentNote('n1', mockReporter);
 
       // AI should have been called with extracted text
       const aiCall = mockAnalyzeContent.mock.calls[0];
@@ -256,7 +261,7 @@ describe('note-augmenter', () => {
 
       mockUpdateNote.mockResolvedValueOnce({ guid: 'n1' } as any);
 
-      await augmentNote('n1', null);
+      await augmentNote('n1', mockReporter);
 
       // Should have called file extraction
       expect(mockExtractFileContent).toHaveBeenCalled();
@@ -293,7 +298,7 @@ describe('note-augmenter', () => {
 
       mockUpdateNote.mockResolvedValueOnce({ guid: 'n1' } as any);
 
-      await augmentNote('n1', null);
+      await augmentNote('n1', mockReporter);
 
       expect(mockExtractFileContent).toHaveBeenCalled();
     });
@@ -317,7 +322,7 @@ describe('note-augmenter', () => {
 
       mockUpdateNote.mockResolvedValueOnce({ guid: 'n1' } as any);
 
-      await augmentNote('n1', null);
+      await augmentNote('n1', mockReporter);
 
       // Should NOT have called file extraction for zip
       expect(mockExtractFileContent).not.toHaveBeenCalled();
@@ -344,7 +349,7 @@ describe('note-augmenter', () => {
 
       mockUpdateNote.mockResolvedValueOnce({ guid: 'n1' } as any);
 
-      const result = await augmentNote('n1', null);
+      const result = await augmentNote('n1', mockReporter);
 
       // Should still succeed despite extraction failure
       expect(result.success).toBe(true);
@@ -364,7 +369,7 @@ describe('note-augmenter', () => {
 
       mockUpdateNote.mockResolvedValueOnce({ guid: 'n1' } as any);
 
-      await augmentNote('n1', null);
+      await augmentNote('n1', mockReporter);
 
       // Check updateNote was called with correct attributes
       const updateCall = mockUpdateNote.mock.calls[0];
@@ -381,7 +386,7 @@ describe('note-augmenter', () => {
         new Error('Network error')
       );
 
-      const result = await augmentNote('n1', null);
+      const result = await augmentNote('n1', mockReporter);
 
       expect(result.success).toBe(false);
       expect(result.error).toContain('Network error');
@@ -393,19 +398,13 @@ describe('note-augmenter', () => {
         content: undefined
       } as any);
 
-      const result = await augmentNote('n1', null);
+      const result = await augmentNote('n1', mockReporter);
 
       expect(result.success).toBe(false);
       expect(result.error).toContain('no content');
     });
 
-    it('should send progress events if window provided', async () => {
-      const mockWindow = {
-        webContents: {
-          send: vi.fn()
-        }
-      } as any;
-
+    it('should send progress events if reporter provided', async () => {
       mockGetNoteWithContent.mockResolvedValueOnce({
         guid: 'n1',
         content: '<en-note>Test</en-note>',
@@ -418,14 +417,13 @@ describe('note-augmenter', () => {
 
       mockUpdateNote.mockResolvedValueOnce({ guid: 'n1' } as any);
 
-      await augmentNote('n1', mockWindow);
+      await augmentNote('n1', mockReporter);
 
       // Should have sent multiple progress events
-      expect(mockWindow.webContents.send).toHaveBeenCalled();
-      const calls = mockWindow.webContents.send.mock.calls;
+      expect(mockReporter.augmentProgressReports.length).toBeGreaterThan(0);
 
       // Check for different status values
-      const statuses = calls.map((call: any) => call[1].status);
+      const statuses = mockReporter.augmentProgressReports.map(r => r.status);
       expect(statuses).toContain('fetching');
       expect(statuses).toContain('extracting');
       expect(statuses).toContain('analyzing');
@@ -435,21 +433,14 @@ describe('note-augmenter', () => {
     });
 
     it('should send error event on failure', async () => {
-      const mockWindow = {
-        webContents: {
-          send: vi.fn()
-        }
-      } as any;
-
       mockGetNoteWithContent.mockRejectedValueOnce(new Error('Test error'));
 
-      await augmentNote('n1', mockWindow);
+      await augmentNote('n1', mockReporter);
 
       // Should have sent error event
-      const calls = mockWindow.webContents.send.mock.calls;
-      const errorEvent = calls.find((call: any) => call[1].status === 'error');
+      const errorEvent = mockReporter.augmentProgressReports.find(r => r.status === 'error');
       expect(errorEvent).toBeDefined();
-      expect(errorEvent[1].error).toContain('Test error');
+      expect(errorEvent?.error).toContain('Test error');
     });
 
     it('should include note URL in completion', async () => {
@@ -465,7 +456,7 @@ describe('note-augmenter', () => {
 
       mockUpdateNote.mockResolvedValueOnce({ guid: 'n1' } as any);
 
-      const result = await augmentNote('n1', null);
+      const result = await augmentNote('n1', mockReporter);
 
       expect(result.noteUrl).toContain('Home.action#n=n1');
     });
