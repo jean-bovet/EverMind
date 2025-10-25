@@ -26,8 +26,8 @@
     "automation",
     "ocr"
   ],
-  "author": "",
-  "license": "ISC",
+  "author": "Jean Bovet",
+  "license": "MIT",
   "type": "module",
   "dependencies": {
     "@napi-rs/canvas": "^0.1.80",
