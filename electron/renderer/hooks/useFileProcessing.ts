@@ -9,6 +9,7 @@ import {
   updateFileFromIPCMessage,
   addFiles as addFilesToState,
   updateFileStatus,
+  removeFileByPath,
   type FileProgressData
 } from '../../utils/file-state-reducer.js';
 import type { FileItem } from '../../utils/processing-scheduler.js';
@@ -52,6 +53,17 @@ export function useFileProcessing(onFileComplete?: () => void) {
       unsubscribe();
     };
   }, [onFileComplete]);
+
+  // Subscribe to file removal events
+  useEffect(() => {
+    const unsubscribe = window.electronAPI.onFileRemovedFromQueue((data: { filePath: string }) => {
+      setFiles(prev => removeFileByPath(prev, data.filePath));
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, []);
 
   // Process pending files whenever files array changes
   useEffect(() => {

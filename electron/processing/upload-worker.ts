@@ -162,6 +162,11 @@ export class UploadWorker {
           deleteFile(item.originalFilePath);
           console.log(`  Removed from database: ${item.originalFilePath}`);
 
+          // Notify UI that file was removed from queue
+          this.mainWindow?.webContents.send('file-removed-from-queue', {
+            filePath: item.originalFilePath
+          });
+
         } else if (result.rateLimitDuration) {
           // Rate limited - wait and retry
           const waitMs = (result.rateLimitDuration * 1000) + RATE_LIMIT_BUFFER;

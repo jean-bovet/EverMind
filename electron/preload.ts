@@ -92,6 +92,12 @@ const electronAPI = {
     const subscription = (_event: unknown, data: AugmentProgressData) => callback(data);
     ipcRenderer.on('augment-progress', subscription);
     return () => ipcRenderer.removeListener('augment-progress', subscription);
+  },
+
+  onFileRemovedFromQueue: (callback: (data: { filePath: string }) => void) => {
+    const subscription = (_event: unknown, data: { filePath: string }) => callback(data);
+    ipcRenderer.on('file-removed-from-queue', subscription);
+    return () => ipcRenderer.removeListener('file-removed-from-queue', subscription);
   }
 };
 

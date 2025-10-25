@@ -101,6 +101,16 @@ export function removeCompletedFiles(files: FileItem[]): FileItem[] {
 }
 
 /**
+ * Pure function: Remove a specific file by path
+ * @param files - Current file list
+ * @param filePath - Path of file to remove
+ * @returns New file list without the specified file
+ */
+export function removeFileByPath(files: FileItem[], filePath: string): FileItem[] {
+  return files.filter(f => f.path !== filePath);
+}
+
+/**
  * Pure function: Clear all files
  * @returns Empty file list
  */
