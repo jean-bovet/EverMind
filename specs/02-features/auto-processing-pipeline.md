@@ -1,7 +1,7 @@
 # Auto-Processing Pipeline
 
 > **Type:** Feature
-> **Last Updated:** January 2025
+> **Last Updated:** October 2025
 > **Status:** Implemented
 
 **Related:** [SQLite Database](./sqlite-database.md), [Testing Strategy](../03-development/testing-strategy.md)

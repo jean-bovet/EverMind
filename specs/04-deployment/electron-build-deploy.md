@@ -1,7 +1,7 @@
 # Build and Deployment Guide
 
 > **Type:** Deployment Guide
-> **Last Updated:** January 2025
+> **Last Updated:** October 2025
 
 Guide for building, packaging, and distributing the Electron application.
 

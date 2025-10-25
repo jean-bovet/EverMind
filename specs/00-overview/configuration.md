@@ -1,7 +1,7 @@
 # Configuration Reference
 
 > **Type:** Reference
-> **Last Updated:** January 2025
+> **Last Updated:** October 2025
 
 Complete reference for application configuration via environment variables.
 

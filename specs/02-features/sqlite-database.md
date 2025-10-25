@@ -1,35 +1,14 @@
 # SQLite Database Queue
 
 > **Type:** Feature
-> **Last Updated:** January 2025
+> **Last Updated:** October 2025
 > **Status:** Implemented
 
 ## What It Is
 
-The app uses a SQLite database to manage the file processing queue, replacing the previous JSON file-based system. This provides better performance, reliability, and centralized management.
+The app uses a SQLite database to manage the file processing queue and note augmentation cache. This provides fast queries, reliable state persistence, and centralized data management.
 
-## Problem Statement (Pre-SQLite)
-
-### JSON File System Issues
-
-1. **Path Collision Bug**
-   - Files with similar names caused processing errors
-   - Example: `plain.txt` and `plain.txt.evernote.json` conflicted
-   - `.evernote.json` files could be accidentally processed as input
-
-2. **Directory Clutter**
-   - One `.evernote.json` file next to each processed file
-   - Polluted user's file system
-   - Difficult to clean up
-
-3. **No Centralized Management**
-   - Had to recursively scan directories
-   - No efficient status queries
-   - No atomic operations (risk of corruption)
-
-## Solution: SQLite Database
-
-### Database Location
+## Database Location
 
 ```
 macOS:   ~/Library/Application Support/evernote-ai-importer/queue.db
@@ -39,7 +18,7 @@ Windows: %APPDATA%/evernote-ai-importer/queue.db
 
 Determined by: `app.getPath('userData')` in Electron
 
-### Schema Overview
+## Schema Overview
 
 **Tables:**
 
@@ -62,7 +41,7 @@ Determined by: `app.getPath('userData')` in Electron
 
 **Full schema:** `electron/database/schema.sql`
 
-### Database Module API
+## Database Module API
 
 **File:** `electron/database/queue-db.ts`
 
@@ -99,17 +78,17 @@ Determined by: `app.getPath('userData')` in Electron
 ## Benefits
 
 ### Performance
-- **Fast Queries:** Indexed lookups vs full directory scans
-- **Atomic Operations:** ACID guarantees prevent corruption
-- **Caching:** AI analysis results cached by content hash (24hr TTL)
+- **Fast Queries:** Indexed lookups for efficient status filtering
+- **Atomic Operations:** ACID guarantees prevent data corruption
+- **AI Analysis Caching:** Results cached by content hash (24hr TTL)
 
 ### Reliability
-- **No Path Collisions:** Unique constraint on file_path
+- **Unique Constraints:** Prevents duplicate file paths
 - **Transaction Support:** Multiple updates in single transaction
 - **Automatic Migrations:** Schema versioning built-in
 
 ### User Experience
-- **Clean File System:** No scattered JSON files
+- **Persistent State:** Queue survives app restarts
 - **Centralized View:** Single database for all queue data
 - **Better Error Handling:** Detailed error messages and retry logic
 
@@ -218,31 +197,12 @@ See [Testing Strategy](../03-development/testing-strategy.md) for comprehensive 
 
 **Key Test Scenarios:**
 - Concurrent file additions
-- Path collision handling
 - Retry time calculations
 - Cache expiry
 - Database migrations
+- Error handling
 
 **Test Database:** Uses `:memory:` database for fast, isolated tests.
-
-## Migration Notes
-
-### From JSON to SQLite
-
-**Migration Script:** `electron/database/migrate-json-to-sqlite.ts`
-
-One-time migration that:
-1. Scans for `.evernote.json` files
-2. Imports data into SQLite
-3. Optionally deletes JSON files
-4. Preserves all metadata (tags, timestamps, note URLs)
-
-**Run migration:**
-```bash
-npm run migrate-json
-```
-
-**Note:** Migration only needed once per installation. New installations start with SQLite.
 
 ## Performance Metrics
 
@@ -276,15 +236,18 @@ npm run migrate-json
 - **Export** - Export queue data to CSV/JSON
 - **Batch operations** - Bulk status updates, retries
 
-## Technical Reference
+## Source Files
 
-**Source Files:**
+**Database:**
 - `electron/database/queue-db.ts` - Database operations
 - `electron/database/schema.sql` - Schema definition
+
+**Utilities:**
 - `electron/utils/db-to-ui-mapper.ts` - UI data transformation
 - `electron/processing/processing-scheduler.ts` - Auto-processing logic
+
+**Tests:**
 - `tests/unit/queue-db.test.ts` - Comprehensive test suite (32 tests)
 
 **Dependencies:**
-- `better-sqlite3` - Synchronous SQLite bindings for Node.js
-- Fast, reliable, no async complexity
+- `better-sqlite3` - Synchronous SQLite bindings for Node.js (fast, reliable, no async complexity)

@@ -1,7 +1,7 @@
 # UI Components Reference
 
 > **Type:** Reference
-> **Last Updated:** January 2025
+> **Last Updated:** October 2025
 
 Reference for UI components, design system, and layout patterns.
 

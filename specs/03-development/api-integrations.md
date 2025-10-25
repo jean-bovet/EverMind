@@ -1,7 +1,7 @@
 # API Integrations
 
 > **Type:** Development Guide
-> **Last Updated:** January 2025
+> **Last Updated:** October 2025
 
 Reference for external API integrations used by the app.
 

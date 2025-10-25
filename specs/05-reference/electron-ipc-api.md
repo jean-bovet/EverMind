@@ -1,7 +1,7 @@
 # IPC API Reference
 
 > **Type:** API Reference
-> **Last Updated:** January 2025
+> **Last Updated:** October 2025
 
 Complete reference for the IPC API between Renderer (React UI) and Main process (Node.js). API exposed via `window.electronAPI` through the preload script.
 

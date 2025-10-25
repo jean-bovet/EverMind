@@ -1,7 +1,7 @@
 # Note Augmentation
 
 > **Type:** Feature
-> **Last Updated:** January 2025
+> **Last Updated:** October 2025
 > **Status:** Implemented
 
 ## What It Is
@@ -49,8 +49,6 @@ When you augment a note:
 - Only matching tags applied to notes
 - Prevents creation of unwanted/invalid tags
 - Works for both fresh analysis and cached results
-
-**Bug Fix (January 2025):** Previous versions saved unfiltered AI tags to cache, causing invalid tags on cache hits. Both cache save and retrieval now properly filter tags.
 
 ## User Flow
 

@@ -1,7 +1,7 @@
 # Unified List View
 
 > **Type:** Feature
-> **Last Updated:** January 2025
+> **Last Updated:** October 2025
 > **Implemented:** Yes
 
 ## What It Is
