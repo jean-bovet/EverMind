@@ -5,7 +5,7 @@
 
 ## Overview
 
-This document describes the architecture of the Evernote AI Importer Electron application, which provides a graphical interface for importing files to Evernote with AI-generated metadata using local Ollama models.
+This document describes the architecture of the EverMind Electron application, which provides a graphical interface for importing files to Evernote with AI-generated metadata using local Ollama models.
 
 ## Design Principles
 
@@ -294,7 +294,7 @@ See [IPC API Reference](../05-reference/electron-ipc-api.md) for complete API.
 ## File Structure
 
 ```
-evernote-ai-importer/
+evermind/
 ├── electron/                    # Electron-specific code
 │   ├── main.ts                  # Main process entry
 │   ├── preload.ts               # IPC bridge

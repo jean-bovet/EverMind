@@ -287,7 +287,7 @@ ${downloadedFiles.map(f => `- ${f}`).join('\n')}
 - Attachments: ${note.resources?.length || 0}
 
 ---
-Downloaded using Evernote AI Importer test script
+Downloaded using EverMind test script
 `;
 
     const readmePath = path.join(folderPath, 'README.txt');

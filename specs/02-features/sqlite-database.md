@@ -11,9 +11,9 @@ The app uses a SQLite database to manage the file processing queue and note augm
 ## Database Location
 
 ```
-macOS:   ~/Library/Application Support/evernote-ai-importer/queue.db
-Linux:   ~/.config/evernote-ai-importer/queue.db
-Windows: %APPDATA%/evernote-ai-importer/queue.db
+macOS:   ~/Library/Application Support/evermind/queue.db
+Linux:   ~/.config/evermind/queue.db
+Windows: %APPDATA%/evermind/queue.db
 ```
 
 Determined by: `app.getPath('userData')` in Electron

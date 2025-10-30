@@ -1,5 +1,5 @@
 {
-  "name": "evernote-ai-importer",
+  "name": "evermind",
   "version": "1.0.0",
   "description": "Import files to Evernote with AI-generated descriptions and tags using local Ollama",
   "main": "dist-electron/main.js",

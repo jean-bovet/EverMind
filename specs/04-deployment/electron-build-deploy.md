@@ -23,7 +23,7 @@ Guide for building, packaging, and distributing the Electron application.
 ### Installation
 
 ```bash
-cd evernote-ai-importer
+cd evermind
 npm install
 ```
 
@@ -69,9 +69,9 @@ npm run electron:build
 **Output:**
 ```
 release/
-├── evernote-ai-importer-1.0.0.dmg       # Installer
-├── evernote-ai-importer-1.0.0-arm64.dmg # Apple Silicon
-└── mac/evernote-ai-importer.app         # Unpacked app
+├── evermind-1.0.0.dmg       # Installer
+├── evermind-1.0.0-arm64.dmg # Apple Silicon
+└── mac/evermind.app         # Unpacked app
 ```
 
 ### Build for Specific Platform
@@ -97,8 +97,8 @@ npm run electron:build -- --mac --universal
 **Key Settings:**
 ```json
 {
-  "appId": "com.yourcompany.evernote-ai-importer",
-  "productName": "Evernote AI Importer",
+  "appId": "com.yourcompany.evermind",
+  "productName": "EverMind",
   "directories": {
     "output": "release",
     "buildResources": "build"
@@ -186,7 +186,7 @@ exports.default = async function notarizing(context) {
   const appName = context.packager.appInfo.productFilename;
 
   return await notarize({
-    appBundleId: 'com.yourcompany.evernote-ai-importer',
+    appBundleId: 'com.yourcompany.evermind',
     appPath: `${appOutDir}/${appName}.app`,
     appleId: process.env.APPLE_ID,
     appleIdPassword: process.env.APPLE_ID_PASSWORD,
@@ -227,23 +227,23 @@ npm install --build-from-source
 
 ```bash
 # Open DMG
-open release/evernote-ai-importer-1.0.0.dmg
+open release/evermind-1.0.0.dmg
 
 # Or install to /Applications
-cp -R release/mac/evernote-ai-importer.app /Applications/
+cp -R release/mac/evermind.app /Applications/
 ```
 
 ### Verify Code Signing
 
 ```bash
 # Check signature
-codesign --verify --deep --strict release/mac/evernote-ai-importer.app
+codesign --verify --deep --strict release/mac/evermind.app
 
 # Display certificate
-codesign -dv --verbose=4 release/mac/evernote-ai-importer.app
+codesign -dv --verbose=4 release/mac/evermind.app
 
 # Check notarization
-spctl -a -vv release/mac/evernote-ai-importer.app
+spctl -a -vv release/mac/evermind.app
 ```
 
 ## Distribution
@@ -264,7 +264,7 @@ spctl -a -vv release/mac/evernote-ai-importer.app
 ```bash
 # Create release with gh CLI
 gh release create v1.0.0 \
-  release/evernote-ai-importer-1.0.0.dmg \
+  release/evermind-1.0.0.dmg \
   --title "Version 1.0.0" \
   --notes "Initial release"
 ```

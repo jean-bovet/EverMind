@@ -1,4 +1,4 @@
-# Evernote AI Importer
+# EverMind
 
 An Electron desktop application that analyzes files using local AI (Ollama) and imports them to Evernote with automatically generated descriptions and tags. Also augments existing Evernote notes with AI-powered analysis.
 
@@ -28,8 +28,8 @@ An Electron desktop application that analyzes files using local AI (Ollama) and 
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/yourusername/evernote-ai-importer.git
-   cd evernote-ai-importer
+   git clone https://github.com/yourusername/evermind.git
+   cd evermind
    ```
 
 2. Install dependencies:

@@ -1,11 +1,11 @@
-# Evernote AI Importer
+# EverMind
 
 > **Type:** Overview
 > **Last Updated:** October 2025
 
 ## What It Is
 
-The Evernote AI Importer is an Electron desktop application that automatically analyzes files using local AI and imports them into Evernote with intelligently generated metadata. The application prioritizes user privacy by processing all AI analysis locally through Ollama, ensuring no file content is sent to external services.
+EverMind is an Electron desktop application that automatically analyzes files using local AI and imports them into Evernote with intelligently generated metadata. The application prioritizes user privacy by processing all AI analysis locally through Ollama, ensuring no file content is sent to external services.
 
 ## Problem Statement
 
@@ -19,7 +19,7 @@ This process is time-consuming and often leads to inconsistent tagging and incom
 
 ## Solution
 
-The Evernote AI Importer automates this entire workflow by:
+EverMind automates this entire workflow by:
 1. Extracting text content from various file formats (PDF, Word, images, text files)
 2. Analyzing content using local AI (Ollama) to generate concise descriptions
 3. Intelligently selecting tags from existing Evernote tags to maintain consistency

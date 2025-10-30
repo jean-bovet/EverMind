@@ -30,7 +30,7 @@ Ollama Status Check
  +--------------------------------------+
  | Welcome Wizard - Step 1              |
  |                                      |
- | Welcome to Evernote AI Importer      |
+ | Welcome to EverMind                  |
  |                                      |
  | This app uses Ollama to analyze your |
  | files locally with AI. Let's get you |
@@ -126,7 +126,7 @@ Main App Screen
     v
 
  +--------------------------------------+
- | Evernote AI Importer          [gear]|
+ | EverMind                      [gear]|
  |                                      |
  |  Drop files or folders here          |
  |                                      |
@@ -148,7 +148,7 @@ File Added to Queue
          v
 
  +--------------------------------------+
- | Evernote AI Importer          [gear]|
+ | EverMind                      [gear]|
  |                                      |
  |  1 file in queue                     |
  |                                      |
@@ -402,7 +402,7 @@ Tab Switches to Augment View
     v
 
  +--------------------------------------+
- | Evernote AI Importer          [gear]|
+ | EverMind                      [gear]|
  |                                      |
  | [Import Files] [Augment Notes]       |
  |     (active tab underlined)          |

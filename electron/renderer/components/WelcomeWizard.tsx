@@ -62,7 +62,7 @@ export default function WelcomeWizard({ onComplete, onSkip }: WelcomeWizardProps
     return (
       <div className="welcome-wizard">
         <div style={{ fontSize: 64, marginBottom: 24 }}>🚀</div>
-        <h2>Welcome to Evernote AI Importer</h2>
+        <h2>Welcome to EverMind</h2>
         <p>
           This app uses Ollama to analyze your files locally with AI.
           Let's get you set up in just a few steps.

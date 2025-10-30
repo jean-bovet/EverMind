@@ -25,7 +25,7 @@ const TopBar: React.FC<TopBarProps> = ({
 
   return (
     <div className="top-bar">
-      <h1>Evernote AI Importer</h1>
+      <h1>EverMind</h1>
 
       <div className="top-bar-controls">
         <div className="notebook-selector">

@@ -1,6 +1,6 @@
-# Evernote AI Importer Documentation
+# EverMind Documentation
 
-Welcome to the comprehensive documentation for the Evernote AI Importer. This app automatically analyzes files using local AI (Ollama) and imports them to Evernote with intelligent metadata.
+Welcome to the comprehensive documentation for EverMind. This app automatically analyzes files using local AI (Ollama) and imports them to Evernote with intelligent metadata.
 
 ## Quick Start
 

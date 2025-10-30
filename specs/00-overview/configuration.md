@@ -89,9 +89,9 @@ These settings are stored via `electron-store` and configured through the Settin
 - Authentication state (token stored in `.evernote-token` file)
 
 **Location:** Platform-specific app data directory
-- macOS: `~/Library/Application Support/evernote-ai-importer/`
-- Linux: `~/.config/evernote-ai-importer/`
-- Windows: `%APPDATA%/evernote-ai-importer/`
+- macOS: `~/Library/Application Support/evermind/`
+- Linux: `~/.config/evermind/`
+- Windows: `%APPDATA%/evermind/`
 
 ## File Storage
 

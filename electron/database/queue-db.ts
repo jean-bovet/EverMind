@@ -11,7 +11,7 @@ export const NOTE_CACHE_EXPIRY_MS = process.env['NOTE_CACHE_HOURS']
   : 24 * 60 * 60 * 1000;
 
 // Inline SQL schema (avoids file loading issues in bundled electron app)
-const schemaSQL = `-- Queue database schema for Evernote AI Importer
+const schemaSQL = `-- Queue database schema for EverMind
 -- Stores file processing queue and metadata
 
 CREATE TABLE IF NOT EXISTS files (

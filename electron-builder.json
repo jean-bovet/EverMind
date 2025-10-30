@@ -1,6 +1,6 @@
 {
-  "appId": "com.evernote.ai-importer",
-  "productName": "Evernote AI Importer",
+  "appId": "com.evermind",
+  "productName": "EverMind",
   "directories": {
     "output": "release",
     "buildResources": "assets"
