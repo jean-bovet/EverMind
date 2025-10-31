@@ -29,9 +29,10 @@ Reference for external API integrations used by the app.
 
 **Flow Overview:**
 1. Request temporary token
-2. User authorizes in browser
-3. Exchange verifier for access token
-4. Store token for future use
+2. User authorizes in BrowserWindow
+3. Intercept callback URL and extract verifier
+4. Exchange verifier for access token
+5. Store token for future use
 
 **Implementation:** `electron/evernote/oauth-helper.ts`
 
@@ -41,23 +42,46 @@ Reference for external API integrations used by the app.
    ```typescript
    client.getRequestToken(callbackUrl, callback)
    // Returns: oauthToken, oauthTokenSecret
+   // callbackUrl: 'http://localhost:53546/callback'
    ```
 
-2. **User Authorization:**
-   - App opens browser to: `{endpoint}/OAuth.action?oauth_token={token}`
-   - User authorizes and receives verifier code
-   - User copies verifier back to app
+2. **User Authorization (BrowserWindow):**
+   - App opens BrowserWindow to: `{endpoint}/OAuth.action?oauth_token={token}`
+   - User authorizes on Evernote's website
+   - Evernote redirects to callback URL with verifier: `http://localhost:53546/callback?oauth_token=xxx&oauth_verifier=yyy`
+   - App intercepts callback using `session.webRequest.onBeforeRequest()`
+   - Verifier is automatically extracted from URL parameters
+   - Window closes automatically after successful extraction
 
-3. **Access Token Exchange:**
+3. **Callback Interception:**
+   ```typescript
+   const filter = { urls: [callbackUrl + '*'] };
+   session.webRequest.onBeforeRequest(filter, (details, callback) => {
+     const url = new URL(details.url);
+     const oauthVerifier = url.searchParams.get('oauth_verifier');
+     if (oauthVerifier) {
+       authWindow.close();
+       resolve(oauthVerifier);
+     }
+     callback({ cancel: true }); // Cancel request (no server needed)
+   });
+   ```
+
+4. **Access Token Exchange:**
    ```typescript
    client.getAccessToken(oauthToken, oauthTokenSecret, verifier, callback)
    // Returns: oauthAccessToken (long-lived)
    ```
 
-4. **Token Storage:**
-   - Saved to `.evernote-token` file (git-ignored)
+5. **Token Storage:**
+   - Saved to user data directory: `app.getPath('userData')/.evernote-token`
    - Plain text storage (user-only permissions)
    - Token format: `S=s1:U=xxx:E=xxx:C=xxx:P=xxx:A=xxx:V=2:H=xxx`
+   - Persists across app updates (stored outside app bundle)
+
+**Authentication Methods:**
+- `authenticateWithWindow()` - **Recommended** for distributed apps (uses BrowserWindow)
+- `authenticate()` - CLI-based flow (requires terminal, not suitable for packaged apps)
 
 ### API Operations
 
@@ -223,15 +247,26 @@ Complete reference in [Configuration](../00-overview/configuration.md).
 ## Security Considerations
 
 **Token Storage:**
-- `.evernote-token` file is git-ignored
+- Token file stored in user data directory: `app.getPath('userData')/.evernote-token`
+- macOS location: `~/Library/Application Support/EverMind/.evernote-token`
 - Plain text (no encryption)
 - User-only read permissions (chmod 600)
 - Never logged or transmitted except to Evernote
+- Persists across app updates and reinstalls
 
-**API Keys:**
-- Consumer key/secret in `.env` file
+**API Keys (Build-Time Injection):**
+- Consumer key/secret in `.env` file (development only)
 - Git-ignored, must be manually configured
 - Never committed to repository
+- Injected into `electron/config/runtime-config.ts` at build time via `scripts/generate-config.js`
+- Runtime config is also git-ignored
+- Distributed apps contain embedded credentials (secure for API keys, not secrets)
+
+**OAuth Callback Security:**
+- Uses localhost callback URL (`http://localhost:53546/callback`)
+- No actual server required (webRequest interception)
+- Request cancelled immediately after verifier extraction
+- Window closes automatically on success
 
 **Local AI:**
 - All AI processing via local Ollama

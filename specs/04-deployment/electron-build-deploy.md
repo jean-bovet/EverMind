@@ -60,11 +60,61 @@ npm run electron:build
 ```
 
 **Build Steps:**
-1. Clean previous builds
-2. Compile TypeScript (`tsc`) → `dist/`
-3. Build renderer (`vite build`) → `dist-renderer/`
-4. Build main process → `dist-electron/`
-5. Package with electron-builder → `release/`
+1. Generate runtime config from `.env` (credential injection)
+2. Clean previous builds
+3. Compile TypeScript (`tsc`) → `dist/`
+4. Build renderer (`vite build`) → `dist-renderer/`
+5. Build main process → `dist-electron/`
+6. Package with electron-builder → `release/`
+
+### Credential Injection System
+
+**Problem:** API credentials in `.env` file are not included in packaged app.
+
+**Solution:** Build-time code generation that embeds credentials into TypeScript source.
+
+**Implementation:**
+
+1. **Development Setup:**
+   - Create `.env` file with credentials (git-ignored)
+   - Example:
+     ```bash
+     EVERNOTE_CONSUMER_KEY=your-key-here
+     EVERNOTE_CONSUMER_SECRET=your-secret-here
+     EVERNOTE_ENDPOINT=https://www.evernote.com
+     ```
+
+2. **Build Script (`scripts/generate-config.js`):**
+   - Reads `.env` file
+   - Validates required credentials exist
+   - Generates `electron/config/runtime-config.ts`:
+     ```typescript
+     export const EVERNOTE_CONSUMER_KEY = 'your-key-here';
+     export const EVERNOTE_CONSUMER_SECRET = 'your-secret-here';
+     export const EVERNOTE_ENDPOINT = 'https://www.evernote.com';
+     ```
+   - This file is git-ignored and generated on every build
+
+3. **Source Code Integration:**
+   - Code imports from `runtime-config.ts` instead of `process.env`:
+     ```typescript
+     import { EVERNOTE_CONSUMER_KEY, EVERNOTE_CONSUMER_SECRET } from '../config/runtime-config.js';
+     ```
+   - Works in both development and production
+
+4. **Package.json Scripts:**
+   ```json
+   {
+     "predev": "node scripts/generate-config.js",
+     "build": "node scripts/generate-config.js && tsc && vite build && electron-builder"
+   }
+   ```
+
+**Security Notes:**
+- `.env` file stays local (never committed)
+- `runtime-config.ts` also git-ignored
+- Built app contains embedded credentials (secure for API keys, not user secrets)
+- Example file provided: `electron/config/runtime-config.example.ts`
 
 **Output:**
 ```

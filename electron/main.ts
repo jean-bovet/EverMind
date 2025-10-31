@@ -4,7 +4,7 @@ import path from 'node:path';
 import Store from 'electron-store';
 import { getOllamaDetector } from './ai/ollama-detector.js';
 import { processFile, processBatch, analyzeFile } from './processing/file-processor.js';
-import { hasToken, authenticate, removeToken } from './evernote/oauth-helper.js';
+import { hasToken, authenticateWithWindow, removeToken } from './evernote/oauth-helper.js';
 import {
   listTags,
   listNotebooks,
@@ -213,10 +213,10 @@ ipcMain.handle('download-model', async (_event, modelName: string) => {
 
 // Evernote IPC handlers
 ipcMain.handle('authenticate-evernote', async () => {
-  const result = await authenticate();
+  const result = await authenticateWithWindow();
 
   // Initialize tag cache after successful authentication
-  // authenticate() returns the token string on success
+  // authenticateWithWindow() returns the token string on success
   if (result) {
     try {
       await tagCache.initialize();

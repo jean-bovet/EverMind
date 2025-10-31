@@ -8,6 +8,7 @@ import path from 'path';
 import os from 'os';
 import { parseEvernoteError } from '../utils/rate-limit-helpers.js';
 import type { ProgressReporter } from '../core/progress-reporter.js';
+import { EVERNOTE_ENDPOINT } from '../config/runtime-config.js';
 
 export interface AugmentationResult {
   success: boolean;
@@ -34,7 +35,7 @@ export async function augmentNote(
   noteGuid: string,
   reporter: ProgressReporter
 ): Promise<AugmentationResult> {
-  const endpoint = process.env['EVERNOTE_ENDPOINT'] || 'https://www.evernote.com';
+  const endpoint = EVERNOTE_ENDPOINT;
 
   const sendProgress = (data: Partial<AugmentProgressData>) => {
     reporter.reportAugmentProgress({

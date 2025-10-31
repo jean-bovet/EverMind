@@ -4,9 +4,10 @@ import { CheckCircle2 } from 'lucide-react';
 interface SettingsProps {
   onClose: () => void;
   onOllamaStatusChange: () => void;
+  onAuthSuccess?: () => void;
 }
 
-export default function Settings({ onClose, onOllamaStatusChange }: SettingsProps) {
+export default function Settings({ onClose, onOllamaStatusChange, onAuthSuccess }: SettingsProps) {
   const [ollamaModel, setOllamaModel] = useState('mistral');
   const [isAuthenticating, setIsAuthenticating] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -36,6 +37,8 @@ export default function Settings({ onClose, onOllamaStatusChange }: SettingsProp
     try {
       await window.electronAPI.authenticateEvernote();
       await checkAuth();
+      // Notify parent component to reload notebooks
+      onAuthSuccess?.();
     } catch (error) {
       console.error('Authentication error:', error);
     } finally {

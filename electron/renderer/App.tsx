@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { AlertTriangle } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
 import UnifiedList from './components/UnifiedList';
 import Settings from './components/Settings';
 import WelcomeWizard from './components/WelcomeWizard';
@@ -17,6 +18,7 @@ import { useOllamaStatus } from './hooks/useOllamaStatus.js';
 
 function App() {
   const [showSettings, setShowSettings] = useState(false);
+  const queryClient = useQueryClient();
 
   // Use custom hooks for state management
   const { ollamaStatus, showWelcome, setShowWelcome, checkOllamaStatus } = useOllamaStatus();
@@ -101,6 +103,11 @@ function App() {
     }
   };
 
+  const handleAuthSuccess = () => {
+    // Invalidate notebooks query to trigger a refetch
+    queryClient.invalidateQueries({ queryKey: ['notebooks'] });
+  };
+
   // Count completed files for clear button
   const completedCount = files.filter(f => f.status === 'complete').length;
 
@@ -168,6 +175,7 @@ function App() {
         <Settings
           onClose={() => setShowSettings(false)}
           onOllamaStatusChange={checkOllamaStatus}
+          onAuthSuccess={handleAuthSuccess}
         />
       )}
     </div>

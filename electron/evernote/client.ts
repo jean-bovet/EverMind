@@ -9,6 +9,7 @@ import {
   createResource,
   createMD5Hash
 } from './enml-helpers.js';
+import { EVERNOTE_ENDPOINT } from '../config/runtime-config.js';
 
 /**
  * Create a note in Evernote with the file and AI-generated metadata
@@ -25,7 +26,7 @@ export async function createNote(
   tags: string[]
 ): Promise<{ noteUrl: string; noteGuid: string }> {
   const token = await getToken();
-  const endpoint = process.env['EVERNOTE_ENDPOINT'] || 'https://www.evernote.com';
+  const endpoint = EVERNOTE_ENDPOINT;
 
   if (!token) {
     throw new Error('Not authenticated. Please run: node index.js --auth');
@@ -150,7 +151,7 @@ export async function createNote(
  */
 export async function listNotebooks(): Promise<Evernote.Types.Notebook[]> {
   const token = await getToken();
-  const endpoint = process.env['EVERNOTE_ENDPOINT'] || 'https://www.evernote.com';
+  const endpoint = EVERNOTE_ENDPOINT;
 
   if (!token) {
     throw new Error('Not authenticated. Please run OAuth authentication first');
@@ -193,7 +194,7 @@ export async function listNotesInNotebook(
   limit: number = 50
 ): Promise<Evernote.NoteStore.NoteMetadata[]> {
   const token = await getToken();
-  const endpoint = process.env['EVERNOTE_ENDPOINT'] || 'https://www.evernote.com';
+  const endpoint = EVERNOTE_ENDPOINT;
 
   if (!token) {
     throw new Error('Not authenticated. Please run OAuth authentication first');
@@ -248,7 +249,7 @@ export async function listNotesInNotebook(
  */
 export async function getNoteWithContent(noteGuid: string): Promise<Evernote.Types.Note> {
   const token = await getToken();
-  const endpoint = process.env['EVERNOTE_ENDPOINT'] || 'https://www.evernote.com';
+  const endpoint = EVERNOTE_ENDPOINT;
 
   if (!token) {
     throw new Error('Not authenticated. Please run OAuth authentication first');
@@ -303,7 +304,7 @@ export async function updateNote(
   updatedTags?: string[]
 ): Promise<Evernote.Types.Note> {
   const token = await getToken();
-  const endpoint = process.env['EVERNOTE_ENDPOINT'] || 'https://www.evernote.com';
+  const endpoint = EVERNOTE_ENDPOINT;
 
   if (!token) {
     throw new Error('Not authenticated. Please run OAuth authentication first');
@@ -400,7 +401,7 @@ export async function updateNote(
  */
 export async function getNoteApplicationData(noteGuid: string): Promise<Record<string, string>> {
   const token = await getToken();
-  const endpoint = process.env['EVERNOTE_ENDPOINT'] || 'https://www.evernote.com';
+  const endpoint = EVERNOTE_ENDPOINT;
 
   if (!token) {
     throw new Error('Not authenticated. Please run OAuth authentication first');
@@ -438,7 +439,7 @@ export async function getNoteApplicationData(noteGuid: string): Promise<Record<s
  */
 export async function listTags(): Promise<string[]> {
   const token = await getToken();
-  const endpoint = process.env['EVERNOTE_ENDPOINT'] || 'https://www.evernote.com';
+  const endpoint = EVERNOTE_ENDPOINT;
 
   if (!token) {
     throw new Error('Not authenticated. Please run: node index.js --auth');
@@ -488,7 +489,7 @@ export async function listTags(): Promise<string[]> {
  */
 export async function checkNoteExists(noteGuid: string): Promise<boolean> {
   const token = await getToken();
-  const endpoint = process.env['EVERNOTE_ENDPOINT'] || 'https://www.evernote.com';
+  const endpoint = EVERNOTE_ENDPOINT;
 
   if (!token) {
     throw new Error('Not authenticated. Please run OAuth authentication first');
