@@ -5,8 +5,7 @@
  * Provides a single source of truth for file state updates.
  */
 
-import type { Database as BetterSqlite3Database } from 'better-sqlite3';
-import type { ProgressReporter, FileProgressData } from './progress-reporter.js';
+import type { ProgressReporter } from './progress-reporter.js';
 import type { EventBus } from './event-bus.js';
 import type { FileStatus } from '../database/queue-db.js';
 import {
@@ -76,13 +75,8 @@ export class FileStateManager {
   updateStatus(update: FileStatusUpdate): void {
     const { filePath, status, progress, message } = update;
 
-    // Update database
-    dbUpdateFileStatus(filePath, status);
-
-    // If progress is provided, update it as well
-    if (progress !== undefined) {
-      dbUpdateFileProgress(filePath, progress);
-    }
+    // Update database (status, progress, and optional message)
+    dbUpdateFileStatus(filePath, status, progress ?? 0, message);
 
     // Get current file state for complete data
     const fileRecord = getFile(filePath);
@@ -242,27 +236,27 @@ export class NullFileStateManager extends FileStateManager {
     });
   }
 
-  addFile(_filePath: string): void {
+  override addFile(_filePath: string): void {
     // Do nothing
   }
 
-  updateStatus(_update: FileStatusUpdate): void {
+  override updateStatus(_update: FileStatusUpdate): void {
     // Do nothing
   }
 
-  updateProgress(_filePath: string, _progress: number, _message?: string): void {
+  override updateProgress(_filePath: string, _progress: number, _message?: string): void {
     // Do nothing
   }
 
-  updateResult(_update: FileResultUpdate): void {
+  override updateResult(_update: FileResultUpdate): void {
     // Do nothing
   }
 
-  setError(_filePath: string, _errorMessage: string): void {
+  override setError(_filePath: string, _errorMessage: string): void {
     // Do nothing
   }
 
-  deleteFile(_filePath: string): void {
+  override deleteFile(_filePath: string): void {
     // Do nothing
   }
 }

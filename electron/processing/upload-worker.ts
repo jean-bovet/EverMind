@@ -1,4 +1,3 @@
-import { BrowserWindow } from 'electron';
 import { uploadFile as defaultUploadFile, UploadResult } from './file-processor.js';
 import { getReadyToUploadFiles } from '../database/queue-db.js';
 import type { ProgressReporter } from '../core/progress-reporter.js';

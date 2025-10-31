@@ -11,7 +11,7 @@ import type { BrowserWindow } from 'electron';
 // Re-export types from preload for convenience
 export interface FileProgressData {
   filePath: string;
-  status: 'pending' | 'extracting' | 'analyzing' | 'ready-to-upload' | 'uploading' | 'rate-limited' | 'retrying' | 'complete' | 'error';
+  status: 'pending' | 'extracting' | 'analyzing' | 'saving' | 'ready-to-upload' | 'uploading' | 'rate-limited' | 'retrying' | 'complete' | 'error';
   progress: number;
   message?: string;
   error?: string;

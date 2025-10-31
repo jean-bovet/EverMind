@@ -287,6 +287,45 @@ export function updateFileUpload(filePath: string, noteUrl: string, noteGuid: st
 }
 
 /**
+ * Update file progress only (no status change)
+ */
+export function updateFileProgress(filePath: string, progress: number): void {
+  const database = getDatabase();
+
+  const stmt = database.prepare(`
+    UPDATE files
+    SET progress = ?
+    WHERE file_path = ?
+  `);
+
+  stmt.run(progress, filePath);
+}
+
+/**
+ * Update file with analysis results including optional note URL
+ */
+export function updateFileResult(
+  filePath: string,
+  title: string,
+  description: string,
+  tags: string[],
+  noteUrl?: string
+): void {
+  const database = getDatabase();
+
+  const stmt = database.prepare(`
+    UPDATE files
+    SET title = ?,
+        description = ?,
+        tags = ?,
+        note_url = ?
+    WHERE file_path = ?
+  `);
+
+  stmt.run(title, description, JSON.stringify(tags), noteUrl || null, filePath);
+}
+
+/**
  * Mark file as error
  */
 export function updateFileError(filePath: string, errorMessage: string): void {
@@ -302,6 +341,11 @@ export function updateFileError(filePath: string, errorMessage: string): void {
 
   stmt.run(errorMessage, filePath);
 }
+
+/**
+ * Alias for updateFileError (for compatibility)
+ */
+export const setFileError = updateFileError;
 
 /**
  * Update retry information after rate limit

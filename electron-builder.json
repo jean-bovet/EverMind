@@ -12,6 +12,10 @@
     "node_modules/**/*",
     "package.json"
   ],
+  "asarUnpack": [
+    "node_modules/@napi-rs/**/*",
+    "node_modules/better-sqlite3/**/*"
+  ],
   "mac": {
     "target": [
       "dmg",

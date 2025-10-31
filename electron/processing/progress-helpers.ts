@@ -4,6 +4,7 @@
  */
 
 export type ProcessingStage =
+  | 'pending'
   | 'extracting'
   | 'analyzing'
   | 'saving'
@@ -35,6 +36,7 @@ export interface ProgressData {
  */
 export function getStageProgress(stage: ProcessingStage): number {
   const progressMap: Record<ProcessingStage, number> = {
+    'pending': 0,
     'extracting': 25,
     'analyzing': 50,
     'saving': 90,
@@ -57,6 +59,7 @@ export function getStageProgress(stage: ProcessingStage): number {
  */
 export function getStageMessage(stage: ProcessingStage, rateLimitDuration?: number): string {
   const messageMap: Record<ProcessingStage, string> = {
+    'pending': 'Waiting to process...',
     'extracting': 'Extracting file content...',
     'analyzing': 'Analyzing with AI...',
     'saving': 'Saving analysis...',
