@@ -1,5 +1,7 @@
 # EverMind
 
+![CI](https://github.com/jean-bovet/evernote-ai-importer/actions/workflows/ci.yml/badge.svg)
+
 An Electron desktop application that analyzes files using local AI (Ollama) and imports them to Evernote with automatically generated descriptions and tags. Also augments existing Evernote notes with AI-powered analysis.
 
 ## Features
