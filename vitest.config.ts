@@ -6,7 +6,10 @@ export default defineConfig({
     globals: true,
     environment: 'node',
     include: ['tests/**/*.test.ts'],
-    setupFiles: ['./tests/mocks/electron.mock.ts'],
+    setupFiles: [
+      './tests/mocks/electron.mock.ts',
+      './tests/mocks/runtime-config.mock.ts',
+    ],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],
