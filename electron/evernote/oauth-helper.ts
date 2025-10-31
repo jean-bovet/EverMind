@@ -5,14 +5,20 @@ import readline from 'readline';
 import { app, BrowserWindow } from 'electron';
 import { EVERNOTE_CONSUMER_KEY, EVERNOTE_CONSUMER_SECRET, EVERNOTE_ENDPOINT } from '../config/runtime-config.js';
 
-const TOKEN_FILE = path.join(app.getPath('userData'), '.evernote-token');
+/**
+ * Get the path to the token file
+ * This is a function to avoid calling app.getPath at module load time (which breaks tests)
+ */
+function getTokenFilePath(): string {
+  return path.join(app.getPath('userData'), '.evernote-token');
+}
 
 /**
  * Check if OAuth token exists
  */
 export async function hasToken(): Promise<boolean> {
   try {
-    await fs.access(TOKEN_FILE);
+    await fs.access(getTokenFilePath());
     return true;
   } catch {
     return false;
@@ -24,7 +30,7 @@ export async function hasToken(): Promise<boolean> {
  */
 export async function getToken(): Promise<string | null> {
   try {
-    const token = await fs.readFile(TOKEN_FILE, 'utf8');
+    const token = await fs.readFile(getTokenFilePath(), 'utf8');
     return token.trim();
   } catch {
     return null;
@@ -36,7 +42,7 @@ export async function getToken(): Promise<string | null> {
  * @param token - OAuth access token
  */
 export async function saveToken(token: string): Promise<void> {
-  await fs.writeFile(TOKEN_FILE, token, 'utf8');
+  await fs.writeFile(getTokenFilePath(), token, 'utf8');
   console.log('Access token saved successfully!');
 }
 
@@ -278,7 +284,7 @@ export async function authenticateWithWindow(): Promise<string> {
  */
 export async function removeToken(): Promise<void> {
   try {
-    await fs.unlink(TOKEN_FILE);
+    await fs.unlink(getTokenFilePath());
     console.log('OAuth token removed successfully');
   } catch (error) {
     if (error instanceof Error && 'code' in error && error.code !== 'ENOENT') {
