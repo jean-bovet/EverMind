@@ -362,6 +362,42 @@ jobs:
 
 **Secrets Required:** APPLE_ID, APPLE_ID_PASSWORD, APPLE_TEAM_ID
 
+### Testing in CI
+
+**Challenge:** Tests need to run without `.env` file or `runtime-config.ts` (both gitignored).
+
+**Solution:** Vitest module aliasing automatically redirects runtime-config imports to test mocks.
+
+**Configuration:** See `vitest.config.ts` - uses `resolve.alias` to map:
+- `../config/runtime-config.js` → `tests/mocks/runtime-config-values.ts`
+- `../../config/runtime-config.js` → `tests/mocks/runtime-config-values.ts`
+
+**Result:**
+- Tests run successfully in CI without any environment setup
+- No need to generate config files or set environment variables
+- Same test behavior in local and CI environments
+
+**CI Test Workflow:**
+```yaml
+name: CI
+
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 20
+      - run: npm ci
+      - run: npm run test:unit
+      # No .env or credential setup needed - mocks handle it!
+```
+
+**Important:** Build workflow still requires credentials (via GitHub Secrets), but test workflow does not.
+
 ## Troubleshooting
 
 ### Build Errors

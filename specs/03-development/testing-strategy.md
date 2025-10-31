@@ -266,6 +266,53 @@ npm test -- tests/integration
 - UI components: 60%+ (integration tests cover these)
 - IPC handlers: 70%+ (mostly pass-through logic)
 
+## Test Configuration
+
+### Runtime Configuration Mocking
+
+**Challenge:** The `runtime-config.ts` file is auto-generated from `.env` and gitignored, causing CI test failures.
+
+**Solution:** Module aliasing in `vitest.config.ts`
+
+**Implementation:**
+```typescript
+// vitest.config.ts
+resolve: {
+  alias: {
+    '../config/runtime-config.js': path.resolve(__dirname, './tests/mocks/runtime-config-values.ts'),
+    '../../config/runtime-config.js': path.resolve(__dirname, './tests/mocks/runtime-config-values.ts'),
+  },
+}
+```
+
+**Mock File:** `tests/mocks/runtime-config-values.ts`
+```typescript
+export const EVERNOTE_CONSUMER_KEY = 'test-consumer-key';
+export const EVERNOTE_CONSUMER_SECRET = 'test-consumer-secret';
+export const EVERNOTE_ENDPOINT = 'https://sandbox.evernote.com';
+```
+
+**Why This Works:**
+- Vitest's `resolve.alias` redirects all imports of `runtime-config.js` to the mock file
+- Handles multiple relative path variants (`../config/...` and `../../config/...`)
+- Works in both local development (with or without the real file) and CI
+- No need for the `.env` file or generated config in test environments
+
+**Files Affected:**
+- `electron/evernote/client.ts` - Imports `EVERNOTE_ENDPOINT`
+- `electron/evernote/oauth-helper.ts` - Imports all three constants
+- `electron/evernote/note-augmenter.ts` - Imports `EVERNOTE_ENDPOINT`
+
+### Electron Module Mocking
+
+**Mock File:** `tests/mocks/electron.mock.ts`
+
+**Purpose:** Provides test doubles for Electron APIs that aren't available in Node.js test environment
+
+**Mocked APIs:**
+- `app.getPath()` - Returns temp directory paths for tests
+- `BrowserWindow` - Mock constructor for window management tests
+
 ## Continuous Integration
 
 ### Pre-commit Checks
@@ -277,6 +324,14 @@ npm test -- tests/integration
 - All tests pass on CI
 - Coverage report generated
 - Integration tests pass
+
+### CI Environment
+
+**Key Differences from Local:**
+- No `.env` file present
+- No `runtime-config.ts` generated
+- Fresh Node.js environment on each run
+- All tests must work without local configuration files
 
 ## Future Improvements
 
