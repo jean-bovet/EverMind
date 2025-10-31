@@ -8,7 +8,6 @@ export default defineConfig({
     include: ['tests/**/*.test.ts'],
     setupFiles: [
       './tests/mocks/electron.mock.ts',
-      './tests/mocks/runtime-config.mock.ts',
     ],
     coverage: {
       provider: 'v8',
@@ -35,6 +34,10 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './electron'),
+      // Redirect runtime-config imports to mock values for tests
+      // This handles the missing runtime-config.ts file in CI
+      '../config/runtime-config.js': path.resolve(__dirname, './tests/mocks/runtime-config-values.ts'),
+      '../../config/runtime-config.js': path.resolve(__dirname, './tests/mocks/runtime-config-values.ts'),
     },
   },
 });
